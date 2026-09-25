@@ -294,6 +294,8 @@
   const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down' };
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
+    // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (screen === 'editor') { if (e.code === 'Escape') showTitle(); return; }
     const k = KEYMAP[e.code];
     if (screen === 'play') {

@@ -179,6 +179,7 @@
         else if (undo.length) { redo.push(cur); restore(undo.pop()); }
         return;
       }
+      if (mod || ev.altKey) return;
       const step = 64 / cam.zoom;
       if (ev.code === 'ArrowLeft') cam.x -= step;
       if (ev.code === 'ArrowRight') cam.x += step;
