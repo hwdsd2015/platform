@@ -168,6 +168,8 @@
     W.shake = .35; W.emit('die');
   }
 
+  LF.kill = kill;
+
   // A hit: the apple shield soaks it (with a short grace period), otherwise the player dies.
   function hurt(W) {
     const p = W.player;
