@@ -4,6 +4,7 @@
   const TS = LF.TS = 32;
   const G = 2100, MAXFALL = 900, RUN = 250, JUMP = 700, SPRING = 1080;
   const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12, SINK = 55;
+  const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10 };
   const TAU = Math.PI * 2;
 
   // Fruit: touch to gain a power. Picked fruit grows back after REGROW seconds.
@@ -37,9 +38,10 @@
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 
-  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O';
+  // T and H are blink blocks (lowercase while switched off); < and > are conveyor belts.
+  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>';
   const isFloor = LF.isFloor = c => isSolid(c) || c === '=';
-  const blocksPlat = c => c === '#' || c === 'C' || c === 'O' || c === '|' || c === '^' || c === '=';
+  const blocksPlat = c => isSolid(c) || c === '|' || c === '^' || c === '=';
 
   function tile(W, tx, ty) {
     if (tx < 0 || tx >= W.w) return '#';
@@ -59,7 +61,7 @@
     const tiles = rows.map(r => r.split('').map(c => (c === '.' ? ' ' : c)));
     const W = {
       def, name: def.name || 'Untitled', dark: def.dark ?? .6, w, h, tiles,
-      lanterns: [], fruits: [], enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
+      lanterns: [], fruits: [], ammo: [], blinks: [], bullets: [], enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
       door: null, start: { tx: 1, ty: h - 2 }, clock: 0, time: 0, falls: 0, shake: 0,
       deadTimer: 0, cleared: false, events: [],
     };
@@ -67,6 +69,8 @@
       const c = tiles[y][x];
       if (c === 'P') { W.start = { tx: x, ty: y }; tiles[y][x] = ' '; }
       else if (c === 'L') { W.lanterns.push({ tx: x, ty: y, x: x * TS + 16, y: y * TS + 14, lit: false, f: (x * 7 + y * 3) % 9, pop: 0 }); tiles[y][x] = ' '; }
+      else if (AMMO[c]) { W.ammo.push({ big: c === 'Q', n: AMMO[c], tx: x, ty: y, x: x * TS + 16, y: y * TS + 20, taken: false }); tiles[y][x] = ' '; }
+      else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
       else if (c === 'D') { W.door = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: false, glow: 0 }; tiles[y][x] = ' '; }
       else if (c === 'M' || c === 'V') {
@@ -81,6 +85,7 @@
     W.total = W.lanterns.length;
     if (W.door && !W.total) W.door.open = true;
     W.checkpoint = { ...W.start };
+    W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
     W.emit = (type, data) => W.events.push({ type, data });
     return W;
@@ -102,10 +107,10 @@
     const w = 18, h = 26;
     return {
       x: cp.tx * TS + (TS - w) / 2, y: (cp.ty + 1) * TS - h, w, h,
-      vx: 0, vy: 0, face: 1, onGround: false, onPlat: null,
+      vx: 0, vy: 0, face: 1, onGround: false, onPlat: null, ammo: 0,
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
       wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
-      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0,
+      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0, conv: 0, cool: 0, flash: 0,
     };
   }
 
@@ -150,6 +155,7 @@
   const approach = (v, t, a) => v < t ? Math.min(v + a, t) : Math.max(v - a, t);
   const overlap = LF.overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   LF.flamePos = p => ({ x: p.x + p.w / 2 + p.face * 12, y: p.y - 7 });
+  LF.gunPos = p => ({ x: p.x + p.w / 2 + p.face * 14, y: p.y + p.h - 13 });
 
   const WARM = ['#FFB547', '#FF6B3D', '#FFE2A8'];
   LF.WARM = WARM;
@@ -196,7 +202,8 @@
   }
 
   function respawn(W) {
-    Object.assign(W.player, makePlayer(W.checkpoint));
+    const ammo = W.player.ammo;
+    Object.assign(W.player, makePlayer(W.checkpoint), { ammo });
     W.projectiles = [];
     for (const e of W.enemies) {
       if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
@@ -218,6 +225,8 @@
       stepEnemy(W, e, dt, playing);
     }
     stepProjectiles(W, dt, playing);
+    stepBlinks(W, dt);
+    stepBullets(W, dt);
     for (const l of W.lanterns) l.pop = Math.max(0, l.pop - dt * 2.5);
     for (const f of W.fruits) {
       f.pop = Math.max(0, f.pop - dt * 2.5);
@@ -255,6 +264,38 @@
         else { pl.dy = ny - pl.y; pl.y = ny; }
       }
     }
+  }
+
+  // Blink blocks: every BLINK seconds the T set and the H set swap between solid and empty.
+  // A block never switches on inside the player; it waits until they step out.
+  function stepBlinks(W, dt) {
+    if (!W.blinks.length) return;
+    W.blinkT += dt;
+    if (W.blinkT >= BLINK) { W.blinkT -= BLINK; W.blinkOn = W.blinkOn === 'T' ? 'H' : 'T'; for (const b of W.blinks) b.wait = true; W.emit('blink'); }
+    const p = W.player;
+    for (const b of W.blinks) {
+      if (!b.wait) continue;
+      const on = b.c === W.blinkOn;
+      if (on && !p.dead && overlap(p, { x: b.tx * TS, y: b.ty * TS, w: TS, h: TS })) continue;
+      W.tiles[b.ty][b.tx] = on ? b.c : b.c.toLowerCase(); b.wait = false;
+    }
+  }
+
+  function stepBullets(W, dt) {
+    for (const b of W.bullets) {
+      b.x += b.vx * dt; b.life -= dt;
+      if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); continue; }
+      for (const e of W.enemies) {
+        if (!e.alive || !overlap({ x: b.x - 4, y: b.y - 2, w: 8, h: 4 }, e)) continue;
+        e.alive = false; b.life = 0;
+        burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
+        W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
+        W.shake = Math.max(W.shake, .1); W.emit('zap');
+        break;
+      }
+      for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + 5 - b.x) < 9 && Math.abs(q.y + 5 - b.y) < 9) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
+    }
+    W.bullets = W.bullets.filter(b => b.life > 0);
   }
 
   function stepCrumbles(W, dt) {
@@ -524,9 +565,23 @@
     if (p.dbl > 0 && Math.random() < .08) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y + p.h * Math.random(), vx: 0, vy: -20, life: .4, max: .4, c: '#FFE066', size: 2, g: 0 });
 
     if (p.onPlat && !dropping) { moveX(W, p, p.onPlat.dx); p.y += p.onPlat.dy; }
+    if (p.onGround && p.conv) moveX(W, p, p.conv * CONVEY * dt);
+
+    // Gun: finite ammo, one shot per press, kills anything it hits.
+    p.cool -= dt; p.flash -= dt;
+    if (input.firePressed) {
+      input.firePressed = false;
+      if (p.ammo > 0 && p.cool <= 0) {
+        p.ammo--; p.cool = .2; p.flash = .08;
+        const g = LF.gunPos(p);
+        W.bullets.push({ x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1 });
+        p.vx -= p.face * 40;
+        W.emit('shoot');
+      } else if (p.ammo <= 0 && p.cool <= 0) { p.cool = .3; W.emit('empty'); }
+    }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;
-    p.onGround = false; p.onPlat = null;
+    p.onGround = false; p.onPlat = null; p.conv = 0;
     if (moveX(W, p, p.vx * dt)) p.vx = 0;
     const pb = p.y + p.h;
     const hit = moveY(W, p, p.vy * dt, dropping);
@@ -535,6 +590,7 @@
       p.vy = 0; p.onGround = true;
       for (const u of hit.under) {
         if (u.c === 'O') bounced = true;
+        if (u.c === '<') p.conv = -1; else if (u.c === '>') p.conv = 1;
         if (u.c === 'C' && !W.crumbles.some(c => c.tx === u.tx && c.ty === u.ty)) W.crumbles.push({ tx: u.tx, ty: u.ty, t: 0, state: 'shake' });
       }
     } else if (hit && hit.dir === 'up') { p.vy = 0; p.jumping = false; }
@@ -587,6 +643,14 @@
       W.floaters.push({ x: l.x, y: l.y - 22, t: `${lit}/${W.total}`, life: 1, c: '#FFB547' });
       W.emit('light', { lit, total: W.total });
       if (lit === W.total && W.door && !W.door.open) { W.door.open = true; W.emit('door'); }
+    }
+
+    for (const a of W.ammo) {
+      if (a.taken || Math.abs(cx - a.x) > 20 || Math.abs(cy - a.y) > 22) continue;
+      a.taken = true; p.ammo += a.n;
+      burst(W, a.x, a.y, a.big ? 24 : 12, ['#FFE2A8', '#FFB547'], 130, 150, 2.5);
+      W.floaters.push({ x: a.x, y: a.y - 20, t: `+${a.n} ammo`, life: 1.1, c: '#FFE2A8' });
+      W.emit(a.big ? 'bigammo' : 'ammo');
     }
 
     for (const f of W.fruits) {

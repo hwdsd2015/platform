@@ -1,9 +1,9 @@
 // Lanternfall: reachability check and random level generator. No DOM.
 (() => {
   const LF = window.LF = window.LF || {};
-  const solid = c => c === '#' || c === 'C' || c === 'O';
+  const solid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>';
   const hazard = c => c === '^' || c === '~';
-  const blocksPlat = c => c === '#' || c === 'C' || c === 'O' || c === '|' || c === '^' || c === '=';
+  const blocksPlat = c => solid(c) || c === '|' || c === '^' || c === '=';
 
   // Approximate check: can the start reach every lantern and the door?
   LF.analyze = function (def) {

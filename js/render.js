@@ -179,6 +179,34 @@
           for (let k = 0; k < 3; k++) { ctx.moveTo(x + 8, y + 5 + k * 3); ctx.lineTo(x + 24, y + 7 + k * 3); }
           ctx.stroke();
           ctx.fillStyle = '#FF6B3D'; ctx.fillRect(x + 3, y, TS - 6, 4);
+        } else if (c === 'T' || c === 'H' || c === 't' || c === 'h') {
+          const amber = c === 'T' || c === 't', on = c === 'T' || c === 'H';
+          const col = amber ? '#FFB547' : '#7FB0E0', dim = amber ? '#8A5A1E' : '#2E4E82';
+          const warn = on && W.blinkT > LF.BLINK - .5 && !reduced && Math.floor(W.blinkT * 12) % 2;
+          if (on) {
+            ctx.fillStyle = warn ? '#3A2F55' : dim; ctx.fillRect(x + 1, y + 1, TS - 2, TS - 2);
+            ctx.fillStyle = col; ctx.fillRect(x + 1, y + 1, TS - 2, 3);
+            ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(x + 2, y + 2, TS - 4, TS - 4);
+            ctx.fillStyle = col;
+            if (amber) ctx.fillRect(x + 13, y + 13, 6, 6);
+            else { ctx.beginPath(); ctx.arc(x + 16, y + 16, 3.5, 0, TAU); ctx.fill(); }
+          } else {
+            ctx.strokeStyle = amber ? 'rgba(255,181,71,.4)' : 'rgba(127,176,224,.4)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            ctx.strokeRect(x + 2.5, y + 2.5, TS - 5, TS - 5); ctx.setLineDash([]);
+          }
+        } else if (c === '<' || c === '>') {
+          const d = c === '>' ? 1 : -1;
+          drawStone(W, tx, ty, x, y + 8, '#4C4062', '#3B3150');
+          ctx.fillStyle = '#2A2348'; ctx.fillRect(x, y, TS, 9);
+          ctx.fillStyle = '#6E6186'; ctx.fillRect(x, y, TS, 2);
+          const off = reduced ? 0 : ((clock * 110 * d) % 16 + 16) % 16;
+          ctx.fillStyle = '#FF9A2E';
+          ctx.save(); ctx.beginPath(); ctx.rect(x, y, TS, 9); ctx.clip();
+          for (let k = -1; k < 3; k++) {
+            const cx = x + k * 16 + off;
+            ctx.beginPath(); ctx.moveTo(cx - 3 * d, y + 2.5); ctx.lineTo(cx + 2 * d, y + 5); ctx.lineTo(cx - 3 * d, y + 7.5); ctx.lineTo(cx - 1 * d, y + 5); ctx.fill();
+          }
+          ctx.restore();
         } else if (c === '|' && opts.edit) {
           ctx.strokeStyle = 'rgba(255,107,61,.8)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
           ctx.beginPath(); ctx.moveTo(x + 16, y + 2); ctx.lineTo(x + 16, y + TS - 2); ctx.stroke(); ctx.setLineDash([]);
@@ -375,6 +403,22 @@
       ctx.restore();
     }
 
+    function drawAmmo(a) {
+      if (a.taken) return;
+      const bob = reduced ? 0 : Math.sin(clock * 3 + a.tx) * 2;
+      const s = a.big ? 1.35 : 1;
+      ctx.save(); ctx.translate(a.x, a.y + bob); ctx.scale(s, s);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
+      g.addColorStop(0, 'rgba(255,226,168,.3)'); g.addColorStop(1, 'rgba(255,226,168,0)');
+      ctx.fillStyle = g; ctx.fillRect(-16, -16, 32, 32);
+      ctx.fillStyle = '#5A4C7C'; ctx.fillRect(-7, -5, 14, 10);
+      ctx.fillStyle = '#8F81AB'; ctx.fillRect(-7, -5, 14, 2);
+      ctx.fillStyle = a.big ? '#FF6B3D' : '#FFB547';
+      for (let k = -1; k <= 1; k++) { ctx.fillRect(k * 4 - 1, -9, 2, 5); ctx.fillStyle = '#FFE2A8'; ctx.fillRect(k * 4 - 1, -10, 2, 1.5); ctx.fillStyle = a.big ? '#FF6B3D' : '#FFB547'; }
+      if (a.big) { ctx.fillStyle = '#FFE2A8'; ctx.font = '700 7px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('10', 0, 3.5); ctx.textAlign = 'left'; }
+      ctx.restore();
+    }
+
     function drawShield(p) {
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2 - 4;
       const pulse = reduced ? 0 : Math.sin(clock * 4) * 1.5;
@@ -404,6 +448,10 @@
       ctx.fillStyle = '#211C3F';
       ctx.fillRect(f * 2 - 1, -24, 2, 2); ctx.fillRect(-7, -28, 14, 2); ctx.fillRect(-5, -37, 10, 9);
       ctx.fillStyle = p.boost > 0 ? '#FF9A2E' : p.dbl > 0 ? '#FFE066' : '#FF6B3D'; ctx.fillRect(-5, -30, 10, 2);
+      if (p.ammo > 0) {
+        ctx.fillStyle = '#2A2348'; ctx.fillRect(f > 0 ? 4 : -14, -15, 10, 4); ctx.fillRect(f > 0 ? 5 : -8, -13, 3, 5);
+        ctx.fillStyle = '#8F81AB'; ctx.fillRect(f > 0 ? 4 : -14, -15, 10, 1);
+      }
       ctx.restore();
       ctx.globalAlpha = 1;
     }
@@ -424,6 +472,8 @@
       const out = [], p = W.player;
       if (!p.dead) { const f = LF.flamePos(p); out.push({ x: f.x, y: f.y, r: 150 * flick(0, .03) }); }
       for (const f of W.fruits) if (!f.taken) out.push({ x: f.x, y: f.y, r: 44 });
+      for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: 40 });
+      for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 });
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
       for (const b of W.projectiles) out.push({ x: b.x + 5, y: b.y + 5, r: 60 });
@@ -538,6 +588,15 @@
         ctx.globalAlpha = 1;
       }
       for (const fr of W.fruits) drawFruit(fr);
+      for (const a of W.ammo) drawAmmo(a);
+      for (const b of W.bullets) {
+        ctx.fillStyle = '#FFB547'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);
+        ctx.fillStyle = '#FFF1CF'; ctx.fillRect(b.x - 2, b.y - 1.5, 4, 3);
+      }
+      if (!W.player.dead && W.player.flash > 0) {
+        const g = LF.gunPos(W.player);
+        ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(g.x + W.player.face * 3, g.y, 4, 0, TAU); ctx.fill();
+      }
       const p = W.player;
       if (!p.dead && !opts.hidePlayer && p.shield) drawShield(p);
       if (!p.dead && !opts.hidePlayer) {

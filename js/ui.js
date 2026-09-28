@@ -43,6 +43,12 @@
     spit: () => tone(700, 200, .12, 'sawtooth', .02),
     hop: () => tone(200, 380, .08, 'sine', .04),
     drop: () => tone(900, 300, .15, 'sine', .03),
+    shoot: () => { tone(900, 200, .08, 'square', .04); tone(160, 60, .08, 'sawtooth', .03); },
+    empty: () => tone(200, 180, .05, 'square', .02),
+    zap: () => { tone(600, 80, .2, 'sawtooth', .04); tone(1200, 300, .12, 'square', .02, .02); },
+    ammo: () => { tone(500, 700, .06, 'square', .03); tone(700, 900, .06, 'square', .03, .05); },
+    bigammo: () => [500, 630, 750, 1000].forEach((f, i) => tone(f, f, .1, 'square', .03, i * .05)),
+    blink: () => tone(1500, 1500, .03, 'sine', .015),
     leap: () => tone(400, 800, .12, 'sine', .03),
     snort: () => tone(140, 90, .2, 'sawtooth', .04),
     splash: () => tone(500, 120, .18, 'sine', .04),
@@ -58,7 +64,7 @@
   // ---------- state ----------
   let screen = 'title', W = null, playDef = null, playCtx = null;
   const cam = { x: 0, y: 0, zoom: 1 };
-  const input = { left: false, right: false, jump: false, down: false, jumpPressed: false };
+  const input = { left: false, right: false, jump: false, down: false, jumpPressed: false, fire: false, firePressed: false };
   let attract = LF.createWorld(LF.LEVELS[0]);
   let story = { time: 0, falls: 0 };
 
@@ -107,6 +113,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
+        <li><kbd>X</kbd> or <kbd>F</kbd> fire · ammo crates are hidden through each level; big crates hold 10</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
@@ -303,7 +310,7 @@
   $('sel-back').addEventListener('click', showTitle);
 
   // ---------- input ----------
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down' };
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyX: 'fire', KeyF: 'fire' };
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
@@ -314,6 +321,7 @@
       if (k) {
         e.preventDefault();
         if (k === 'jump' && !input.jump && !e.repeat) input.jumpPressed = true;
+        if (k === 'fire' && !input.fire && !e.repeat) input.firePressed = true;
         input[k] = true;
       }
       // R is instant death: respawn at the last lit lantern (full restart is in the pause menu).
@@ -334,12 +342,12 @@
 
   function bindTouch(id, k) {
     const el = $(id);
-    const on = e => { e.preventDefault(); initAudio(); if (k === 'jump' && !input.jump) input.jumpPressed = true; input[k] = true; el.classList.add('on'); };
+    const on = e => { e.preventDefault(); initAudio(); if (k === 'jump' && !input.jump) input.jumpPressed = true; if (k === 'fire' && !input.fire) input.firePressed = true; input[k] = true; el.classList.add('on'); };
     const off = e => { e.preventDefault(); input[k] = false; el.classList.remove('on'); };
     el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
     el.addEventListener('pointercancel', off); el.addEventListener('pointerleave', off);
   }
-  bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down');
+  bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down'); bindTouch('t-fire', 'fire');
   $('t-pause').addEventListener('click', () => pause());
 
   // ---------- HUD ----------
@@ -347,7 +355,7 @@
   function hud() {
     const lit = W.lanterns.filter(l => l.lit).length, open = W.door && W.door.open;
     const p = W.player;
-    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}`;
+    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}`;
     if (key === hudCache) return;
     hudCache = key;
     $('hud-lamps-label').textContent = open ? 'Door' : 'Lanterns';
@@ -355,6 +363,8 @@
     $('hud-lamps-wrap').className = open ? 'open' : 'lamps';
     $('hud-time').textContent = fmt(W.time);
     $('hud-falls').textContent = W.falls;
+    $('hud-ammo').textContent = p.ammo;
+    $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push('<i class="pw-a">Shield</i>');
     if (p.boost > 0) powers.push(`<i class="pw-o">Boost ${Math.ceil(p.boost)}</i>`);
