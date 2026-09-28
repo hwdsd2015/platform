@@ -23,7 +23,12 @@
     X: { name: 'Wick spider', w: 20, h: 16, stomp: true, note: 'hangs from a ceiling, drops when you pass below' },
     R: { name: 'Coal ram', w: 26, h: 20, stomp: true, note: 'walks, then charges when it sees you' },
     Z: { name: 'Spark', w: 14, h: 14, stomp: false, note: 'circles its spot — time your way past' },
+    Y: { name: 'Lantern pike', w: 28, h: 12, stomp: false, note: 'place in water: swims back and forth' },
+    U: { name: 'Glow jelly', w: 20, h: 20, stomp: false, note: 'place in water: bobs slowly up and down' },
+    N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, note: 'place in water: leaps out at you' },
   };
+  // Enemies that live in water: their map cell stays water.
+  LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
   LF.rng = seed => () => {
     seed |= 0; seed = seed + 0x6D2B79F5 | 0;
@@ -67,7 +72,11 @@
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
-      } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y)); tiles[y][x] = ' '; }
+      } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : ' '; }
+    }
+    // Markers placed underwater (start, lanterns, fruit…) leave water behind, not an air pocket.
+    for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) {
+      if (tiles[y][x] === ' ' && tiles[y - 1][x] === '~' && rows[y][x] !== '.') tiles[y][x] = '~';
     }
     W.total = W.lanterns.length;
     if (W.door && !W.total) W.door.open = true;
@@ -84,8 +93,8 @@
     if (type === 'F') y = ty * TS + 9;
     if (type === 'G') y = ty * TS + 2;
     if (type === 'X') y = ty * TS + 2;
-    if (type === 'Z') y = ty * TS + (TS - s.h) / 2;
-    const vx = { B: -48, K: -72, F: -64, R: -40 }[type] || 0;
+    if (type === 'Z' || LF.SWIMMERS[type]) y = ty * TS + (TS - s.h) / 2;
+    const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85 }[type] || 0;
     return { type, x, y, w: s.w, h: s.h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0, state: 'idle' };
   }
 
@@ -193,6 +202,7 @@
       if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
       if (e.type === 'X') { e.y = e.oy; e.state = 'idle'; }
       if (e.type === 'R' && e.state !== 'idle') { e.state = 'idle'; e.vx = 40 * (e.face || -1); }
+      if (e.type === 'N') { e.x = e.ox; e.y = e.oy; e.state = 'idle'; e.wait = 1.8; }
     }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
     W.emit('respawn');
@@ -318,6 +328,39 @@
           } else e.vx *= -1;
         } else e.x = nx;
         e.face = Math.sign(e.vx) || e.face;
+        break;
+      }
+      case 'Y': {
+        // Stays in the water: turns where the water (or a stop marker) ends.
+        const nx = e.x + e.vx * dt;
+        const tx = Math.floor((e.vx < 0 ? nx : nx + e.w) / TS), row = Math.floor((e.oy + e.h / 2) / TS);
+        const c = tile(W, tx, row);
+        if (c !== '~' || turnMarker(W, tx, row)) e.vx *= -1;
+        else e.x = nx;
+        e.y = e.oy + Math.sin(e.t * 2.5) * 3;
+        e.face = Math.sign(e.vx);
+        break;
+      }
+      case 'U': {
+        e.y = e.oy + Math.sin(e.t * 1.1) * 44;
+        e.x = e.ox + Math.sin(e.t * .5) * 6;
+        break;
+      }
+      case 'N': {
+        // Wait under the surface, then leap toward the player in an arc.
+        if (e.state === 'idle') {
+          e.y = e.oy + Math.sin(e.t * 3) * 2;
+          if ((e.wait -= dt) <= 0 && playing && !p.dead && Math.abs(px - ex) < TS * 7) {
+            e.state = 'leap'; e.vy = -680; e.vx = Math.sign(px - ex) * 70 || 0; e.face = Math.sign(e.vx) || e.face;
+            W.emit('leap');
+          }
+        } else {
+          e.vy += G * .8 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
+          if (e.vy > 0 && e.y >= e.oy) {
+            e.y = e.oy; e.x = e.ox + (e.x - e.ox) * .5; e.vx = 0; e.state = 'idle'; e.wait = 1.8;
+            burst(W, ex, e.y, 6, ['#7FB0E0', '#D9D0F0'], 70, 300, 2);
+          }
+        }
         break;
       }
       case 'Z': {

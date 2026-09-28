@@ -37,8 +37,10 @@
     if (!doors) problems.push('Place a door (D).');
     if (doors > 1) problems.push('There is more than one door (D).');
 
-    const stand = (x, y) => x >= 0 && x < w && y >= 0 && y < h && !solid(T(x, y)) && !hazard(T(x, y)) &&
-      (solid(T(x, y + 1)) || T(x, y + 1) === '=' || platStand.has(key(x, y)));
+    // Water is swimmable: you can jump from anywhere in it.
+    const wet = c => c === '~' || !!(LF.SWIMMERS && LF.SWIMMERS[c]);
+    const stand = (x, y) => x >= 0 && x < w && y >= 0 && y < h && (wet(T(x, y)) || !solid(T(x, y)) && !hazard(T(x, y)) &&
+      (solid(T(x, y + 1)) || T(x, y + 1) === '=' || platStand.has(key(x, y))));
 
     const seen = new Uint8Array(w * h);
     if (start) {
@@ -92,7 +94,7 @@
     if (door) for (let dx = -1; dx <= 1; dx++) for (let k = 0; k <= 1; k++) if (reached(door.x + dx, door.y + k)) doorOk = true;
     if (missing.length) problems.push(`${missing.length} lantern${missing.length > 1 ? 's look' : ' looks'} out of reach (near column ${missing[0].x + 1}, row ${missing[0].y + 1}).`);
     if (door && start && !doorOk) problems.push(`The door looks out of reach (column ${door.x + 1}, row ${door.y + 1}).`);
-    return { ok: !problems.length, problems, w, h, lanterns: lanterns.length, litOk, doorOk, missing };
+    return { ok: !problems.length, problems, w, h, lanterns: lanterns.length, litOk, doorOk, missing, seen };
   };
 
   // ---------- generator ----------

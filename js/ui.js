@@ -5,7 +5,7 @@
   const STEP = 1 / 120;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
-  const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
   const cvs = $('game');
   const R = LF.createRenderer(cvs);
@@ -43,6 +43,7 @@
     spit: () => tone(700, 200, .12, 'sawtooth', .02),
     hop: () => tone(200, 380, .08, 'sine', .04),
     drop: () => tone(900, 300, .15, 'sine', .03),
+    leap: () => tone(400, 800, .12, 'sine', .03),
     snort: () => tone(140, 90, .2, 'sawtooth', .04),
     splash: () => tone(500, 120, .18, 'sine', .04),
     swim: () => tone(300, 520, .1, 'sine', .035),

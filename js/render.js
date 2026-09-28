@@ -309,6 +309,30 @@
           ctx.beginPath(); ctx.moveTo(cx + f * 10 + shake, by - 15); ctx.lineTo(cx + f * 18 + shake, by - 19); ctx.lineTo(cx + f * 13 + shake, by - 11); ctx.fill();
           break;
         }
+        case 'Y': {
+          const cy = e.y + 6, tail = reduced ? 0 : Math.sin(clock * 10 + e.ox) * 3;
+          ctx.fillStyle = '#244250';
+          ctx.beginPath(); ctx.moveTo(cx - f * 12, cy); ctx.lineTo(cx - f * 19, cy - 6 + tail); ctx.lineTo(cx - f * 19, cy + 6 + tail); ctx.fill();
+          ctx.fillStyle = '#2F5260'; ctx.beginPath(); ctx.ellipse(cx, cy, 14, 6, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#6F9AA8'; ctx.fillRect(cx - 8, cy + 1, 16, 2);
+          ctx.fillStyle = '#CFC6E8';
+          for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(cx + f * (9 + k * 1.5), cy + 2); ctx.lineTo(cx + f * (10 + k * 1.5), cy + 4); ctx.lineTo(cx + f * (11 + k * 1.5), cy + 2); ctx.fill(); }
+          ctx.strokeStyle = '#2F5260'; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(cx + f * 6, cy - 5); ctx.quadraticCurveTo(cx + f * 14, cy - 16, cx + f * 18, cy - 10); ctx.stroke();
+          break;
+        }
+        case 'N': {
+          const cy = e.y + 6, ang = e.state === 'leap' ? Math.atan2(e.vy, Math.abs(e.vx) + 60) * .8 : 0;
+          ctx.save(); ctx.translate(cx, cy); ctx.scale(f, 1); ctx.rotate(ang);
+          ctx.fillStyle = '#7C8C9E';
+          ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-17, -6); ctx.lineTo(-17, 6); ctx.fill();
+          ctx.fillStyle = '#A9B8C8'; ctx.beginPath(); ctx.ellipse(0, 0, 12, 5, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#D9E2EC'; ctx.fillRect(-7, 1, 14, 2);
+          ctx.fillStyle = '#7C8C9E'; ctx.beginPath(); ctx.moveTo(-3, -4); ctx.lineTo(2, -10); ctx.lineTo(4, -4); ctx.fill();
+          ctx.fillStyle = '#A9B8C8'; ctx.fillRect(10, -1, 7, 2);
+          ctx.restore();
+          break;
+        }
         case 'S': {
           ctx.fillStyle = '#7A3E1C';
           ctx.beginPath(); ctx.moveTo(cx - 11, by); ctx.lineTo(cx + 11, by); ctx.lineTo(cx + 9, by - 16); ctx.lineTo(cx - 9, by - 16); ctx.fill();
@@ -405,6 +429,8 @@
       for (const b of W.projectiles) out.push({ x: b.x + 5, y: b.y + 5, r: 60 });
       for (const e of W.enemies) if (e.alive && e.type === 'S') out.push({ x: e.x + 12, y: e.y + 2, r: 34 });
       for (const e of W.enemies) if (e.alive && e.type === 'Z') out.push({ x: e.x + 7, y: e.y + 7, r: 56 });
+      for (const e of W.enemies) if (e.alive && e.type === 'U') out.push({ x: e.x + 10, y: e.y + 8, r: 70 });
+      for (const e of W.enemies) if (e.alive && e.type === 'Y') out.push({ x: e.x + 14 + e.face * 18, y: e.y - 4, r: 40 });
       return out;
     }
 
@@ -461,6 +487,22 @@
         else if (e.type === 'R') {
           ctx.fillStyle = e.state === 'wind' || e.state === 'charge' ? '#FFE2A8' : '#FF6B3D';
           ctx.fillRect(cx + f * 8 - 1.5, by - 12, 3, 3);
+        } else if (e.type === 'Y') {
+          ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(cx + f * 18, e.y - 4, 2.5 * flick(e.ox, .2), 0, TAU); ctx.fill();
+          ctx.fillStyle = '#FF6B3D'; ctx.fillRect(cx + f * 8 - 1, e.y + 3, 2, 2);
+        } else if (e.type === 'N') {
+          ctx.fillStyle = '#FF6B3D'; ctx.fillRect(cx + f * 7 - 1, e.y + 4, 2, 2);
+        } else if (e.type === 'U') {
+          const cy = e.y + 8, pulse = reduced ? 1 : 1 + Math.sin(clock * 3 + e.ox) * .08;
+          ctx.strokeStyle = 'rgba(159,216,255,.55)'; ctx.lineWidth = 1.3; ctx.beginPath();
+          for (let k = -2; k <= 2; k++) {
+            const sway = reduced ? 0 : Math.sin(clock * 4 + k) * 2;
+            ctx.moveTo(cx + k * 3.5, cy + 2); ctx.quadraticCurveTo(cx + k * 3.5 + sway, cy + 9, cx + k * 3 - sway, cy + 15);
+          }
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(159,216,255,.55)';
+          ctx.beginPath(); ctx.ellipse(cx, cy + 2, 10 * pulse, 10 * pulse, 0, Math.PI, 0); ctx.fill();
+          ctx.fillStyle = 'rgba(230,245,255,.8)'; ctx.beginPath(); ctx.ellipse(cx, cy - 1, 4, 3.5, 0, 0, TAU); ctx.fill();
         } else if (e.type === 'Z') {
           const k = flick(e.ox, .25);
           ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(cx, e.y + 7, 7 * k, 0, TAU); ctx.fill();
