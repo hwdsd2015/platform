@@ -31,6 +31,10 @@
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },
     { c: 'Q', label: 'Big ammo', group: 'Level', chip: '#FF6B3D', note: '+10 shots: put it somewhere hard to reach' },
     ...Object.entries(LF.FRUITS).map(([c, f]) => ({ c, label: f.name, group: 'Fruit', chip: f.color, note: f.note })),
+    ...Object.entries(LF.KEYS).flatMap(([c, k]) => [
+      { c, label: k.name, group: 'Keys & locks', chip: k.color, glyph: '⚷' },
+      { c: k.gate, label: k.name.replace('key', 'lock'), group: 'Keys & locks', chip: k.dim, note: `solid until you touch it holding the ${k.name.toLowerCase()}` },
+    ]),
     ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560' }[c], note: e.note })),
   ];
 

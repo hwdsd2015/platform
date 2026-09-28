@@ -1,7 +1,9 @@
 // Lanternfall: reachability check and random level generator. No DOM.
 (() => {
   const LF = window.LF = window.LF || {};
-  const solid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === 'f';
+  // 1, 2, 3 are locked doors (red, blue, gold); r, u, y are their keys.
+  const solid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === 'f' || c === '1' || c === '2' || c === '3';
+  const KEY_GATE = { r: '1', u: '2', y: '3' };
   const hazard = c => c === '^' || c === '~';
   const blocksPlat = c => solid(c) || c === '|' || c === '^' || c === '=';
 
@@ -9,7 +11,10 @@
   LF.analyze = function (def) {
     const rows = (LF.normalize || (r => r))(def.map);
     const h = rows.length, w = rows[0] ? rows[0].length : 0;
-    const T = (x, y) => (x < 0 || x >= w) ? '#' : (y < 0 || y >= h) ? ' ' : rows[y][x];
+    // Locked doors count as open once their key is reachable (see the loop below).
+    const unlocked = new Set();
+    const T = (x, y) => { const c = (x < 0 || x >= w) ? '#' : (y < 0 || y >= h) ? ' ' : rows[y][x]; return unlocked.has(c) ? '.' : c; };
+    const keys = [];
     const problems = [];
     let start = null, door = null, doors = 0;
     const lanterns = [], platStand = new Set();
@@ -20,6 +25,7 @@
       if (c === 'P') { if (start) problems.push('There is more than one start (P).'); start = { x, y }; }
       else if (c === 'D') { doors++; door = { x, y }; }
       else if (c === 'L') lanterns.push({ x, y });
+      else if (KEY_GATE[c]) keys.push({ x, y, gate: KEY_GATE[c] });
       else if (c === 'M') {
         let l = x, r = x;
         while (l - 1 >= 0 && !blocksPlat(T(l - 1, y))) l--;
@@ -42,11 +48,13 @@
     const stand = (x, y) => x >= 0 && x < w && y >= 0 && y < h && (wet(T(x, y)) || !solid(T(x, y)) && !hazard(T(x, y)) &&
       (solid(T(x, y + 1)) || T(x, y + 1) === '=' || T(x, y + 1) === 'd' || platStand.has(key(x, y))));
 
-    const seen = new Uint8Array(w * h);
+    let seen = new Uint8Array(w * h), noGround = false;
+    const flood = () => {
+    seen = new Uint8Array(w * h);
     if (start) {
       let sy = start.y;
       while (sy < h && !stand(start.x, sy)) { if (solid(T(start.x, sy)) || hazard(T(start.x, sy))) { sy = h; break; } sy++; }
-      if (sy >= h) problems.push('The start (P) has no ground beneath it.');
+      if (sy >= h) noGround = true;
       else {
         const q = [[start.x, sy]]; seen[key(start.x, sy)] = 1;
         while (q.length) {
@@ -75,6 +83,16 @@
         }
       }
     }
+    };
+    // Flood, unlock the doors whose keys we reached, and flood again until nothing new opens.
+    const touch = (x, y) => { for (let dx = -1; dx <= 1; dx++) for (let k = -1; k <= 2; k++) if (seen[key(x + dx, y + k)] && x + dx >= 0 && x + dx < w && y + k >= 0 && y + k < h) return true; return false; };
+    for (;;) {
+      flood();
+      const before = unlocked.size;
+      for (const k of keys) if (!unlocked.has(k.gate) && touch(k.x, k.y)) unlocked.add(k.gate);
+      if (unlocked.size === before) break;
+    }
+    if (noGround) problems.push('The start (P) has no ground beneath it.');
 
     const reached = (x, y) => x >= 0 && x < w && y >= 0 && y < h && seen[key(x, y)];
     let litOk = 0;

@@ -42,8 +42,14 @@
   };
 
   // T and H are blink blocks (lowercase while switched off); < and > are conveyor belts.
-  // i is ice: solid but slippery.
-  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i';
+  // i is ice: solid but slippery. 1, 2, 3 are locked doors opened by keys r, u, y.
+  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === '1' || c === '2' || c === '3';
+  LF.KEYS = {
+    r: { name: 'Red key', gate: '1', color: '#FF6B3D', dim: '#7A2E1C' },
+    u: { name: 'Blue key', gate: '2', color: '#7FB0E0', dim: '#2E4E82' },
+    y: { name: 'Gold key', gate: '3', color: '#FFD447', dim: '#7A5A12' },
+  };
+  LF.GATES = { 1: 'r', 2: 'u', 3: 'y' };
   const isFloor = LF.isFloor = c => isSolid(c) || c === '=';
   const blocksPlat = c => isSolid(c) || c === '|' || c === '^' || c === '=';
 
@@ -65,7 +71,7 @@
     const tiles = rows.map(r => r.split('').map(c => (c === '.' ? ' ' : c)));
     const W = {
       def, name: def.name || 'Untitled', dark: def.dark ?? .6, w, h, tiles,
-      lanterns: [], fruits: [], ammo: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
+      lanterns: [], fruits: [], ammo: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
       door: null, start: { tx: 1, ty: h - 2 }, clock: 0, time: 0, falls: 0, shake: 0,
       deadTimer: 0, cleared: false, events: [],
     };
@@ -73,6 +79,7 @@
       const c = tiles[y][x];
       if (c === 'P') { W.start = { tx: x, ty: y }; tiles[y][x] = ' '; }
       else if (c === 'L') { W.lanterns.push({ tx: x, ty: y, x: x * TS + 16, y: y * TS + 14, lit: false, f: (x * 7 + y * 3) % 9, pop: 0 }); tiles[y][x] = ' '; }
+      else if (LF.KEYS[c]) { W.keys.push({ c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 16, taken: false }); tiles[y][x] = ' '; }
       else if (c === 'E') { W.traps.push({ type: 'pend', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
       else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
       else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
@@ -119,7 +126,7 @@
     const w = 18, h = 26;
     return {
       x: cp.tx * TS + (TS - w) / 2, y: (cp.ty + 1) * TS - h, w, h,
-      vx: 0, vy: 0, face: 1, onGround: false, onPlat: null, ammo: 0,
+      vx: 0, vy: 0, face: 1, onGround: false, onPlat: null, ammo: 0, keys: {},
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
       wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
       shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0, conv: 0, cool: 0, flash: 0,
@@ -214,8 +221,8 @@
   }
 
   function respawn(W) {
-    const ammo = W.player.ammo;
-    Object.assign(W.player, makePlayer(W.checkpoint), { ammo });
+    const { ammo, keys } = W.player;
+    Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
     W.projectiles = [];
     for (const e of W.enemies) {
       if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
@@ -243,6 +250,7 @@
     stepBlinks(W, dt);
     stepBullets(W, dt);
     stepTraps(W, dt, playing);
+    stepUnlocking(W, dt);
     for (const r of W.rings) { r.life -= dt; r.r += (r.max - r.r) * Math.min(1, dt * 10); }
     W.rings = W.rings.filter(r => r.life > 0);
     for (const g of W.ghosts) g.life -= dt;
@@ -373,6 +381,28 @@
       else if (overlap(p, { x: t.x + 2, y: t.y + 2, w: t.w - 4, h: t.h - 2 })) return true;
     }
     return false;
+  }
+
+  // ---------- keys & locked doors ----------
+  // Touching a locked door with its key opens every door of that color, nearest first.
+  function unlock(W, gate, fx, fy) {
+    const cells = [];
+    for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) if (W.tiles[y][x] === gate) cells.push({ tx: x, ty: y, d: Math.hypot(x * TS + 16 - fx, y * TS + 16 - fy) });
+    cells.sort((a, b) => a.d - b.d);
+    cells.forEach((c, i) => W.unlocking.push({ ...c, gate, t: .12 + i * .07 }));
+    for (const c of cells) W.tiles[c.ty][c.tx] = gate + '*';
+    W.floaters.push({ x: fx, y: fy - 24, t: 'unlocked', life: 1.1, c: LF.KEYS[LF.GATES[gate]].color });
+    W.emit('unlock');
+  }
+  function stepUnlocking(W, dt) {
+    for (const u of W.unlocking) {
+      if ((u.t -= dt) > 0) continue;
+      W.tiles[u.ty][u.tx] = ' ';
+      const k = LF.KEYS[LF.GATES[u.gate]];
+      burst(W, u.tx * TS + 16, u.ty * TS + 16, 10, [k.color, '#FFF1CF'], 120, 200, 2.5);
+      W.emit('gatepop');
+    }
+    W.unlocking = W.unlocking.filter(u => u.t > 0);
   }
 
   function stepShingle(W, pl, dt) {
@@ -797,6 +827,25 @@
       W.floaters.push({ x: l.x, y: l.y - 22, t: `${lit}/${W.total}`, life: 1, c: '#FFB547' });
       W.emit('light', { lit, total: W.total });
       if (lit === W.total && W.door && !W.door.open) { W.door.open = true; W.emit('door'); }
+    }
+
+    for (const k of W.keys) {
+      if (k.taken || Math.abs(cx - k.x) > 20 || Math.abs(cy - k.y) > 22) continue;
+      const spec = LF.KEYS[k.c];
+      k.taken = true; p.keys[k.c] = true;
+      burst(W, k.x, k.y, 22, [spec.color, '#FFF1CF'], 150, 150, 2.5);
+      ring(W, k.x, k.y, 34, '255,241,207', .4);
+      W.floaters.push({ x: k.x, y: k.y - 20, t: spec.name.toLowerCase(), life: 1.2, c: spec.color });
+      W.emit('key');
+    }
+    // A key opens its doors when you touch them.
+    for (const kc in p.keys) {
+      const gate = LF.KEYS[kc].gate;
+      const x0 = Math.floor((p.x - 3) / TS), x1 = Math.floor((p.x + p.w + 3) / TS);
+      const y0 = Math.floor((p.y - 3) / TS), y1 = Math.floor((p.y + p.h + 3) / TS);
+      let hit = false;
+      for (let ty = y0; ty <= y1 && !hit; ty++) for (let tx = x0; tx <= x1 && !hit; tx++) if (tile(W, tx, ty) === gate) hit = true;
+      if (hit) unlock(W, gate, cx, cy);
     }
 
     for (const a of W.ammo) {

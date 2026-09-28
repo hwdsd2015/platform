@@ -194,6 +194,20 @@
             ctx.strokeStyle = amber ? 'rgba(255,181,71,.4)' : 'rgba(127,176,224,.4)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
             ctx.strokeRect(x + 2.5, y + 2.5, TS - 5, TS - 5); ctx.setLineDash([]);
           }
+        } else if (LF.GATES[c[0]]) {
+          // Locked door: colored iron bars with a keyhole. "1*" etc. are doors mid-opening.
+          const k = LF.KEYS[LF.GATES[c[0]]], opening = c.length > 1;
+          const shake = opening && !reduced ? (Math.random() - .5) * 2 : 0;
+          ctx.globalAlpha = opening ? .6 : 1;
+          ctx.fillStyle = k.dim; ctx.fillRect(x + shake, y, TS, TS);
+          ctx.fillStyle = k.color;
+          ctx.fillRect(x + shake, y, TS, 3); ctx.fillRect(x + shake, y + TS - 3, TS, 3);
+          for (let b = 0; b < 4; b++) ctx.fillRect(x + 3 + b * 8 + shake, y, 2.5, TS);
+          if (t(tx, ty - 1) !== c) {
+            ctx.fillStyle = '#211C3F'; ctx.beginPath(); ctx.arc(x + 16 + shake, y + 13, 4, 0, TAU); ctx.fill();
+            ctx.fillRect(x + 14.5 + shake, y + 13, 3, 8);
+          }
+          ctx.globalAlpha = 1;
         } else if (c === 'i') {
           ctx.fillStyle = '#9FC6E8'; ctx.fillRect(x, y, TS, TS);
           ctx.fillStyle = '#C8E2F5'; ctx.fillRect(x, y, TS, 5);
@@ -478,6 +492,20 @@
       ctx.restore();
     }
 
+    function drawKey(k) {
+      if (k.taken) return;
+      const spec = LF.KEYS[k.c], bob = reduced ? 0 : Math.sin(clock * 3 + k.tx) * 3;
+      ctx.save(); ctx.translate(k.x, k.y + bob); ctx.rotate(reduced ? 0 : Math.sin(clock * 2 + k.tx) * .15);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+      g.addColorStop(0, 'rgba(255,241,207,.35)'); g.addColorStop(1, 'rgba(255,241,207,0)');
+      ctx.fillStyle = g; ctx.fillRect(-20, -20, 40, 40);
+      ctx.strokeStyle = spec.color; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, -6, 5, 0, TAU); ctx.stroke();
+      ctx.fillStyle = spec.color; ctx.fillRect(-1.5, -1, 3, 13); ctx.fillRect(1, 6, 5, 2.5); ctx.fillRect(1, 10, 4, 2.5);
+      ctx.fillStyle = '#FFF1CF'; ctx.fillRect(-3, -9, 2, 2);
+      ctx.restore();
+    }
+
     function drawShield(p) {
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2 - 4;
       const pulse = reduced ? 0 : Math.sin(clock * 4) * 1.5;
@@ -574,6 +602,7 @@
       if (!p.dead) { const f = LF.flamePos(p); out.push({ x: f.x, y: f.y, r: 150 * flick(0, .03) }); }
       for (const f of W.fruits) if (!f.taken) out.push({ x: f.x, y: f.y, r: 44 });
       for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: 40 });
+      for (const k of W.keys) if (!k.taken) out.push({ x: k.x, y: k.y, r: 60 });
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 });
       for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
@@ -705,6 +734,7 @@
       }
       for (const fr of W.fruits) drawFruit(fr);
       for (const a of W.ammo) drawAmmo(a);
+      for (const k of W.keys) drawKey(k);
       for (const b of W.bullets) {
         ctx.fillStyle = '#FFB547'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);
         ctx.fillStyle = '#FFF1CF'; ctx.fillRect(b.x - 2, b.y - 1.5, 4, 3);
