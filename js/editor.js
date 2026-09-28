@@ -19,6 +19,7 @@
     { c: 'D', label: 'Door', group: 'Level', chip: '#8F81AB' },
     { c: 'M', label: 'Lift ↔', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
+    ...Object.entries(LF.FRUITS).map(([c, f]) => ({ c, label: f.name, group: 'Fruit', chip: f.color, note: f.note })),
     ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0' }[c], note: e.note })),
   ];
 

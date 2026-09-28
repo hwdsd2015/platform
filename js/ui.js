@@ -42,6 +42,10 @@
     crumble: () => tone(120, 50, .15, 'sawtooth', .03),
     spit: () => tone(700, 200, .12, 'sawtooth', .02),
     hop: () => tone(200, 380, .08, 'sine', .04),
+    walljump: () => tone(360, 680, .08, 'square', .03),
+    djump: () => { tone(520, 980, .1, 'triangle', .04); tone(780, 1400, .08, 'sine', .03, .04); },
+    fruit: () => { tone(660, 990, .1, 'triangle', .05); tone(990, 1480, .14, 'triangle', .04, .06); },
+    shield: () => { tone(900, 300, .25, 'triangle', .05); tone(1200, 400, .2, 'sine', .03, .03); },
     door: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, f, .22, 'triangle', .05, .25 + i * .08)),
     clear: () => [392, 523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, f, .3, 'triangle', .05, i * .07)),
   };
@@ -97,6 +101,8 @@
       </div>
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
+        <li>Push into a wall to slide down it · jump off walls to climb</li>
+        <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> restart · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>`);
   }
@@ -333,7 +339,8 @@
   let hudCache = '';
   function hud() {
     const lit = W.lanterns.filter(l => l.lit).length, open = W.door && W.door.open;
-    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}`;
+    const p = W.player;
+    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}`;
     if (key === hudCache) return;
     hudCache = key;
     $('hud-lamps-label').textContent = open ? 'Door' : 'Lanterns';
@@ -341,6 +348,12 @@
     $('hud-lamps-wrap').className = open ? 'open' : 'lamps';
     $('hud-time').textContent = fmt(W.time);
     $('hud-falls').textContent = W.falls;
+    const powers = [];
+    if (p.shield) powers.push('<i class="pw-a">Shield</i>');
+    if (p.boost > 0) powers.push(`<i class="pw-o">Boost ${Math.ceil(p.boost)}</i>`);
+    if (p.dbl > 0) powers.push(`<i class="pw-b">Double ${Math.ceil(p.dbl)}</i>`);
+    $('hud-powers-wrap').hidden = !powers.length;
+    $('hud-powers').innerHTML = powers.join('');
   }
 
   // ---------- loop ----------

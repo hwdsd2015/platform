@@ -305,6 +305,16 @@
       }
     }
 
+    const fruitLedges = ledges.slice(1, -1).filter(L => L.kind !== 'C');
+    const wantF = { s: 1, m: 2, l: 3 }[size];
+    for (let k = 0; k < wantF && fruitLedges.length; k++) {
+      const L = pick(fruitLedges);
+      const cols = [];
+      for (let x = L.x0; x <= L.x1; x++) if (!L.used.has(x) && g[L.y - 1][x] === '.' && g[L.y][x] !== 'O') cols.push(x);
+      if (!cols.length) continue;
+      const x = pick(cols); set(x, L.y - 1, pick(['a', 'o', 'b'])); L.used.add(x);
+    }
+
     if (shape === 'right' && chance(.55)) {
       for (let x = 0; x < w; x++) if (g[h - 1][x] === '.') set(x, h - 1, '~');
     }

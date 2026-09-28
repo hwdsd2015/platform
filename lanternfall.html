@@ -42,6 +42,11 @@
   .stats b { color: var(--mist); font-weight: 600; margin-left: 6px; }
   .stats .lamps b { color: var(--wick); }
   .stats .open b { color: var(--ember); }
+  .stats .powers i { font-style: normal; margin-right: 10px; }
+  .stats .powers i:last-child { margin-right: 0; }
+  .stats .pw-a { color: #9FD8FF; }
+  .stats .pw-o { color: #FF9A2E; }
+  .stats .pw-b { color: #FFE066; }
 
   .flash {
     position: fixed; left: 50%; top: 22%; transform: translate(-50%, 0); max-width: calc(100% - 32px);
@@ -216,6 +221,7 @@
     <div class="lamps" id="hud-lamps-wrap"><span id="hud-lamps-label">Lanterns</span><b id="hud-lamps">0/0</b></div>
     <div><span>Time</span><b id="hud-time">0:00.0</b></div>
     <div><span>Falls</span><b id="hud-falls">0</b></div>
+    <div class="powers" id="hud-powers-wrap" hidden><span>Powers</span><b id="hud-powers"></b></div>
   </div>
 </div>
 
@@ -316,5 +322,6 @@
 <script src="js/gen.js"></script>
 <script src="js/levels-1.js"></script>
 <script src="js/levels-2.js"></script>
+<script src="js/levels-3.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/ui.js"></script>

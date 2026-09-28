@@ -292,8 +292,51 @@
       }
     }
 
+    function drawFruit(f) {
+      const bob = reduced ? 0 : Math.sin(clock * 3 + f.tx * 1.7) * 2.5;
+      const regrow = f.taken ? Math.max(0, 1 - f.regrow / 12) : 1;
+      const s = f.taken ? .35 + regrow * .25 : 1 + f.pop * .3;
+      ctx.save(); ctx.translate(f.x, f.y + bob); ctx.scale(s, s);
+      ctx.globalAlpha = f.taken ? .3 : 1;
+      if (!f.taken) {
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
+        g.addColorStop(0, 'rgba(255,240,200,.28)'); g.addColorStop(1, 'rgba(255,240,200,0)');
+        ctx.fillStyle = g; ctx.fillRect(-16, -16, 32, 32);
+      }
+      if (f.type === 'a') {
+        ctx.fillStyle = '#E5484D'; ctx.beginPath(); ctx.arc(-2.5, 1, 5.5, 0, TAU); ctx.arc(2.5, 1, 5.5, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#FF8A8D'; ctx.fillRect(-5, -2, 2.5, 2.5);
+        ctx.strokeStyle = '#6B452C'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(1, -8); ctx.stroke();
+        ctx.fillStyle = '#5FBF5A'; ctx.beginPath(); ctx.ellipse(4, -7, 3.5, 1.8, -.5, 0, TAU); ctx.fill();
+      } else if (f.type === 'o') {
+        ctx.fillStyle = '#FF9A2E'; ctx.beginPath(); ctx.arc(0, 1, 6.5, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#FFC47A'; ctx.fillRect(-4, -3, 2.5, 2.5);
+        ctx.fillStyle = '#C96A12'; ctx.fillRect(2, 3, 1.2, 1.2); ctx.fillRect(-1, 5, 1.2, 1.2); ctx.fillRect(3, -1, 1.2, 1.2);
+        ctx.fillStyle = '#5FBF5A'; ctx.beginPath(); ctx.ellipse(2.5, -6, 3.5, 1.8, -.4, 0, TAU); ctx.fill();
+      } else {
+        ctx.strokeStyle = '#FFE066'; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(1, -7, 10, Math.PI * .6, Math.PI * 1.15); ctx.stroke();
+        ctx.strokeStyle = '#C9A227'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(1, -7, 11.5, Math.PI * .65, Math.PI * 1.1); ctx.stroke();
+        ctx.fillStyle = '#6B452C'; ctx.fillRect(-7.5, -11, 2.5, 3); ctx.fillRect(-3, 3, 2, 2);
+        ctx.lineCap = 'butt';
+      }
+      ctx.restore();
+    }
+
+    function drawShield(p) {
+      const cx = p.x + p.w / 2, cy = p.y + p.h / 2 - 4;
+      const pulse = reduced ? 0 : Math.sin(clock * 4) * 1.5;
+      ctx.strokeStyle = 'rgba(159,216,255,.75)'; ctx.lineWidth = 1.5;
+      ctx.fillStyle = 'rgba(159,216,255,.12)';
+      ctx.beginPath(); ctx.ellipse(cx, cy, 17 + pulse, 23 + pulse, 0, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.5)';
+      ctx.beginPath(); ctx.arc(cx, cy, 13 + pulse, Math.PI * 1.1, Math.PI * 1.4); ctx.stroke();
+    }
+
     function drawPlayer(p) {
       if (p.dead) return;
+      if (p.inv > 0) ctx.globalAlpha = reduced ? .5 : Math.floor(p.inv * 16) % 2 ? .25 : .8;
       const f = p.face, bx = p.x + p.w / 2, by = p.y + p.h, fl = LF.flamePos(p);
       ctx.strokeStyle = '#9A6A45'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(bx + f * 3, by - 10); ctx.lineTo(fl.x, fl.y + 3); ctx.stroke();
@@ -309,8 +352,9 @@
       ctx.fillStyle = '#F1D7B8'; ctx.beginPath(); ctx.arc(0, -23, 5, 0, TAU); ctx.fill();
       ctx.fillStyle = '#211C3F';
       ctx.fillRect(f * 2 - 1, -24, 2, 2); ctx.fillRect(-7, -28, 14, 2); ctx.fillRect(-5, -37, 10, 9);
-      ctx.fillStyle = '#FF6B3D'; ctx.fillRect(-5, -30, 10, 2);
+      ctx.fillStyle = p.boost > 0 ? '#FF9A2E' : p.dbl > 0 ? '#FFE066' : '#FF6B3D'; ctx.fillRect(-5, -30, 10, 2);
       ctx.restore();
+      ctx.globalAlpha = 1;
     }
 
     function drawParticles(W, additive) {
@@ -328,6 +372,7 @@
     function lights(W) {
       const out = [], p = W.player;
       if (!p.dead) { const f = LF.flamePos(p); out.push({ x: f.x, y: f.y, r: 150 * flick(0, .03) }); }
+      for (const f of W.fruits) if (!f.taken) out.push({ x: f.x, y: f.y, r: 44 });
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
       for (const b of W.projectiles) out.push({ x: b.x + 5, y: b.y + 5, r: 60 });
@@ -411,7 +456,9 @@
         ctx.fillStyle = g; doorPath(d, 3); ctx.fill();
         ctx.globalAlpha = 1;
       }
+      for (const fr of W.fruits) drawFruit(fr);
       const p = W.player;
+      if (!p.dead && !opts.hidePlayer && p.shield) drawShield(p);
       if (!p.dead && !opts.hidePlayer) {
         const f = LF.flamePos(p), k = flick(3, .15);
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 3.4 * k, 4.8 * k, 0, 0, TAU); ctx.fill();
