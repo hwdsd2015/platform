@@ -488,6 +488,48 @@
       ctx.beginPath(); ctx.arc(cx, cy, 13 + pulse, Math.PI * 1.1, Math.PI * 1.4); ctx.stroke();
     }
 
+    function drawTraps(W) {
+      for (const t of W.traps) {
+        if (t.type === 'pend') {
+          const b = LF.pendBall(t);
+          ctx.fillStyle = '#2A2348'; ctx.fillRect(t.ax - 5, t.ay - 3, 10, 6);
+          ctx.strokeStyle = '#6E6186'; ctx.lineWidth = 2; ctx.setLineDash([4, 2]);
+          ctx.beginPath(); ctx.moveTo(t.ax, t.ay); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = '#CFC6E8';
+          for (let k = 0; k < 8; k++) {
+            const a = k / 8 * TAU + t.a;
+            ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a - .25) * 10, b.y + Math.sin(a - .25) * 10);
+            ctx.lineTo(b.x + Math.cos(a) * 17, b.y + Math.sin(a) * 17); ctx.lineTo(b.x + Math.cos(a + .25) * 10, b.y + Math.sin(a + .25) * 10); ctx.fill();
+          }
+          ctx.fillStyle = '#4C4062'; ctx.beginPath(); ctx.arc(b.x, b.y, 11, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#6E6186'; ctx.beginPath(); ctx.arc(b.x - 3, b.y - 3, 4, 0, TAU); ctx.fill();
+        } else if (t.type === 'bar') {
+          ctx.fillStyle = '#2A2348'; ctx.beginPath(); ctx.arc(t.cx, t.cy, 5, 0, TAU); ctx.fill();
+        } else {
+          const j = t.state === 'wait' && !reduced ? (Math.random() - .5) * 1.5 : 0;
+          const x = t.x + j, y = t.y;
+          ctx.fillStyle = '#CFC6E8';
+          for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(x + 1 + k * 7, y + t.h - 3); ctx.lineTo(x + 4.5 + k * 7, y + t.h + 5); ctx.lineTo(x + 8 + k * 7, y + t.h - 3); ctx.fill(); }
+          ctx.fillStyle = '#4C4062'; ctx.fillRect(x, y, t.w, t.h - 2);
+          ctx.fillStyle = '#6E6186'; ctx.fillRect(x, y, t.w, 3); ctx.fillRect(x, y, 3, t.h - 2);
+          ctx.fillStyle = '#2A2348'; ctx.fillRect(x + t.w - 3, y, 3, t.h - 2);
+          ctx.fillStyle = '#211C3F';
+          ctx.fillRect(x + 6, y + 9, 7, 3); ctx.fillRect(x + 17, y + 9, 7, 3);
+          ctx.fillRect(x + 9, y + 19, 12, 3);
+        }
+      }
+    }
+
+    function drawGhosts(W) {
+      for (const g of W.ghosts) {
+        const a = g.life / g.max * .45, bx = g.x + g.w / 2, by = g.y + g.h;
+        ctx.fillStyle = `rgba(${g.c},${a})`;
+        ctx.beginPath(); ctx.moveTo(bx - 9, by - 5); ctx.lineTo(bx + 9, by - 5); ctx.lineTo(bx + 6, by - 19); ctx.lineTo(bx - 6, by - 19); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx, by - 23, 5, 0, TAU); ctx.fill();
+        ctx.fillRect(bx - 5, by - 37, 10, 9); ctx.fillRect(bx - 7, by - 28, 14, 2);
+      }
+    }
+
     function drawPlayer(p) {
       if (p.dead) return;
       if (p.inv > 0) ctx.globalAlpha = reduced ? .5 : Math.floor(p.inv * 16) % 2 ? .25 : .8;
@@ -533,6 +575,7 @@
       for (const f of W.fruits) if (!f.taken) out.push({ x: f.x, y: f.y, r: 44 });
       for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: 40 });
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 });
+      for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
       for (const b of W.projectiles) out.push({ x: b.x + 5, y: b.y + 5, r: 60 });
@@ -677,6 +720,14 @@
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 3.4 * k, 4.8 * k, 0, 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 1, 1.6, 2.4, 0, 0, TAU); ctx.fill();
       }
+      for (const t of W.traps) if (t.type === 'bar') for (const b of LF.barBalls(t)) {
+        ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x, b.y, 6 * flick(b.x, .15), 0, TAU); ctx.fill();
+        ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(b.x, b.y, 2.8, 0, TAU); ctx.fill();
+      }
+      for (const r of W.rings) {
+        ctx.strokeStyle = `rgba(${r.c},${Math.max(0, r.life / r.total) * .8})`; ctx.lineWidth = 2.5 * (r.life / r.total) + .5;
+        ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
+      }
       drawParticles(W, true);
       ctx.font = '600 10px "Martian Mono", ui-monospace, Menlo, monospace';
       ctx.textAlign = 'center';
@@ -718,6 +769,8 @@
       drawDoor(W.door);
       for (const l of W.lanterns) drawLantern(l);
       for (const e of W.enemies) drawEnemy(e);
+      drawTraps(W);
+      drawGhosts(W);
       if (!opts.hidePlayer) drawPlayer(W.player);
       drawParticles(W, false);
       if (opts.edit) {

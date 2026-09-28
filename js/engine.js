@@ -65,7 +65,7 @@
     const tiles = rows.map(r => r.split('').map(c => (c === '.' ? ' ' : c)));
     const W = {
       def, name: def.name || 'Untitled', dark: def.dark ?? .6, w, h, tiles,
-      lanterns: [], fruits: [], ammo: [], blinks: [], bullets: [], enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
+      lanterns: [], fruits: [], ammo: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
       door: null, start: { tx: 1, ty: h - 2 }, clock: 0, time: 0, falls: 0, shake: 0,
       deadTimer: 0, cleared: false, events: [],
     };
@@ -73,6 +73,9 @@
       const c = tiles[y][x];
       if (c === 'P') { W.start = { tx: x, ty: y }; tiles[y][x] = ' '; }
       else if (c === 'L') { W.lanterns.push({ tx: x, ty: y, x: x * TS + 16, y: y * TS + 14, lit: false, f: (x * 7 + y * 3) % 9, pop: 0 }); tiles[y][x] = ' '; }
+      else if (c === 'E') { W.traps.push({ type: 'pend', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
+      else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
+      else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
       else if (AMMO[c]) { W.ammo.push({ big: c === 'Q', n: AMMO[c], tx: x, ty: y, x: x * TS + 16, y: y * TS + 20, taken: false }); tiles[y][x] = ' '; }
       else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
@@ -194,7 +197,7 @@
     if (p.dead || W.cleared) return;
     p.dead = true; W.deadTimer = .85; W.falls++;
     burst(W, p.x + p.w / 2, p.y + p.h / 2, 26, ['#FF6B3D', '#FFB547', '#D9D0F0'], 240, 500);
-    W.shake = .35; W.emit('die');
+    W.shake = .35; W.freeze = .07; ring(W, p.x + p.w / 2, p.y + p.h / 2, 40, '255,107,61', .4); W.emit('die');
   }
 
   LF.kill = kill;
@@ -207,7 +210,7 @@
     p.shield = false; p.inv = 1.2; p.vy = -520; p.jumping = false;
     burst(W, p.x + p.w / 2, p.y + p.h / 2, 20, ['#9FD8FF', '#D9D0F0'], 200, 300);
     W.floaters.push({ x: p.x + p.w / 2, y: p.y - 8, t: 'shield broke', life: 1, c: '#9FD8FF' });
-    W.shake = .15; W.emit('shield');
+    W.shake = .15; W.freeze = .06; ring(W, p.x + p.w / 2, p.y + p.h / 2, 46, '159,216,255', .45); W.emit('shield');
   }
 
   function respawn(W) {
@@ -227,6 +230,8 @@
 
   // ---------- step ----------
   LF.step = function (W, input, dt, playing = true) {
+    // Hit-freeze: a few frames of stillness make stomps and kills land harder.
+    if (W.freeze > 0) { W.freeze -= dt; return; }
     W.clock += dt;
     stepPlats(W, dt);
     stepCrumbles(W, dt);
@@ -237,6 +242,11 @@
     stepProjectiles(W, dt, playing);
     stepBlinks(W, dt);
     stepBullets(W, dt);
+    stepTraps(W, dt, playing);
+    for (const r of W.rings) { r.life -= dt; r.r += (r.max - r.r) * Math.min(1, dt * 10); }
+    W.rings = W.rings.filter(r => r.life > 0);
+    for (const g of W.ghosts) g.life -= dt;
+    W.ghosts = W.ghosts.filter(g => g.life > 0);
     for (const l of W.lanterns) l.pop = Math.max(0, l.pop - dt * 2.5);
     for (const f of W.fruits) {
       f.pop = Math.max(0, f.pop - dt * 2.5);
@@ -307,12 +317,62 @@
         e.alive = false;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
-        W.shake = Math.max(W.shake, .1); W.emit('zap');
+        W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap');
         break;
       }
       for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + 5 - b.x) < 9 && Math.abs(q.y + 5 - b.y) < 9) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
     }
     W.bullets = W.bullets.filter(b => b.life > 0);
+  }
+
+  // ---------- effects ----------
+  const ring = (W, x, y, max, c, life = .35) => W.rings.push({ x, y, r: 2, max, c, life, total: life });
+  // Leave a fading copy of the player every few frames while `trail` lasts.
+  function trail(W, p, dt, c) {
+    p.trail -= dt; p.trailT = (p.trailT || 0) - dt;
+    if (p.trail > 0 && p.trailT <= 0) { p.trailT = .03; W.ghosts.push({ x: p.x, y: p.y, w: p.w, h: p.h, face: p.face, life: .22, max: .22, c: p.trailC || c }); }
+  }
+
+  // ---------- traps: pendulums, fire bars, crushers ----------
+  const circleHits = (cx, cy, r, b) => {
+    const nx = Math.max(b.x, Math.min(cx, b.x + b.w)), ny = Math.max(b.y, Math.min(cy, b.y + b.h));
+    return (cx - nx) ** 2 + (cy - ny) ** 2 < r * r;
+  };
+  LF.pendBall = t => ({ x: t.ax + Math.sin(t.a) * t.len, y: t.ay + Math.cos(t.a) * t.len });
+  LF.barBalls = t => Array.from({ length: t.n }, (_, k) => ({ x: t.cx + Math.cos(t.a) * (k + 1) * 13, y: t.cy + Math.sin(t.a) * (k + 1) * 13 }));
+  function stepTraps(W, dt, playing) {
+    const p = W.player;
+    for (const t of W.traps) {
+      if (t.type === 'pend') t.a = t.amp * Math.sin(W.clock * TAU / t.per + t.ph);
+      else if (t.type === 'bar') t.a += t.spin * dt;
+      else if (t.type === 'crush') {
+        if (t.state === 'idle') {
+          const below = p.y > t.y && p.y - t.y < TS * 10 && Math.abs(p.x + p.w / 2 - (t.x + t.w / 2)) < TS * 1.1;
+          if (playing && !p.dead && below) { t.state = 'fall'; t.vy = 0; }
+        } else if (t.state === 'fall') {
+          t.vy = Math.min(900, t.vy + G * 1.2 * dt); t.y += t.vy * dt;
+          const ty = Math.floor((t.y + t.h) / TS);
+          const hit = isSolid(tile(W, Math.floor((t.x + 2) / TS), ty)) || isSolid(tile(W, Math.floor((t.x + t.w - 2) / TS), ty));
+          if (hit || t.y > W.h * TS) {
+            if (hit) t.y = ty * TS - t.h;
+            t.state = 'wait'; t.wait = .8;
+            W.shake = Math.max(W.shake, .22);
+            burst(W, t.x + t.w / 2, t.y + t.h, 14, ['#8F81AB', '#D9D0F0'], 160, 400, 3);
+            ring(W, t.x + t.w / 2, t.y + t.h, 40, '217,208,240');
+            W.emit('slam');
+          }
+        } else if (t.state === 'wait') { if ((t.wait -= dt) <= 0) t.state = 'rise'; }
+        else if ((t.y -= 70 * dt) <= t.oy) { t.y = t.oy; t.state = 'idle'; }
+      }
+    }
+  }
+  function trapHit(W, p) {
+    for (const t of W.traps) {
+      if (t.type === 'pend') { const b = LF.pendBall(t); if (circleHits(b.x, b.y, 12, p)) return true; }
+      else if (t.type === 'bar') { for (const b of LF.barBalls(t)) if (circleHits(b.x, b.y, 5, p)) return true; }
+      else if (overlap(p, { x: t.x + 2, y: t.y + 2, w: t.w - 4, h: t.h - 2 })) return true;
+    }
+    return false;
   }
 
   function stepShingle(W, pl, dt) {
@@ -618,10 +678,17 @@
       p.vy = -jumpV * .92; p.vx = away * WALL_KICK; p.face = away; p.lock = .16;
       p.buffer = 0; p.wallCoyote = 0; p.jumping = true; p.sliding = false; p.sx = .8; p.sy = 1.25;
       burst(W, p.wallDir > 0 ? p.x + p.w : p.x, p.y + p.h / 2, 7, ['#9A8FBF', '#D9D0F0'], 90, 200, 2);
+      const wx = p.wallDir > 0 ? p.x + p.w : p.x;
+      burst(W, wx, p.y + p.h / 2, 10, ['#D9D0F0', '#9A8FBF', '#A99CC4'], 150, 300, 2.5);
+      for (let k = 0; k < 5; k++) W.particles.push({ x: wx, y: p.y + 4 + k * 5, vx: away * (60 + k * 25), vy: -30 - k * 10, life: .3, max: .3, c: '#D9D0F0', size: 2, g: 200 });
+      ring(W, wx, p.y + p.h / 2, 22, '217,208,240', .25);
+      p.trail = .22; p.trailC = '154,143,191'; W.shake = Math.max(W.shake, .05);
       W.emit('walljump');
     } else if (p.buffer > 0 && p.airJumps > 0 && !p.onGround) {
       p.vy = -jumpV * .9; p.airJumps--; p.buffer = 0; p.jumping = true; p.sx = .8; p.sy = 1.25;
       burst(W, p.x + p.w / 2, p.y + p.h, 12, ['#FFE066', '#FFF6C2'], 110, 100, 2.5);
+      ring(W, p.x + p.w / 2, p.y + p.h, 26, '255,224,102', .3);
+      p.trail = .25; p.trailC = '255,224,102';
       W.emit('djump');
     }
     if (p.jumping && !input.jump && p.vy < 0) { p.vy *= .45; p.jumping = false; }
@@ -687,20 +754,25 @@
     if (bounced) {
       p.vy = -SPRING; p.onGround = false; p.coyote = 0; p.jumping = false; p.sx = .7; p.sy = 1.35;
       burst(W, p.x + p.w / 2, p.y + p.h, 10, ['#FFB547', '#D9D0F0'], 120, 300, 2);
+      ring(W, p.x + p.w / 2, p.y + p.h, 30, '255,181,71', .3);
+      p.trail = .4; p.trailC = '255,181,71';
       W.emit('spring');
     } else if (p.onGround && wasAir && fallSpeed > 250) {
       p.sx = 1.3; p.sy = .72;
-      burst(W, p.x + p.w / 2, p.y + p.h, 8, ['#9A8FBF', '#D9D0F0'], 80, 250, 2);
+      burst(W, p.x + p.w / 2, p.y + p.h, fallSpeed > 700 ? 16 : 8, ['#9A8FBF', '#D9D0F0'], fallSpeed > 700 ? 140 : 80, 250, 2);
+      if (fallSpeed > 700) { ring(W, p.x + p.w / 2, p.y + p.h, 30, '217,208,240', .3); W.shake = Math.max(W.shake, .08); }
       W.emit('land');
     }
     p.sx += (1 - p.sx) * Math.min(1, dt * 14);
     p.sy += (1 - p.sy) * Math.min(1, dt * 14);
     p.anim += dt * (Math.abs(p.vx) / RUN);
+    trail(W, p, dt, '154,143,191');
 
     // Water at the bottom edge of the map has a floor: you can't sink out of the world.
     if (p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
     if (p.y > W.h * TS + 60) return kill(W);
     if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
+    if (p.inv <= 0 && trapHit(W, p)) { hurt(W); if (p.dead) return; }
 
     for (const e of W.enemies) {
       if (!e.alive || !overlap(p, e)) continue;
@@ -710,7 +782,7 @@
         e.alive = false; p.vy = input.jump ? -620 : -460; p.jumping = input.jump;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FF6B3D', '#463C6B'], 160, 500);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
-        W.shake = .12; W.emit('stomp');
+        W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp');
       } else { hurt(W); if (p.dead) return; }
     }
 

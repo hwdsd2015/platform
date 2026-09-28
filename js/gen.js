@@ -1,7 +1,7 @@
 // Lanternfall: reachability check and random level generator. No DOM.
 (() => {
   const LF = window.LF = window.LF || {};
-  const solid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i';
+  const solid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === 'f';
   const hazard = c => c === '^' || c === '~';
   const blocksPlat = c => solid(c) || c === '|' || c === '^' || c === '=';
 

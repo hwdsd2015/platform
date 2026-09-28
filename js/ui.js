@@ -49,6 +49,7 @@
     ammo: () => { tone(500, 700, .06, 'square', .03); tone(700, 900, .06, 'square', .03, .05); },
     bigammo: () => [500, 630, 750, 1000].forEach((f, i) => tone(f, f, .1, 'square', .03, i * .05)),
     blink: () => tone(1500, 1500, .03, 'sine', .015),
+    slam: () => { tone(120, 40, .25, 'sawtooth', .06); tone(80, 30, .3, 'triangle', .06); },
     buzz: () => tone(220, 260, .3, 'sawtooth', .02),
     bow: () => tone(600, 250, .1, 'triangle', .03),
     clank: () => { tone(1400, 900, .08, 'square', .03); tone(300, 200, .1, 'triangle', .04); },
