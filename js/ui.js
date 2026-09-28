@@ -116,7 +116,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>E</kbd> fire: keeps shooting until you're out of ammo (press again to stop) · ammo crates are hidden through each level; big crates hold 10</li>
+        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire · ammo crates are hidden through each level; big crates hold 10</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
@@ -358,7 +358,7 @@
   function hud() {
     const lit = W.lanterns.filter(l => l.lit).length, open = W.door && W.door.open;
     const p = W.player;
-    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${p.autofire}`;
+    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}`;
     if (key === hudCache) return;
     hudCache = key;
     $('hud-lamps-label').textContent = open ? 'Door' : 'Lanterns';
@@ -366,7 +366,7 @@
     $('hud-lamps-wrap').className = open ? 'open' : 'lamps';
     $('hud-time').textContent = fmt(W.time);
     $('hud-falls').textContent = W.falls;
-    $('hud-ammo').textContent = p.autofire ? `${p.ammo} · firing` : p.ammo;
+    $('hud-ammo').textContent = p.ammo;
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push('<i class="pw-a">Shield</i>');
