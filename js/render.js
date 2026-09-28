@@ -595,6 +595,21 @@
       const h = W.horde;
       if (!h) return;
       const v = hordeView(h, cam), rr = LF.rng(7);
+      if (!v.seen) {
+        // Off screen: pulsing arrows on the edge it's coming from, brighter as it nears.
+        const p = W.player, gap = (LF.hordeAlong(h, p.x + p.w / 2, p.y + p.h / 2) - h.f) / TS;
+        const a = Math.max(.15, Math.min(1, 1 - (gap - 12) / 30)) * (reduced ? 1 : .6 + .4 * Math.sin(clock * 6));
+        const { vw, vh } = R.viewSize(cam);
+        ctx.fillStyle = `rgba(255,107,61,${a})`;
+        for (let k = 0; k < 3; k++) {
+          const o = k * 9;
+          ctx.beginPath();
+          if (h.up) { const x = cam.x + vw / 2 - 30 + k * 30, y = cam.y + vh - 10; ctx.moveTo(x - 8, y); ctx.lineTo(x, y - 8); ctx.lineTo(x + 8, y); }
+          else { const x = cam.x + 10 + o, y = cam.y + vh / 2; ctx.moveTo(x, y - 8); ctx.lineTo(x + 8, y); ctx.lineTo(x, y + 8); }
+          ctx.fill();
+        }
+        return;
+      }
       for (let k = 0; k < 60; k++) {
         const ac = v.a0 + 20 + rr() * (v.a1 - v.a0 - 40), depth = rr() * 220;
         const al = hordeEdge(h, ac) - 12 - depth;
