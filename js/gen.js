@@ -98,7 +98,7 @@
   // ---------- generator ----------
   const NAMES_A = ['Ashen', 'Crooked', 'Tallow', 'Sooty', 'Hollow', 'Quiet', 'Gutter', 'Bellrope', 'Candle', 'Smoke', 'Moth', 'Cinder', 'Lamp-black', 'Weeping', 'Brass'];
   const NAMES_B = ['Stair', 'Rooftops', 'Alley', 'Spire', 'Cistern', 'Kilns', 'Wharf', 'Belfry', 'Chimneys', 'Gallery', 'Lane', 'Vaults', 'Steeple', 'Terraces', 'Drain'];
-  const POOL = { 1: ['B'], 2: ['B', 'B', 'F'], 3: ['B', 'F', 'J', 'K'], 4: ['B', 'F', 'J', 'K', 'S'], 5: ['F', 'J', 'K', 'S', 'G', 'B'] };
+  const POOL = { 1: ['B'], 2: ['B', 'B', 'F', 'R'], 3: ['B', 'F', 'J', 'K', 'R', 'Z'], 4: ['B', 'F', 'J', 'K', 'S', 'R', 'Z'], 5: ['F', 'J', 'K', 'S', 'G', 'B', 'R', 'Z'] };
 
   LF.generate = function (opts = {}) {
     const seed = (opts.seed ?? Math.floor(Math.random() * 1e9)) >>> 0;
@@ -298,7 +298,7 @@
         if (type === 'G' && wraiths >= diff - 3) type = 'B';
         const x = ri(L.x0 + 1, L.x1 - 1);
         if (L.used.has(x) || [...L.used].some(u => Math.abs(u - x) <= 1 && g[L.y - 1][u] === '^')) continue;
-        const y = type === 'F' ? L.y - 3 : type === 'G' ? L.y - 5 : L.y - 1;
+        const y = type === 'F' || type === 'Z' ? L.y - 3 : type === 'G' ? L.y - 5 : L.y - 1;
         if (!inb(x, y) || g[y][x] !== '.') continue;
         set(x, y, type); L.used.add(x);
         if (type === 'G') wraiths++;

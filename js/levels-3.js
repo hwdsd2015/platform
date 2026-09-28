@@ -27,6 +27,38 @@
     lv.map = g.map(r => r.join(''));
   });
 
+  // Newer enemies join the story levels: rams from level 4, spiders from 6, sparks from 11.
+  const OPEN = new Set(['.', '#', '=']);
+  L.forEach((lv, i) => {
+    if (i < 3) return;
+    const g = lv.map.map(r => r.split(''));
+    const h = g.length, w = g[0].length;
+    const T = (x, y) => (x < 0 || y < 0 || x >= w || y >= h) ? '#' : g[y][x];
+    const floor = c => c === '#' || c === '=';
+    let start = { x: 0, y: 0 };
+    g.forEach((r, y) => r.forEach((c, x) => { if (c === 'P') start = { x, y }; }));
+    const quiet = (x, y, rx, ry) => {
+      for (let dy = -ry; dy <= ry; dy++) for (let dx = -rx; dx <= rx; dx++) if (!OPEN.has(T(x + dx, y + dy))) return false;
+      return Math.abs(x - start.x) + Math.abs(y - start.y) > 7;
+    };
+    // Standable run of at least n tiles centred on x, with only air above.
+    const run = (x, y, n) => {
+      for (let dx = -(n >> 1); dx <= n >> 1; dx++) if (T(x + dx, y) !== '.' || T(x + dx, y - 1) !== '.' || T(x + dx, y + 1) !== '#') return false;
+      return true;
+    };
+    const pickSpot = test => {
+      const c = [];
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (test(x, y)) c.push({ x, y });
+      return c.length ? c[(i * 7 + c.length * 3) % c.length] : null;
+    };
+    const put = (spot, ch) => { if (spot) g[spot.y][spot.x] = ch; };
+    put(pickSpot((x, y) => run(x, y, 5) && quiet(x, y, 2, 1)), 'R');
+    if (i >= 5) put(pickSpot((x, y) => T(x, y) === '.' && T(x, y - 1) === '#' && quiet(x, y, 1, 1) &&
+      [2, 3, 4, 5].some(d => floor(T(x, y + d)) && [...Array(d - 1)].every((_, k) => T(x, y + 1 + k) === '.'))), 'X');
+    if (i >= 10) put(pickSpot((x, y) => T(x, y) === '.' && run(x, y + 3, 5) && quiet(x, y, 2, 2)), 'Z');
+    lv.map = g.map(r => r.join(''));
+  });
+
   // ---- Chapter V: The Orchard ----
   L.push({
     chapter: 'The Orchard', name: 'Orchard Walls', dark: .5,
@@ -65,6 +97,24 @@
       r(52, 13, 58, 15); s(57, 12, 'b');
       r(62, 10, 71, 15); s(65, 9, 'S'); s(69, 9, 'D');
       water(15);
+    }),
+  });
+
+  L.push({
+    chapter: 'The Orchard', name: 'Root Cellar', dark: .64,
+    signs: [
+      { x: 1, y: 6.6, t: 'spiders drop when you pass under' },
+      { x: 21.5, y: 6.6, t: 'rams charge — stomp or dodge' },
+      { x: 41.5, y: 6.6, t: 'sparks circle — wait for a gap' },
+    ],
+    map: B(60, 16, ({ r, s, water }) => {
+      r(0, 0, 59, 4);
+      r(0, 13, 16, 15); s(2, 12, 'P'); s(8, 5, 'X'); s(13, 5, 'X'); s(11, 12, 'L');
+      r(21, 13, 36, 15); s(23, 12, 'a'); s(33, 12, 'R'); s(29, 12, 'L');
+      r(26, 9, 29, 9, '=');
+      s(38, 10, 'Z');
+      r(41, 13, 59, 15); s(46, 10, 'Z'); s(50, 12, 'L'); s(54, 5, 'X'); s(57, 12, 'D');
+      water(13);
     }),
   });
 })();

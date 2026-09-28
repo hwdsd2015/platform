@@ -42,6 +42,8 @@
     crumble: () => tone(120, 50, .15, 'sawtooth', .03),
     spit: () => tone(700, 200, .12, 'sawtooth', .02),
     hop: () => tone(200, 380, .08, 'sine', .04),
+    drop: () => tone(900, 300, .15, 'sine', .03),
+    snort: () => tone(140, 90, .2, 'sawtooth', .04),
     splash: () => tone(500, 120, .18, 'sine', .04),
     swim: () => tone(300, 520, .1, 'sine', .035),
     walljump: () => tone(360, 680, .08, 'square', .03),

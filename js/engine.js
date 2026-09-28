@@ -20,6 +20,9 @@
     J: { name: 'Puddle frog', w: 22, h: 18, stomp: true, note: 'hops toward you' },
     S: { name: 'Ember pot', w: 24, h: 22, stomp: true, note: 'spits embers' },
     G: { name: 'Wraith', w: 24, h: 28, stomp: false, note: 'drifts toward you, fears lit lanterns' },
+    X: { name: 'Wick spider', w: 20, h: 16, stomp: true, note: 'hangs from a ceiling, drops when you pass below' },
+    R: { name: 'Coal ram', w: 26, h: 20, stomp: true, note: 'walks, then charges when it sees you' },
+    Z: { name: 'Spark', w: 14, h: 14, stomp: false, note: 'circles its spot — time your way past' },
   };
 
   LF.rng = seed => () => {
@@ -80,8 +83,10 @@
     let y = (ty + 1) * TS - s.h;
     if (type === 'F') y = ty * TS + 9;
     if (type === 'G') y = ty * TS + 2;
-    const vx = { B: -48, K: -72, F: -64 }[type] || 0;
-    return { type, x, y, w: s.w, h: s.h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0 };
+    if (type === 'X') y = ty * TS + 2;
+    if (type === 'Z') y = ty * TS + (TS - s.h) / 2;
+    const vx = { B: -48, K: -72, F: -64, R: -40 }[type] || 0;
+    return { type, x, y, w: s.w, h: s.h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0, state: 'idle' };
   }
 
   function makePlayer(cp) {
@@ -184,7 +189,11 @@
   function respawn(W) {
     Object.assign(W.player, makePlayer(W.checkpoint));
     W.projectiles = [];
-    for (const e of W.enemies) if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
+    for (const e of W.enemies) {
+      if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
+      if (e.type === 'X') { e.y = e.oy; e.state = 'idle'; }
+      if (e.type === 'R' && e.state !== 'idle') { e.state = 'idle'; e.vx = 40 * (e.face || -1); }
+    }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
     W.emit('respawn');
   }
@@ -269,6 +278,52 @@
         if (isSolid(tile(W, tx, tyBody)) || turnMarker(W, tx, tyBody) || !isFloor(below)) e.vx *= -1;
         else e.x = nx;
         e.face = Math.sign(e.vx);
+        break;
+      }
+      case 'X': {
+        // Hang, drop on the player, wait, climb back up the thread.
+        if (e.state === 'idle') {
+          e.y = e.oy + Math.sin(e.t * 2) * 2;
+          const below = py > ey && py - ey < TS * 8 && Math.abs(px - ex) < TS * 1.3;
+          if (playing && !p.dead && below) { e.state = 'drop'; W.emit('drop'); }
+        } else if (e.state === 'drop') {
+          e.y += 420 * dt;
+          const ty = Math.floor((e.y + e.h) / TS), tx = Math.floor(ex / TS);
+          if (isFloor(tile(W, tx, ty)) || e.y - e.oy > TS * 8) { e.y = Math.min(e.y, ty * TS - e.h); e.state = 'wait'; e.wait = .7; }
+        } else if (e.state === 'wait') {
+          if ((e.wait -= dt) <= 0) e.state = 'climb';
+        } else if ((e.y -= 90 * dt) <= e.oy) { e.y = e.oy; e.state = 'idle'; }
+        break;
+      }
+      case 'R': {
+        // Walk; when the player is level and ahead, wind up, then charge until a wall or edge, then rest.
+        const f = Math.sign(e.vx) || e.face;
+        if (e.state === 'idle') {
+          const seen = playing && !p.dead && Math.abs(py - ey) < TS * .9 && Math.abs(px - ex) < TS * 7 && Math.sign(px - ex) === f;
+          if (seen) { e.state = 'wind'; e.wait = .4; W.emit('snort'); }
+        } else if (e.state === 'wind') {
+          if ((e.wait -= dt) <= 0) { e.state = 'charge'; e.vx = f * 280; }
+        } else if (e.state === 'rest') {
+          if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.vx = -f * 40; }
+          break;
+        }
+        if (e.state === 'wind') { e.face = f; break; }
+        const nx = e.x + e.vx * dt;
+        const tx = Math.floor((e.vx < 0 ? nx : nx + e.w) / TS);
+        const tyBody = Math.floor((e.y + e.h - 1) / TS), below = tile(W, tx, Math.floor((e.y + e.h + 2) / TS));
+        if (isSolid(tile(W, tx, tyBody)) || turnMarker(W, tx, tyBody) || !isFloor(below)) {
+          if (e.state === 'charge') {
+            e.state = 'rest'; e.wait = .9; e.vx = f * 40;
+            if (isSolid(tile(W, tx, tyBody))) { W.shake = Math.max(W.shake, .1); burst(W, e.vx > 0 ? e.x + e.w : e.x, ey, 8, ['#8F81AB', '#FF6B3D'], 100, 300, 2); }
+          } else e.vx *= -1;
+        } else e.x = nx;
+        e.face = Math.sign(e.vx) || e.face;
+        break;
+      }
+      case 'Z': {
+        const a = e.t * 2.4, r = 46;
+        e.x = e.ox + Math.cos(a) * r; e.y = e.oy + Math.sin(a) * r;
+        if (Math.random() < .3) W.particles.push({ x: e.x + 7, y: e.y + 7, vx: 0, vy: 0, life: .25, max: .25, c: '#FFB547', size: 2, g: 0 });
         break;
       }
       case 'F': {

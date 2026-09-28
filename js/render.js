@@ -282,6 +282,33 @@
           ctx.restore();
           break;
         }
+        case 'X': {
+          const cy = e.y + 8;
+          ctx.strokeStyle = 'rgba(217,208,240,.45)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(cx, e.oy - 2); ctx.lineTo(cx, cy - 4); ctx.stroke();
+          ctx.strokeStyle = '#120F2A'; ctx.lineWidth = 1.6; ctx.beginPath();
+          for (let k = 0; k < 4; k++) {
+            const leg = (k - 1.5) * 3, bend = reduced ? 0 : Math.sin(clock * 12 + k) * 1.2;
+            ctx.moveTo(cx - 3, cy + leg * .5); ctx.lineTo(cx - 8, cy + leg - 3 + bend); ctx.lineTo(cx - 10, cy + leg + 3);
+            ctx.moveTo(cx + 3, cy + leg * .5); ctx.lineTo(cx + 8, cy + leg - 3 - bend); ctx.lineTo(cx + 10, cy + leg + 3);
+          }
+          ctx.stroke();
+          ctx.fillStyle = '#4A3B2A'; ctx.beginPath(); ctx.ellipse(cx, cy + 1, 6, 7, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#6B5640'; ctx.beginPath(); ctx.arc(cx, cy - 5, 4, 0, TAU); ctx.fill();
+          break;
+        }
+        case 'R': {
+          const shake = e.state === 'wind' && !reduced ? (Math.random() - .5) * 2 : 0;
+          const run = e.state === 'charge' ? Math.sin(clock * 40) * 2 : wob;
+          ctx.fillStyle = '#120F2A'; ctx.fillRect(cx - 10 + run + shake, by - 5, 5, 5); ctx.fillRect(cx + 5 - run + shake, by - 5, 5, 5);
+          ctx.fillStyle = '#3A2A20'; ctx.beginPath(); ctx.ellipse(cx + shake, by - 10, 13, 9, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#5A2C14'; ctx.fillRect(cx - 9 + shake, by - 16, 18, 4);
+          ctx.fillStyle = '#FF6B3D';
+          for (let k = -1; k <= 1; k++) ctx.fillRect(cx + k * 5 - 1 + shake, by - 14, 2, 2);
+          ctx.fillStyle = '#CFC6E8';
+          ctx.beginPath(); ctx.moveTo(cx + f * 10 + shake, by - 15); ctx.lineTo(cx + f * 18 + shake, by - 19); ctx.lineTo(cx + f * 13 + shake, by - 11); ctx.fill();
+          break;
+        }
         case 'S': {
           ctx.fillStyle = '#7A3E1C';
           ctx.beginPath(); ctx.moveTo(cx - 11, by); ctx.lineTo(cx + 11, by); ctx.lineTo(cx + 9, by - 16); ctx.lineTo(cx - 9, by - 16); ctx.fill();
@@ -377,6 +404,7 @@
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
       for (const b of W.projectiles) out.push({ x: b.x + 5, y: b.y + 5, r: 60 });
       for (const e of W.enemies) if (e.alive && e.type === 'S') out.push({ x: e.x + 12, y: e.y + 2, r: 34 });
+      for (const e of W.enemies) if (e.alive && e.type === 'Z') out.push({ x: e.x + 7, y: e.y + 7, r: 56 });
       return out;
     }
 
@@ -429,6 +457,17 @@
         if (e.type === 'B') { ctx.fillRect(cx + f * 8 - 1.5, by - 9, 3, 3); ctx.fillRect(cx + f * 4 - 1.5, by - 10, 3, 3); }
         else if (e.type === 'K') { ctx.fillRect(cx + f * 10 - 1, by - 8, 2, 2); }
         else if (e.type === 'F') { ctx.fillRect(cx - 3, e.y + 6, 2, 2); ctx.fillRect(cx + 1, e.y + 6, 2, 2); }
+        else if (e.type === 'X') { ctx.fillRect(cx - 2.5, e.y + 2, 2, 2); ctx.fillRect(cx + .5, e.y + 2, 2, 2); }
+        else if (e.type === 'R') {
+          ctx.fillStyle = e.state === 'wind' || e.state === 'charge' ? '#FFE2A8' : '#FF6B3D';
+          ctx.fillRect(cx + f * 8 - 1.5, by - 12, 3, 3);
+        } else if (e.type === 'Z') {
+          const k = flick(e.ox, .25);
+          ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(cx, e.y + 7, 7 * k, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(cx, e.y + 7, 3.5, 0, TAU); ctx.fill();
+          ctx.strokeStyle = 'rgba(255,181,71,.18)'; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
+          ctx.beginPath(); ctx.arc(e.ox + 7, e.oy + 7, 46, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+        }
         else if (e.type === 'S') {
           const charge = Math.max(0, 1 - e.cool / 2.3);
           ctx.fillStyle = `rgba(255,181,71,${.45 + charge * .55})`; ctx.fillRect(cx - 9, by - 22, 18, 3);
