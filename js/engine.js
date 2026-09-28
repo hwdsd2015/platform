@@ -82,7 +82,9 @@
       if (c === 'P') { W.start = { tx: x, ty: y }; tiles[y][x] = ' '; }
       else if (c === 'L') { W.lanterns.push({ tx: x, ty: y, x: x * TS + 16, y: y * TS + 14, lit: false, f: (x * 7 + y * 3) % 9, pop: 0 }); tiles[y][x] = ' '; }
       else if (LF.KEYS[c]) { W.keys.push({ c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 16, taken: false }); tiles[y][x] = ' '; }
-      else if (c === '&') { W.horde = { x: x * TS, ox: x * TS, growl: 0, wait: 2.5 }; tiles[y][x] = ' '; }
+      // & starts a horde chasing right from this column; % one rising from this row.
+      else if (c === '&') { W.horde = { up: false, f: x * TS, ox: x * TS, oy: y * TS, growl: 0, wait: 3.5 }; tiles[y][x] = ' '; }
+      else if (c === '%') { W.horde = { up: true, f: -y * TS, ox: x * TS, oy: y * TS, growl: 0, wait: 3.5 }; tiles[y][x] = ' '; }
       else if (c === 'E') { W.traps.push({ type: 'pend', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
       else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
       else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
@@ -236,7 +238,7 @@
     }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
     // After a death the horde falls back so the respawn is fair.
-    if (W.horde) { W.horde.x = Math.min(W.horde.x, W.player.x - TS * 8); W.horde.wait = 1.2; }
+    if (W.horde) { W.horde.f = Math.min(W.horde.f, playerAlong(W.horde, W.player) - TS * 8); W.horde.wait = 1.2; }
     W.emit('respawn');
   }
 
@@ -321,7 +323,7 @@
       b.x += b.vx * dt; b.life -= dt;
       if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); continue; }
       // Bullets just vanish into the horde.
-      if (W.horde && b.x < W.horde.x) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
+      if (W.horde && along(W.horde, b.x, b.y) < W.horde.f) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
         if (!e.alive || !overlap({ x: b.x - 4, y: b.y - 2, w: 8, h: 4 }, e)) continue;
         b.life = 0;
@@ -395,29 +397,32 @@
   }
 
   // ---------- the horde ----------
-  // A wall of shadows that creeps right, and closes in fast if you get far ahead.
-  // It can't be shot or blocked, and a touch kills you even through a shield.
+  // A wall of shadows that creeps forward (right, or up for a rising horde) and closes in
+  // fast if you get far ahead. It can't be shot or blocked, and a touch kills you even
+  // through a shield. h.f is its front measured along the chase: x for right, -y for up.
   const HORDE_SPEED = 58, HORDE_LAG = TS * 9;
+  const along = LF.hordeAlong = (h, x, y) => h.up ? -y : x;
+  const playerAlong = (h, p) => along(h, p.x + p.w / 2, p.y + p.h / 2);
   function stepHorde(W, dt, playing) {
     const h = W.horde, p = W.player;
     if (!h || !playing || W.cleared || p.dead) return;
     // A short head start at the beginning and after each respawn.
     if ((h.wait -= dt) > 0) return;
-    h.x += HORDE_SPEED * dt;
-    const far = p.x - HORDE_LAG;
-    if (h.x < far) h.x += (far - h.x) * Math.min(1, dt * 3);
-    for (const e of W.enemies) if (e.alive && e.x + e.w < h.x - 10) e.alive = false;
-    const gap = p.x - h.x;
+    h.f += HORDE_SPEED * dt;
+    const far = playerAlong(h, p) - HORDE_LAG;
+    if (h.f < far) h.f += (far - h.f) * Math.min(1, dt * 3);
+    for (const e of W.enemies) if (e.alive && along(h, e.x + e.w, e.y) < h.f - 10) e.alive = false;
+    const gap = playerAlong(h, p) - h.f;
     if (gap < TS * 5 && (h.growl -= dt) <= 0) { h.growl = .9 + gap / TS * .2; W.emit('growl'); W.shake = Math.max(W.shake, .05); }
   }
   function hordeCaught(W, p) {
-    if (!W.horde || p.x + p.w / 2 > W.horde.x) return false;
+    if (!W.horde || playerAlong(W.horde, p) > W.horde.f) return false;
     p.shield = false; p.inv = 0; kill(W);
     return true;
   }
 
   // ---------- keys & locked doors ----------
-  // Touching a locked door with its key uses the key up and opens just that door:
+  // Touching a locked door with its key opens just that door:
   // the connected blocks of that color, nearest first.
   function unlock(W, gate, sx, sy, fx, fy) {
     const cells = [], seen = new Set([sy * W.w + sx]), q = [[sx, sy]];
@@ -887,13 +892,13 @@
     for (const k of W.keys) {
       if (k.taken || Math.abs(cx - k.x) > 20 || Math.abs(cy - k.y) > 22) continue;
       const spec = LF.KEYS[k.c];
-      k.taken = true; p.keys[k.c] = (p.keys[k.c] || 0) + 1;
+      k.taken = true; p.keys[k.c] = true;
       burst(W, k.x, k.y, 22, [spec.color, '#FFF1CF'], 150, 150, 2.5);
       ring(W, k.x, k.y, 34, '255,241,207', .4);
       W.floaters.push({ x: k.x, y: k.y - 20, t: spec.name.toLowerCase(), life: 1.2, c: spec.color });
       W.emit('key');
     }
-    // Touching a locked door while holding its key opens that door and uses up the key.
+    // Touching a locked door while holding its key opens that one door. You keep the key.
     for (const kc in p.keys) {
       const gate = LF.KEYS[kc].gate;
       const x0 = Math.floor((p.x - 3) / TS), x1 = Math.floor((p.x + p.w + 3) / TS);
@@ -902,7 +907,6 @@
       for (let ty = y0; ty <= y1 && !hit; ty++) for (let tx = x0; tx <= x1 && !hit; tx++) if (tile(W, tx, ty) === gate) hit = { tx, ty };
       if (!hit) continue;
       unlock(W, gate, hit.tx, hit.ty, cx, cy);
-      if (--p.keys[kc] <= 0) delete p.keys[kc];
     }
 
     for (const a of W.ammo) {

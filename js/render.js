@@ -548,46 +548,59 @@
       }
     }
 
-    // The horde: a churning wall of shadow from the left edge of the view to its front.
-    const hordeEdge = (h, y) => h.x + Math.sin(y * .045 + clock * 3) * 10 + Math.sin(y * .11 - clock * 5) * 6;
+    // The horde: a churning wall of shadow behind its front. Drawn in (along, across)
+    // terms so one routine serves both a rightward horde and a rising one.
+    const hordeEdge = (h, ac) => h.f + (reduced ? 0 : Math.sin(ac * .045 + clock * 3) * 10 + Math.sin(ac * .11 - clock * 5) * 6);
+    const hordePt = (h, al, ac) => h.up ? [ac, -al] : [al, ac];
+    // The span of the view across the chase, and the along-coordinate of the view's far-behind edge.
+    function hordeView(h, cam) {
+      const { vw, vh } = R.viewSize(cam);
+      return h.up
+        ? { a0: cam.x - 40, a1: cam.x + vw + 40, behind: -(cam.y + vh + 40), seen: -h.f < cam.y + vh + 30 }
+        : { a0: cam.y - 40, a1: cam.y + vh + 40, behind: cam.x - 40, seen: h.f + 30 > cam.x };
+    }
     function drawHorde(W, cam, opts) {
       const h = W.horde;
       if (!h) return;
       if (opts.edit) {
-        ctx.fillStyle = 'rgba(7,6,15,.55)'; ctx.fillRect(h.ox, 0, TS, W.h * TS);
-        ctx.fillStyle = '#FF6B3D'; ctx.font = '600 9px ui-monospace, monospace'; ctx.fillText('HORDE →', h.ox + 2, 12);
+        ctx.fillStyle = 'rgba(7,6,15,.55)';
+        if (h.up) ctx.fillRect(0, h.oy, W.w * TS, TS); else ctx.fillRect(h.ox, 0, TS, W.h * TS);
+        ctx.fillStyle = '#FF6B3D'; ctx.font = '600 9px ui-monospace, monospace';
+        ctx.fillText(h.up ? 'HORDE ↑' : 'HORDE →', h.ox + 2, h.up ? h.oy + 12 : 12);
         return;
       }
-      const { vh } = R.viewSize(cam);
-      const top = cam.y - 40, bot = cam.y + vh + 40, left = Math.min(cam.x - 40, h.x - 200);
-      if (h.x + 30 < cam.x) return;
+      const v = hordeView(h, cam);
+      if (!v.seen) return;
+      const back = Math.min(v.behind, h.f - 200), pt = (al, ac) => hordePt(h, al, ac);
       ctx.fillStyle = '#07060F';
-      ctx.beginPath(); ctx.moveTo(left, top);
-      for (let y = top; y <= bot; y += 8) ctx.lineTo(hordeEdge(h, reduced ? 0 : y), y);
-      ctx.lineTo(left, bot); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(...pt(back, v.a0));
+      for (let ac = v.a0; ac <= v.a1; ac += 8) ctx.lineTo(...pt(hordeEdge(h, ac), ac));
+      ctx.lineTo(...pt(back, v.a1)); ctx.fill();
       // Grasping hands and heads along the front.
-      for (let y = Math.floor(top / 22) * 22; y < bot; y += 22) {
-        const reach = reduced ? 8 : 8 + Math.sin(clock * 4 + y) * 8, ex = hordeEdge(h, reduced ? 0 : y);
-        ctx.fillStyle = '#07060F';
-        ctx.beginPath(); ctx.arc(ex - 2, y, 9, 0, TAU); ctx.fill();
-        ctx.fillRect(ex, y + 6, reach, 3);
-        for (let f = 0; f < 3; f++) ctx.fillRect(ex + reach, y + 4 + f * 2.5, 4, 1.5);
+      ctx.strokeStyle = '#07060F';
+      for (let ac = Math.floor(v.a0 / 22) * 22; ac < v.a1; ac += 22) {
+        const reach = reduced ? 8 : 8 + Math.sin(clock * 4 + ac) * 8, ex = hordeEdge(h, ac);
+        ctx.beginPath(); ctx.arc(...pt(ex - 2, ac), 9, 0, TAU); ctx.fill();
+        ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(...pt(ex, ac + 7)); ctx.lineTo(...pt(ex + reach, ac + 7)); ctx.stroke();
+        ctx.lineWidth = 1.5;
+        for (let f = 0; f < 3; f++) { ctx.beginPath(); ctx.moveTo(...pt(ex + reach, ac + 4.5 + f * 2.5)); ctx.lineTo(...pt(ex + reach + 4, ac + 4.5 + f * 2.5)); ctx.stroke(); }
       }
-      const g = ctx.createLinearGradient(h.x, 0, h.x + 90, 0);
+      const [gx0, gy0] = pt(h.f, 0), [gx1, gy1] = pt(h.f + 90, 0);
+      const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
       g.addColorStop(0, 'rgba(7,6,15,.75)'); g.addColorStop(1, 'rgba(7,6,15,0)');
-      ctx.fillStyle = g; ctx.fillRect(h.x, top, 90, bot - top);
+      ctx.fillStyle = g;
+      if (h.up) ctx.fillRect(v.a0, -h.f - 90, v.a1 - v.a0, 90); else ctx.fillRect(h.f, v.a0, 90, v.a1 - v.a0);
     }
     function drawHordeEyes(W, cam) {
       const h = W.horde;
       if (!h) return;
-      const { vh } = R.viewSize(cam);
-      const rr = LF.rng(7);
+      const v = hordeView(h, cam), rr = LF.rng(7);
       for (let k = 0; k < 60; k++) {
-        const y = cam.y - 20 + rr() * (vh + 40), depth = rr() * 220;
-        const x = hordeEdge(h, reduced ? 0 : y) - 12 - depth;
-        if (x < cam.x - 20) continue;
+        const ac = v.a0 + 20 + rr() * (v.a1 - v.a0 - 40), depth = rr() * 220;
+        const al = hordeEdge(h, ac) - 12 - depth;
         const blink = reduced ? 1 : Math.sin(clock * (1 + rr() * 2) + k) > -.85 ? 1 : 0;
-        if (!blink) continue;
+        if (!blink || al < v.behind - 20) continue;
+        const [x, y] = hordePt(h, al, ac);
         ctx.fillStyle = `rgba(255,${60 + (k % 3) * 30},61,${.9 - depth / 300})`;
         ctx.fillRect(x - 3, y, 2.5, 2); ctx.fillRect(x + 2, y, 2.5, 2);
       }

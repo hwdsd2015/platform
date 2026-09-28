@@ -122,7 +122,7 @@
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire · ammo crates are hidden through each level; big crates hold 10</li>
-        <li>Each key opens one locked door of its color</li>
+        <li>Keys open locked doors of their color, one door at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
@@ -375,7 +375,7 @@
     $('hud-ammo').textContent = p.ammo;
     const held = Object.keys(p.keys);
     $('hud-keys-wrap').hidden = !held.length;
-    $('hud-keys').innerHTML = held.map(k => `<i style="color:${LF.KEYS[k].color}">${LF.KEYS[k].name.split(' ')[0]}${p.keys[k] > 1 ? ' ×' + p.keys[k] : ''}</i>`).join('');
+    $('hud-keys').innerHTML = held.map(k => `<i style="color:${LF.KEYS[k].color}">${LF.KEYS[k].name.split(' ')[0]}</i>`).join('');
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push('<i class="pw-a">Shield</i>');
