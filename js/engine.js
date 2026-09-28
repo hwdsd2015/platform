@@ -567,17 +567,18 @@
     if (p.onPlat && !dropping) { moveX(W, p, p.onPlat.dx); p.y += p.onPlat.dy; }
     if (p.onGround && p.conv) moveX(W, p, p.conv * CONVEY * dt);
 
-    // Gun: finite ammo, one shot per press, kills anything it hits.
+    // Gun: finite ammo, kills anything it hits. Tap to fire once, hold to keep firing.
     p.cool -= dt; p.flash -= dt;
-    if (input.firePressed) {
+    if ((input.firePressed || input.fire) && p.cool <= 0) {
+      const tapped = input.firePressed;
       input.firePressed = false;
-      if (p.ammo > 0 && p.cool <= 0) {
-        p.ammo--; p.cool = .2; p.flash = .08;
+      if (p.ammo > 0) {
+        p.ammo--; p.cool = .16; p.flash = .08;
         const g = LF.gunPos(p);
         W.bullets.push({ x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1 });
         p.vx -= p.face * 40;
         W.emit('shoot');
-      } else if (p.ammo <= 0 && p.cool <= 0) { p.cool = .3; W.emit('empty'); }
+      } else if (tapped) { p.cool = .3; W.emit('empty'); }
     }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;

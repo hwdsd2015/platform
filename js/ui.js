@@ -113,7 +113,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>X</kbd> or <kbd>F</kbd> fire · ammo crates are hidden through each level; big crates hold 10</li>
+        <li><kbd>E</kbd> fire (hold to keep firing) · ammo crates are hidden through each level; big crates hold 10</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
@@ -310,7 +310,7 @@
   $('sel-back').addEventListener('click', showTitle);
 
   // ---------- input ----------
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyX: 'fire', KeyF: 'fire' };
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyX: 'fire', KeyF: 'fire' };
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
