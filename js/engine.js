@@ -110,7 +110,6 @@
     W.checkpoint = { ...W.start };
     W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
-    if (W.horde) W.horde.f = Math.min(W.horde.f, playerAlong(W.horde, W.player) - HORDE_BACK);
     W.emit = (type, data) => W.events.push({ type, data });
     return W;
   };
@@ -402,8 +401,8 @@
   // you can outrun it. It can't be shot or blocked, and a touch kills you even through a
   // shield. h.f is its front measured along the chase: x for right, -y for up.
   const HORDE_SPEED = { right: 80, up: 64 };
-  // It starts (and restarts after a death) this far behind you, off screen, after a short pause.
-  const HORDE_BACK = TS * 16, HORDE_WAIT = .5;
+  // After a death it falls back this far behind you; it pauses briefly at level start and respawn.
+  const HORDE_BACK = TS * 8, HORDE_WAIT = .5;
   const along = LF.hordeAlong = (h, x, y) => h.up ? -y : x;
   const playerAlong = (h, p) => along(h, p.x + p.w / 2, p.y + p.h / 2);
   function stepHorde(W, dt, playing) {
