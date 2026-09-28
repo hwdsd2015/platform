@@ -85,6 +85,13 @@
   .tally dd { margin: 0; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .tally .best dd { color: var(--wick); }
   .menu { display: grid; gap: 10px; justify-items: start; padding-top: 2px; }
+  .tune { display: grid; gap: 4px; max-height: 52vh; overflow-y: auto; padding-right: 8px; }
+  .tune-row { display: grid; grid-template-columns: 9rem 1fr 1fr; gap: 4px 14px; align-items: center; font-size: 11px; padding: 5px 0; border-bottom: 1px solid rgba(217,208,240,.08); }
+  .tune-row b { font-weight: 600; color: var(--mist); }
+  .tune-row label { display: grid; grid-template-columns: auto 1fr 3.2rem; gap: 6px; align-items: center; color: var(--mist-dim); }
+  .tune-row input { width: 100%; min-width: 0; accent-color: var(--wick); }
+  .tune-row output { font-variant-numeric: tabular-nums; color: var(--wick); text-align: right; }
+  @media (max-width: 560px) { .tune-row { grid-template-columns: 1fr; } }
   .go {
     font-family: var(--display); font-size: 20px; color: var(--ink);
     background: var(--wick); border: 0; border-radius: 6px; padding: 12px 22px 11px; cursor: pointer;
@@ -322,17 +329,17 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=13"></script>
-<script src="js/render.js?v=13"></script>
-<script src="js/gen.js?v=13"></script>
-<script src="js/levels-1.js?v=13"></script>
-<script src="js/levels-2.js?v=13"></script>
-<script src="js/levels-3.js?v=13"></script>
-<script src="js/levels-4.js?v=13"></script>
-<script src="js/levels-5.js?v=13"></script>
-<script src="js/levels-6.js?v=13"></script>
-<script src="js/levels-7.js?v=13"></script>
-<script src="js/levels-8.js?v=13"></script>
-<script src="js/levels-9.js?v=13"></script>
-<script src="js/editor.js?v=13"></script>
-<script src="js/ui.js?v=13"></script>
+<script src="js/engine.js?v=14"></script>
+<script src="js/render.js?v=14"></script>
+<script src="js/gen.js?v=14"></script>
+<script src="js/levels-1.js?v=14"></script>
+<script src="js/levels-2.js?v=14"></script>
+<script src="js/levels-3.js?v=14"></script>
+<script src="js/levels-4.js?v=14"></script>
+<script src="js/levels-5.js?v=14"></script>
+<script src="js/levels-6.js?v=14"></script>
+<script src="js/levels-7.js?v=14"></script>
+<script src="js/levels-8.js?v=14"></script>
+<script src="js/levels-9.js?v=14"></script>
+<script src="js/editor.js?v=14"></script>
+<script src="js/ui.js?v=14"></script>

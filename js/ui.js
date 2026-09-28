@@ -18,6 +18,7 @@
   };
   let progress = store.get('progress', {});
   let customs = store.get('custom', []);
+  LF.tuning = store.get('tuning', {});
 
   // ---------- audio ----------
   let ac = null, muted = store.get('muted', false);
@@ -101,6 +102,35 @@
   };
   const nextStory = () => { const i = LF.LEVELS.findIndex((_, k) => !progress[k]); return i < 0 ? 0 : i; };
 
+  // ---------- enemy settings ----------
+  // A size slider and a speed slider for every enemy type, saved in this browser.
+  const TUNE = { size: { min: .5, max: 2 }, speed: { min: .25, max: 3 } };
+  function showTuning() {
+    setVisible({ overlay: true });
+    const rows = Object.entries(LF.ENEMIES).map(([c, e]) => {
+      const t = LF.tune(c);
+      const slider = k => `<label>${k === 'size' ? 'Size' : 'Speed'}
+        <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${t[k]}" data-t="${c}" data-k="${k}" aria-label="${esc(e.name)} ${k}">
+        <output>${t[k].toFixed(2)}×</output></label>`;
+      return `<div class="tune-row"><b>${esc(e.name)}</b>${slider('size')}${slider('speed')}</div>`;
+    }).join('');
+    card(`
+      <p class="eyebrow">Settings</p>
+      <h2>Enemy settings</h2>
+      <p class="lede">Size and speed for each kind of enemy. Speed changes right away; size applies when a level starts.</p>
+      <div class="tune">${rows}</div>
+      <div class="menu">
+        <button class="go" data-act="menu">Done</button>
+        <button class="alt" data-act="resetTuning">Reset all to 1×</button>
+      </div>`);
+    for (const inp of $('card').querySelectorAll('input[type=range]')) inp.addEventListener('input', () => {
+      const { t, k } = inp.dataset;
+      LF.tuning[t] = { ...LF.tuning[t], [k]: +inp.value };
+      inp.nextElementSibling.textContent = (+inp.value).toFixed(2) + '×';
+      store.set('tuning', LF.tuning);
+    });
+  }
+
   // ---------- screens ----------
   function showTitle() {
     screen = 'title';
@@ -117,6 +147,7 @@
         <button class="alt" data-act="select">Choose a level</button>
         <button class="alt" data-act="random">Random map</button>
         <button class="alt" data-act="editor">Level editor</button>
+        <button class="alt" data-act="tuning">Enemy settings</button>
       </div>
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
@@ -302,6 +333,8 @@
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
     menu: showTitle,
+    tuning: showTuning,
+    resetTuning: () => { LF.tuning = {}; store.set('tuning', {}); showTuning(); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
     restart: () => play(playDef, playCtx),
     backToEditor: () => { screen = 'editor'; setVisible({}); editor.resume(); },

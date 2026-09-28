@@ -114,9 +114,13 @@
     return W;
   };
 
+  // Per-type size and speed multipliers, set from the Enemy settings screen.
+  LF.tuning = LF.tuning || {};
+  const tune = LF.tune = type => ({ size: 1, speed: 1, ...LF.tuning[type] });
+
   function makeEnemy(type, tx, ty) {
     const s = LF.ENEMIES[type];
-    const x = tx * TS + (TS - s.w) / 2;
+    let x = tx * TS + (TS - s.w) / 2;
     let y = (ty + 1) * TS - s.h;
     if (type === 'F') y = ty * TS + 9;
     if (type === 'G') y = ty * TS + 2;
@@ -124,7 +128,15 @@
     if (type === 'Z' || LF.SWIMMERS[type]) y = ty * TS + (TS - s.h) / 2;
     if (type === 'W') y = ty * TS + 8;
     const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85, I: -30 }[type] || 0;
-    return { hp: s.hp || 1, hurt: 0, type, x, y, w: s.w, h: s.h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0, state: 'idle' };
+    // Resize around the spot the enemy is anchored to: its top if it hangs from a ceiling,
+    // its middle if it flies or swims, otherwise its feet.
+    const scale = tune(type).size;
+    let w = s.w, h = s.h;
+    if (scale !== 1) {
+      const cx = x + w / 2, anchor = type === 'X' ? 0 : 'FWZGYUN'.includes(type) ? .5 : 1, ay = y + h * anchor;
+      w = s.w * scale; h = s.h * scale; x = cx - w / 2; y = ay - h * anchor;
+    }
+    return { scale, hp: s.hp || 1, hurt: 0, type, x, y, w, h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0, state: 'idle' };
   }
 
   function makePlayer(cp) {
@@ -251,7 +263,7 @@
     stepCrumbles(W, dt);
     for (const e of W.enemies) {
       if (!e.alive) { e.dead += dt; continue; }
-      stepEnemy(W, e, dt * ENEMY_SPEED, playing);
+      stepEnemy(W, e, dt * ENEMY_SPEED * tune(e.type).speed, playing);
     }
     stepProjectiles(W, dt, playing);
     stepBlinks(W, dt);

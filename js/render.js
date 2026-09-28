@@ -291,6 +291,17 @@
       }
     }
 
+    // Draw a resized enemy by drawing it at its normal size and scaling the canvas around it.
+    function scaled(e, draw) {
+      const s = e.scale || 1;
+      if (s === 1) return draw(e);
+      const cx = e.x + e.w / 2, by = e.y + e.h, w0 = e.w / s, h0 = e.h / s;
+      const q = { ...e, x: cx - w0 / 2, y: by - h0, w: w0, h: h0, ox: cx - w0 / 2 + (e.ox - e.x) / s, oy: by + (e.oy - by) / s };
+      ctx.save(); ctx.translate(cx, by); ctx.scale(s, s); ctx.translate(-cx, -by);
+      draw(q);
+      ctx.restore();
+    }
+
     function drawEnemy(e) {
       const cx = e.x + e.w / 2, by = e.y + e.h, f = e.face || -1;
       if (!e.alive) {
@@ -716,8 +727,9 @@
       }
       ctx.globalAlpha = 1;
 
-      for (const e of W.enemies) {
-        if (!e.alive) continue;
+      for (const e0 of W.enemies) {
+        if (!e0.alive) continue;
+        scaled(e0, e => {
         const cx = e.x + e.w / 2, by = e.y + e.h, f = e.face || -1;
         ctx.fillStyle = '#FF6B3D';
         if (e.type === 'B') { ctx.fillRect(cx + f * 8 - 1.5, by - 9, 3, 3); ctx.fillRect(cx + f * 4 - 1.5, by - 10, 3, 3); }
@@ -770,6 +782,7 @@
           ctx.fillStyle = `rgba(14,12,34,${a + .2})`;
           ctx.beginPath(); ctx.ellipse(cx + f * 3 - 4, wy + 12 + bob, 2.5, 3.5, 0, 0, TAU); ctx.ellipse(cx + f * 3 + 4, wy + 12 + bob, 2.5, 3.5, 0, 0, TAU); ctx.fill();
         }
+        });
       }
       for (const b of W.projectiles) {
         if (b.kind === 'arrow') {
@@ -858,7 +871,7 @@
       drawPlats(W);
       drawDoor(W.door);
       for (const l of W.lanterns) drawLantern(l);
-      for (const e of W.enemies) drawEnemy(e);
+      for (const e of W.enemies) scaled(e, drawEnemy);
       drawTraps(W);
       drawGhosts(W);
       if (!opts.hidePlayer) drawPlayer(W.player);
