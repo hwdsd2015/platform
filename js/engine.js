@@ -578,7 +578,10 @@
         W.bullets.push({ x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1 });
         p.vx -= p.face * 40;
         W.emit('shoot');
-      } else if (tapped) { p.cool = .3; W.emit('empty'); }
+      } else if (tapped) {
+        p.cool = .5; W.emit('empty');
+        W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
+      }
     }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;
