@@ -182,6 +182,8 @@
     padding: 24px; width: min(30rem, calc(100% - 32px)); box-shadow: 0 20px 60px rgba(0,0,0,.5);
   }
   dialog::backdrop { background: rgba(14,12,34,.7); }
+  dialog.wide { width: min(40rem, calc(100% - 32px)); }
+  dialog .tune { margin-bottom: 18px; }
   dialog h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 400; font-size: 32px; color: var(--wick); }
   dialog p { margin: 0 0 16px; font-size: 12px; line-height: 1.7; color: var(--mist-dim); }
   .fields { display: grid; gap: 12px; margin-bottom: 20px; }
@@ -256,6 +258,7 @@
       <div class="ed-actions">
         <button class="mini go-mini" id="ed-play" type="button">Test play</button>
         <button class="mini" id="ed-check" type="button">Check</button>
+        <button class="mini" id="ed-tune" type="button">Enemies</button>
         <button class="mini" id="ed-save" type="button">Save</button>
         <button class="mini" id="ed-gen" type="button">Generate</button>
         <button class="mini" id="ed-code" type="button">Share code</button>
@@ -305,6 +308,16 @@
   </div>
 </dialog>
 
+<dialog id="tune-dialog" class="wide">
+  <h2>Enemy size &amp; speed</h2>
+  <p>Resize and speed up or slow down each kind of enemy in this level. Saved with the level and in its share code.</p>
+  <div id="tune-body"></div>
+  <div class="dlg-actions">
+    <button class="go" id="tune-done" type="button">Done</button>
+    <button class="alt" id="tune-reset" type="button">Reset all to 1×</button>
+  </div>
+</dialog>
+
 <dialog id="code-dialog">
   <h2>Share code</h2>
   <p id="code-msg"></p>
@@ -329,17 +342,17 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=14"></script>
-<script src="js/render.js?v=14"></script>
-<script src="js/gen.js?v=14"></script>
-<script src="js/levels-1.js?v=14"></script>
-<script src="js/levels-2.js?v=14"></script>
-<script src="js/levels-3.js?v=14"></script>
-<script src="js/levels-4.js?v=14"></script>
-<script src="js/levels-5.js?v=14"></script>
-<script src="js/levels-6.js?v=14"></script>
-<script src="js/levels-7.js?v=14"></script>
-<script src="js/levels-8.js?v=14"></script>
-<script src="js/levels-9.js?v=14"></script>
-<script src="js/editor.js?v=14"></script>
-<script src="js/ui.js?v=14"></script>
+<script src="js/engine.js?v=15"></script>
+<script src="js/render.js?v=15"></script>
+<script src="js/gen.js?v=15"></script>
+<script src="js/levels-1.js?v=15"></script>
+<script src="js/levels-2.js?v=15"></script>
+<script src="js/levels-3.js?v=15"></script>
+<script src="js/levels-4.js?v=15"></script>
+<script src="js/levels-5.js?v=15"></script>
+<script src="js/levels-6.js?v=15"></script>
+<script src="js/levels-7.js?v=15"></script>
+<script src="js/levels-8.js?v=15"></script>
+<script src="js/levels-9.js?v=15"></script>
+<script src="js/editor.js?v=15"></script>
+<script src="js/ui.js?v=15"></script>

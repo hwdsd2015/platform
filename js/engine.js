@@ -99,7 +99,7 @@
         // Falling shingle: shakes when stood on, drops, then grows back.
         W.plats.push({ kind: 'fall', state: 'idle', t: 0, vy: 0, x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS, h: 12, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
-      } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : ' '; }
+      } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y, def.tuning)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : ' '; }
     }
     // Markers placed underwater (start, lanterns, fruit…) leave water behind, not an air pocket.
     for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) {
@@ -114,11 +114,11 @@
     return W;
   };
 
-  // Per-type size and speed multipliers, set from the Enemy settings screen.
-  LF.tuning = LF.tuning || {};
-  const tune = LF.tune = type => ({ size: 1, speed: 1, ...LF.tuning[type] });
+  // A level can resize and speed up or slow down each enemy type (set in the editor):
+  // def.tuning = { B: { size: 1.5, speed: 2 }, ... }.
+  const tune = LF.tune = (tuning, type) => ({ size: 1, speed: 1, ...(tuning || {})[type] });
 
-  function makeEnemy(type, tx, ty) {
+  function makeEnemy(type, tx, ty, tuning) {
     const s = LF.ENEMIES[type];
     let x = tx * TS + (TS - s.w) / 2;
     let y = (ty + 1) * TS - s.h;
@@ -130,7 +130,7 @@
     const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85, I: -30 }[type] || 0;
     // Resize around the spot the enemy is anchored to: its top if it hangs from a ceiling,
     // its middle if it flies or swims, otherwise its feet.
-    const scale = tune(type).size;
+    const scale = tune(tuning, type).size;
     let w = s.w, h = s.h;
     if (scale !== 1) {
       const cx = x + w / 2, anchor = type === 'X' ? 0 : 'FWZGYUN'.includes(type) ? .5 : 1, ay = y + h * anchor;
@@ -263,7 +263,7 @@
     stepCrumbles(W, dt);
     for (const e of W.enemies) {
       if (!e.alive) { e.dead += dt; continue; }
-      stepEnemy(W, e, dt * ENEMY_SPEED * tune(e.type).speed, playing);
+      stepEnemy(W, e, dt * ENEMY_SPEED * tune(W.def.tuning, e.type).speed, playing);
     }
     stepProjectiles(W, dt, playing);
     stepBlinks(W, dt);

@@ -43,7 +43,7 @@
   LF.createEditor = function (app) {
     const cvs = app.canvas, R = app.renderer;
     const E = { active: false };
-    let grid = [], meta = { name: 'My level', dark: .6, id: null };
+    let grid = [], meta = { name: 'My level', dark: .6, id: null, tuning: {} };
     let tool = TOOLS[2], world = null, dirty = true;
     const cam = { x: 0, y: 0, zoom: 1 };
     let hover = null, painting = null, panning = null, spaceDown = false;
@@ -76,11 +76,48 @@
     const toRows = () => grid.map(r => r.join(''));
     function load(def) {
       grid = LF.normalize(def.map).map(r => r.split(''));
-      meta = { name: def.name || 'My level', dark: def.dark ?? .6, id: def.id || null, signs: def.signs };
+      meta = { name: def.name || 'My level', dark: def.dark ?? .6, id: def.id || null, signs: def.signs, tuning: { ...def.tuning } };
       undo = []; redo = [];
       syncInputs(); fitCamera(); dirty = true;
     }
-    function def() { return { name: meta.name, dark: meta.dark, map: toRows(), id: meta.id }; }
+    function def() { return { name: meta.name, dark: meta.dark, map: toRows(), id: meta.id, tuning: tuningOut() }; }
+    // Only keep the settings that differ from normal, so levels stay small.
+    function tuningOut() {
+      const out = {};
+      for (const [c, t] of Object.entries(meta.tuning)) {
+        const keep = {};
+        if (t.size != null && t.size !== 1) keep.size = t.size;
+        if (t.speed != null && t.speed !== 1) keep.speed = t.speed;
+        if (Object.keys(keep).length) out[c] = keep;
+      }
+      return Object.keys(out).length ? out : undefined;
+    }
+
+    // ---------- enemy size & speed ----------
+    const TUNE = { size: { min: .5, max: 2 }, speed: { min: .25, max: 3 } };
+    function openTuning() {
+      const present = [...new Set(grid.flat().filter(c => LF.ENEMIES[c]))];
+      const fmt = v => (+v).toFixed(2) + '×';
+      const rows = present.map(c => {
+        const t = LF.tune(meta.tuning, c), e = LF.ENEMIES[c];
+        const slider = k => `<label>${k === 'size' ? 'Size' : 'Speed'}
+          <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${t[k]}" data-t="${c}" data-k="${k}" aria-label="${e.name} ${k}">
+          <output>${fmt(t[k])}</output></label>`;
+        return `<div class="tune-row"><b>${e.name}</b>${slider('size')}${slider('speed')}</div>`;
+      }).join('');
+      $('tune-body').innerHTML = present.length ? `<div class="tune">${rows}</div>`
+        : '<p>There are no enemies in this level yet. Place some from the Enemies group, then come back here.</p>';
+      for (const inp of $('tune-body').querySelectorAll('input[type=range]')) inp.addEventListener('input', () => {
+        const { t, k } = inp.dataset;
+        meta.tuning[t] = { ...meta.tuning[t], [k]: +inp.value };
+        inp.nextElementSibling.textContent = fmt(inp.value);
+        dirty = true;
+      });
+      $('tune-dialog').showModal();
+    }
+    $('ed-tune').addEventListener('click', openTuning);
+    $('tune-reset').addEventListener('click', () => { meta.tuning = {}; dirty = true; openTuning(); });
+    $('tune-done').addEventListener('click', () => { $('tune-dialog').close(); status('Enemy size & speed saved with this level. Test play to try them.'); });
     function snapshot() { undo.push(toRows().join('\n')); if (undo.length > 80) undo.shift(); redo = []; }
     function restore(str) { grid = str.split('\n').map(r => r.split('')); syncInputs(); dirty = true; }
 
