@@ -42,6 +42,8 @@
     crumble: () => tone(120, 50, .15, 'sawtooth', .03),
     spit: () => tone(700, 200, .12, 'sawtooth', .02),
     hop: () => tone(200, 380, .08, 'sine', .04),
+    splash: () => tone(500, 120, .18, 'sine', .04),
+    swim: () => tone(300, 520, .1, 'sine', .035),
     walljump: () => tone(360, 680, .08, 'square', .03),
     djump: () => { tone(520, 980, .1, 'triangle', .04); tone(780, 1400, .08, 'sine', .03, .04); },
     fruit: () => { tone(660, 990, .1, 'triangle', .05); tone(990, 1480, .14, 'triangle', .04, .06); },
@@ -102,6 +104,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
+        <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> restart · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>`);

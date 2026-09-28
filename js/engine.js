@@ -3,7 +3,7 @@
   const LF = window.LF = window.LF || {};
   const TS = LF.TS = 32;
   const G = 2100, MAXFALL = 900, RUN = 250, JUMP = 700, SPRING = 1080;
-  const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12;
+  const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12, SINK = 55;
   const TAU = Math.PI * 2;
 
   // Fruit: touch to gain a power. Picked fruit grows back after REGROW seconds.
@@ -90,7 +90,7 @@
       x: cp.tx * TS + (TS - w) / 2, y: (cp.ty + 1) * TS - h, w, h,
       vx: 0, vy: 0, face: 1, onGround: false, onPlat: null,
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
-      wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0,
+      wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
       shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0,
     };
   }
@@ -148,13 +148,14 @@
     if (W.particles.length > 600) W.particles.splice(0, W.particles.length - 600);
   }
 
-  function hazardHit(W, p) {
+  // Water only drowns enemies; the player swims (see inWater).
+  function hazardHit(W, p, swims = false) {
     const x0 = Math.floor((p.x + 3) / TS), x1 = Math.floor((p.x + p.w - 3) / TS);
     const y0 = Math.floor((p.y + 4) / TS), y1 = Math.floor((p.y + p.h - 1) / TS);
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
       const c = tile(W, tx, ty);
       if (c === '^' && p.y + p.h > ty * TS + 14) return true;
-      if (c === '~' && p.y + p.h > ty * TS + 10) return true;
+      if (c === '~' && !swims && p.y + p.h > ty * TS + 10) return true;
     }
     return p.y > W.h * TS + 60;
   }
@@ -348,14 +349,31 @@
     return false;
   }
 
+  // Is the lower part of the body under the water surface?
+  function inWater(W, p) {
+    const x0 = Math.floor((p.x + 3) / TS), x1 = Math.floor((p.x + p.w - 3) / TS);
+    const y0 = Math.floor((p.y + p.h * .4) / TS), y1 = Math.floor((p.y + p.h - 1) / TS);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      if (tile(W, tx, ty) !== '~') continue;
+      if (tile(W, tx, ty - 1) === '~' || p.y + p.h > ty * TS + 10) return true;
+    }
+    return false;
+  }
+
   function stepPlayer(W, p, input, dt) {
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     p.lock -= dt; p.inv -= dt;
     p.boost = Math.max(0, p.boost - dt); p.dbl = Math.max(0, p.dbl - dt);
     if (dir && p.lock <= 0) p.face = dir;
     // Right after a wall jump, steering is weak so the kick carries you off the wall.
+    const wet = inWater(W, p);
+    if (wet && !p.wet) {
+      burst(W, p.x + p.w / 2, p.y + p.h, 10, ['#7FB0E0', '#D9D0F0'], 110, 500, 2);
+      W.emit('splash');
+    }
+    p.wet = wet;
     const accel = p.onGround ? (dir ? 2600 : 2200) : p.lock > 0 ? 250 : (dir ? 1700 : 700);
-    p.vx = approach(p.vx, dir * RUN, accel * dt);
+    p.vx = approach(p.vx, dir * RUN * (wet ? .65 : 1), accel * dt);
 
     if (input.jumpPressed) { p.buffer = .13; input.jumpPressed = false; } else p.buffer -= dt;
     p.coyote = p.onGround ? .1 : p.coyote - dt;
@@ -367,7 +385,7 @@
     p.wall = p.onGround ? 0 : wallBeside(W, p, -1) ? -1 : wallBeside(W, p, 1) ? 1 : 0;
     if (p.wall) { p.wallDir = p.wall; p.wallCoyote = .1; p.airJumps = p.dbl > 0 ? 1 : 0; }
     else p.wallCoyote -= dt;
-    if (p.onGround) p.airJumps = p.dbl > 0 ? 1 : 0;
+    if (p.onGround || wet) p.airJumps = p.dbl > 0 ? 1 : 0;
     p.sliding = !!p.wall && dir === p.wall && p.vy > 0;
 
     const jumpV = JUMP * (p.boost > 0 ? BOOST : 1);
@@ -376,6 +394,11 @@
       p.onGround = false; p.onPlat = null; p.sx = .75; p.sy = 1.3;
       burst(W, p.x + p.w / 2, p.y + p.h, 6, p.boost > 0 ? ['#FFB547', '#FF6B3D'] : ['#9A8FBF'], 60, 200, 2);
       W.emit('jump');
+    } else if (p.buffer > 0 && wet) {
+      // Swimming: as many jumps as you like while in the water.
+      p.vy = -jumpV * .88; p.buffer = 0; p.jumping = true; p.sx = .85; p.sy = 1.2;
+      burst(W, p.x + p.w / 2, p.y + p.h, 6, ['#7FB0E0', '#D9D0F0'], 70, 150, 2);
+      W.emit('swim');
     } else if (p.buffer > 0 && p.wallCoyote > 0 && !p.onGround) {
       const away = -p.wallDir;
       p.vy = -jumpV * .92; p.vx = away * WALL_KICK; p.face = away; p.lock = .16;
@@ -389,7 +412,10 @@
     }
     if (p.jumping && !input.jump && p.vy < 0) { p.vy *= .45; p.jumping = false; }
     if (p.vy >= 0) p.jumping = false;
-    p.vy = Math.min(MAXFALL, p.vy + G * dt * (p.vy > 0 ? 1.15 : 1));
+    if (wet) {
+      p.vy = Math.min(SINK, p.vy + G * .45 * dt);
+      if (Math.random() < .05) W.particles.push({ x: p.x + p.w / 2 + p.face * 4, y: p.y + 4, vx: 0, vy: -40, life: .6, max: .6, c: '#9FD8FF', size: 2, g: -60 });
+    } else p.vy = Math.min(MAXFALL, p.vy + G * dt * (p.vy > 0 ? 1.15 : 1));
     if (p.sliding) {
       p.vy = Math.min(p.vy, WALL_SLIDE);
       if (Math.random() < .12) W.particles.push({ x: p.wall > 0 ? p.x + p.w : p.x, y: p.y + p.h - 4, vx: -p.wall * 20, vy: -30, life: .35, max: .35, c: '#9A8FBF', size: 2, g: 200 });
@@ -433,8 +459,10 @@
     p.sy += (1 - p.sy) * Math.min(1, dt * 14);
     p.anim += dt * (Math.abs(p.vx) / RUN);
 
+    // Water at the bottom edge of the map has a floor: you can't sink out of the world.
+    if (p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
     if (p.y > W.h * TS + 60) return kill(W);
-    if (hazardHit(W, p)) { hurt(W); if (p.dead) return; }
+    if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
 
     for (const e of W.enemies) {
       if (!e.alive || !overlap(p, e)) continue;
