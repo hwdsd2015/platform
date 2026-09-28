@@ -350,7 +350,7 @@
         W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap');
         break;
       }
-      for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + 5 - b.x) < 9 && Math.abs(q.y + 5 - b.y) < 9) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
+      for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 4) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
     }
     W.bullets = W.bullets.filter(b => b.life > 0);
   }
@@ -662,8 +662,10 @@
         const d = px - ex;
         if (Math.abs(d) < TS * 11) e.face = Math.sign(d) || e.face;
         if (e.cool <= 0 && playing && !p.dead && Math.abs(d) < TS * 11 && Math.abs(py - ey) < TS * 2.5) {
-          e.cool = 2.3;
-          W.projectiles.push({ x: ex + e.face * 12 - 5, y: e.y + 4, w: 10, h: 10, vx: e.face * 175, life: 6 });
+          // Fireball settings from the editor: shotSpeed, fireRate and shotSize (all 1 by default).
+          const t = tune(W.def.tuning, 'S'), r = 5 * (t.shotSize ?? 1);
+          e.cool = 2.3 / (t.fireRate ?? 1);
+          W.projectiles.push({ x: ex + e.face * (7 + r) - r, y: e.y + 9 - r, w: r * 2, h: r * 2, vx: e.face * 175 * (t.shotSpeed ?? 1), life: 6 });
           W.emit('spit');
         }
         break;
@@ -694,10 +696,11 @@
     const p = W.player;
     for (const b of W.projectiles) {
       b.x += b.vx * dt; b.y += (b.vy || 0) * dt; b.life -= dt;
-      if (isSolid(tile(W, Math.floor((b.x + 5) / TS), Math.floor((b.y + 5) / TS)))) {
-        b.life = 0; burst(W, b.x + 5, b.y + 5, 6, WARM, 90, 200, 2);
+      const bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      if (isSolid(tile(W, Math.floor(bx / TS), Math.floor(by / TS)))) {
+        b.life = 0; burst(W, bx, by, 6, WARM, 90, 200, 2);
       } else if (playing && !p.dead && overlap(p, b)) { b.life = 0; hurt(W); }
-      if (Math.random() < .4) W.particles.push({ x: b.x + 5, y: b.y + 5, vx: -b.vx * .1, vy: -20, life: .3, max: .3, c: '#FF6B3D', size: 2, g: 0 });
+      if (Math.random() < .4) W.particles.push({ x: bx, y: by, vx: -b.vx * .1, vy: -20, life: .3, max: .3, c: '#FF6B3D', size: 2, g: 0 });
     }
     W.projectiles = W.projectiles.filter(b => b.life > 0);
   }

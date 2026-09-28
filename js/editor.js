@@ -87,23 +87,28 @@
       for (const [c, t] of Object.entries(meta.tuning)) {
         const keep = {};
         if (t.size != null && t.size !== 1) keep.size = t.size;
-        if (t.speed != null && t.speed !== 1) keep.speed = t.speed;
+        for (const k of ['speed', 'shotSpeed', 'fireRate', 'shotSize']) if (t[k] != null && t[k] !== 1) keep[k] = t[k];
         if (Object.keys(keep).length) out[c] = keep;
       }
       return Object.keys(out).length ? out : undefined;
     }
 
     // ---------- enemy size & speed ----------
-    const TUNE = { size: { min: .5, max: 2 }, speed: { min: .25, max: 3 } };
+    const TUNE = {
+      size: { label: 'Size', min: .5, max: 2 }, speed: { label: 'Speed', min: .25, max: 3 },
+      shotSpeed: { label: 'Fireball speed', min: .25, max: 3 }, fireRate: { label: 'Fire rate', min: .25, max: 4 }, shotSize: { label: 'Fireball size', min: .5, max: 3 },
+    };
+    const EXTRA = { S: ['shotSpeed', 'fireRate', 'shotSize'] };
     function openTuning() {
       const present = [...new Set(grid.flat().filter(c => LF.ENEMIES[c]))];
       const fmt = v => (+v).toFixed(2) + '×';
       const rows = present.map(c => {
         const t = LF.tune(meta.tuning, c), e = LF.ENEMIES[c];
-        const slider = k => `<label>${k === 'size' ? 'Size' : 'Speed'}
-          <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${t[k]}" data-t="${c}" data-k="${k}" aria-label="${e.name} ${k}">
-          <output>${fmt(t[k])}</output></label>`;
-        return `<div class="tune-row"><b>${e.name}</b>${slider('size')}${slider('speed')}</div>`;
+        const slider = k => `<label>${TUNE[k].label}
+          <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${t[k] ?? 1}" data-t="${c}" data-k="${k}" aria-label="${e.name} ${TUNE[k].label}">
+          <output>${fmt(t[k] ?? 1)}</output></label>`;
+        const extra = (EXTRA[c] || []).map(slider).join('');
+        return `<div class="tune-row"><b>${e.name}</b>${slider('size')}${slider('speed')}${extra ? `<div class="tune-extra">${extra}</div>` : ''}</div>`;
       }).join('');
       $('tune-body').innerHTML = present.length ? `<div class="tune">${rows}</div>`
         : '<p>There are no enemies in this level yet. Place some from the Enemies group, then come back here.</p>';
