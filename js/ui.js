@@ -52,6 +52,7 @@
     key: () => [660, 880, 1320].forEach((f, i) => tone(f, f, .12, 'triangle', .05, i * .06)),
     unlock: () => { tone(300, 600, .15, 'square', .03); tone(900, 900, .2, 'triangle', .04, .1); },
     gatepop: () => tone(500 + Math.random() * 300, 200, .06, 'square', .015),
+    growl: () => { tone(70, 45, .5, 'sawtooth', .05); tone(95, 60, .45, 'triangle', .04, .05); },
     slam: () => { tone(120, 40, .25, 'sawtooth', .06); tone(80, 30, .3, 'triangle', .06); },
     buzz: () => tone(220, 260, .3, 'sawtooth', .02),
     bow: () => tone(600, 250, .1, 'triangle', .03),
@@ -121,7 +122,7 @@
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire · ammo crates are hidden through each level; big crates hold 10</li>
-        <li>Keys open the locked doors of their color</li>
+        <li>Each key opens one locked door of its color</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
@@ -363,7 +364,7 @@
   function hud() {
     const lit = W.lanterns.filter(l => l.lit).length, open = W.door && W.door.open;
     const p = W.player;
-    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${Object.keys(p.keys).join('')}`;
+    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${JSON.stringify(p.keys)}`;
     if (key === hudCache) return;
     hudCache = key;
     $('hud-lamps-label').textContent = open ? 'Door' : 'Lanterns';
@@ -374,7 +375,7 @@
     $('hud-ammo').textContent = p.ammo;
     const held = Object.keys(p.keys);
     $('hud-keys-wrap').hidden = !held.length;
-    $('hud-keys').innerHTML = held.map(k => `<i style="color:${LF.KEYS[k].color}">${LF.KEYS[k].name.split(' ')[0]}</i>`).join('');
+    $('hud-keys').innerHTML = held.map(k => `<i style="color:${LF.KEYS[k].color}">${LF.KEYS[k].name.split(' ')[0]}${p.keys[k] > 1 ? ' ×' + p.keys[k] : ''}</i>`).join('');
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push('<i class="pw-a">Shield</i>');

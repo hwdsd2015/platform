@@ -4,6 +4,8 @@
   const TS = LF.TS = 32;
   const G = 2100, MAXFALL = 900, RUN = 250, JUMP = 700, SPRING = 1080;
   const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12, SINK = 55;
+  // Every enemy runs this much faster than its base numbers (movement, timers, attacks).
+  const ENEMY_SPEED = 1.35;
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10 };
   const TAU = Math.PI * 2;
 
@@ -80,6 +82,7 @@
       if (c === 'P') { W.start = { tx: x, ty: y }; tiles[y][x] = ' '; }
       else if (c === 'L') { W.lanterns.push({ tx: x, ty: y, x: x * TS + 16, y: y * TS + 14, lit: false, f: (x * 7 + y * 3) % 9, pop: 0 }); tiles[y][x] = ' '; }
       else if (LF.KEYS[c]) { W.keys.push({ c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 16, taken: false }); tiles[y][x] = ' '; }
+      else if (c === '&') { W.horde = { x: x * TS, ox: x * TS, growl: 0, wait: 2.5 }; tiles[y][x] = ' '; }
       else if (c === 'E') { W.traps.push({ type: 'pend', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
       else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
       else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
@@ -232,6 +235,8 @@
       if (e.type === 'W') { e.x = e.ox; e.y = e.oy; e.state = 'idle'; e.cool = 1.2; }
     }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
+    // After a death the horde falls back so the respawn is fair.
+    if (W.horde) { W.horde.x = Math.min(W.horde.x, W.player.x - TS * 8); W.horde.wait = 1.2; }
     W.emit('respawn');
   }
 
@@ -244,13 +249,14 @@
     stepCrumbles(W, dt);
     for (const e of W.enemies) {
       if (!e.alive) { e.dead += dt; continue; }
-      stepEnemy(W, e, dt, playing);
+      stepEnemy(W, e, dt * ENEMY_SPEED, playing);
     }
     stepProjectiles(W, dt, playing);
     stepBlinks(W, dt);
     stepBullets(W, dt);
     stepTraps(W, dt, playing);
     stepUnlocking(W, dt);
+    stepHorde(W, dt, playing);
     for (const r of W.rings) { r.life -= dt; r.r += (r.max - r.r) * Math.min(1, dt * 10); }
     W.rings = W.rings.filter(r => r.life > 0);
     for (const g of W.ghosts) g.life -= dt;
@@ -314,6 +320,8 @@
     for (const b of W.bullets) {
       b.x += b.vx * dt; b.life -= dt;
       if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); continue; }
+      // Bullets just vanish into the horde.
+      if (W.horde && b.x < W.horde.x) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
         if (!e.alive || !overlap({ x: b.x - 4, y: b.y - 2, w: 8, h: 4 }, e)) continue;
         b.life = 0;
@@ -380,17 +388,47 @@
     for (const t of W.traps) {
       if (t.type === 'pend') { const b = LF.pendBall(t); if (circleHits(b.x, b.y, 12, p)) return true; }
       else if (t.type === 'bar') { for (const b of LF.barBalls(t)) if (circleHits(b.x, b.y, 5, p)) return true; }
-      // Crushers: the top is safe to stand on; the sides and spiked bottom hurt.
-      else if (p.onPlat !== t && overlap(p, { x: t.x + 2, y: t.y + 6, w: t.w - 4, h: t.h })) return true;
+      // Crushers: only the spiked underside hurts. The top is a platform and the sides are solid.
+      else if (p.onPlat !== t && overlap(p, { x: t.x + 3, y: t.y + t.h - 6, w: t.w - 6, h: 12 })) return true;
     }
     return false;
   }
 
+  // ---------- the horde ----------
+  // A wall of shadows that creeps right, and closes in fast if you get far ahead.
+  // It can't be shot or blocked, and a touch kills you even through a shield.
+  const HORDE_SPEED = 58, HORDE_LAG = TS * 9;
+  function stepHorde(W, dt, playing) {
+    const h = W.horde, p = W.player;
+    if (!h || !playing || W.cleared || p.dead) return;
+    // A short head start at the beginning and after each respawn.
+    if ((h.wait -= dt) > 0) return;
+    h.x += HORDE_SPEED * dt;
+    const far = p.x - HORDE_LAG;
+    if (h.x < far) h.x += (far - h.x) * Math.min(1, dt * 3);
+    for (const e of W.enemies) if (e.alive && e.x + e.w < h.x - 10) e.alive = false;
+    const gap = p.x - h.x;
+    if (gap < TS * 5 && (h.growl -= dt) <= 0) { h.growl = .9 + gap / TS * .2; W.emit('growl'); W.shake = Math.max(W.shake, .05); }
+  }
+  function hordeCaught(W, p) {
+    if (!W.horde || p.x + p.w / 2 > W.horde.x) return false;
+    p.shield = false; p.inv = 0; kill(W);
+    return true;
+  }
+
   // ---------- keys & locked doors ----------
-  // Touching a locked door with its key opens every door of that color, nearest first.
-  function unlock(W, gate, fx, fy) {
-    const cells = [];
-    for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) if (W.tiles[y][x] === gate) cells.push({ tx: x, ty: y, d: Math.hypot(x * TS + 16 - fx, y * TS + 16 - fy) });
+  // Touching a locked door with its key uses the key up and opens just that door:
+  // the connected blocks of that color, nearest first.
+  function unlock(W, gate, sx, sy, fx, fy) {
+    const cells = [], seen = new Set([sy * W.w + sx]), q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.pop();
+      cells.push({ tx: x, ty: y, d: Math.hypot(x * TS + 16 - fx, y * TS + 16 - fy) });
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        const k = ny * W.w + nx;
+        if (!seen.has(k) && tile(W, nx, ny) === gate && ny >= 0 && ny < W.h) { seen.add(k); q.push([nx, ny]); }
+      }
+    }
     cells.sort((a, b) => a.d - b.d);
     cells.forEach((c, i) => W.unlocking.push({ ...c, gate, t: .12 + i * .07 }));
     for (const c of cells) W.tiles[c.ty][c.tx] = gate + '*';
@@ -813,6 +851,13 @@
     if (p.y > W.h * TS + 60) return kill(W);
     if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
     if (p.inv <= 0 && trapHit(W, p)) { hurt(W); if (p.dead) return; }
+    // Crusher sides push you out instead of hurting.
+    for (const t of W.traps) {
+      if (t.type !== 'crush' || p.onPlat === t || !overlap(p, { x: t.x, y: t.y + 4, w: t.w, h: t.h - 10 })) continue;
+      if (p.x + p.w / 2 < t.x + t.w / 2) p.x = t.x - p.w; else p.x = t.x + t.w;
+      p.vx = 0;
+    }
+    if (hordeCaught(W, p)) return;
 
     for (const e of W.enemies) {
       if (!e.alive || !overlap(p, e)) continue;
@@ -842,20 +887,22 @@
     for (const k of W.keys) {
       if (k.taken || Math.abs(cx - k.x) > 20 || Math.abs(cy - k.y) > 22) continue;
       const spec = LF.KEYS[k.c];
-      k.taken = true; p.keys[k.c] = true;
+      k.taken = true; p.keys[k.c] = (p.keys[k.c] || 0) + 1;
       burst(W, k.x, k.y, 22, [spec.color, '#FFF1CF'], 150, 150, 2.5);
       ring(W, k.x, k.y, 34, '255,241,207', .4);
       W.floaters.push({ x: k.x, y: k.y - 20, t: spec.name.toLowerCase(), life: 1.2, c: spec.color });
       W.emit('key');
     }
-    // A key opens its doors when you touch them.
+    // Touching a locked door while holding its key opens that door and uses up the key.
     for (const kc in p.keys) {
       const gate = LF.KEYS[kc].gate;
       const x0 = Math.floor((p.x - 3) / TS), x1 = Math.floor((p.x + p.w + 3) / TS);
       const y0 = Math.floor((p.y - 3) / TS), y1 = Math.floor((p.y + p.h + 3) / TS);
-      let hit = false;
-      for (let ty = y0; ty <= y1 && !hit; ty++) for (let tx = x0; tx <= x1 && !hit; tx++) if (tile(W, tx, ty) === gate) hit = true;
-      if (hit) unlock(W, gate, cx, cy);
+      let hit = null;
+      for (let ty = y0; ty <= y1 && !hit; ty++) for (let tx = x0; tx <= x1 && !hit; tx++) if (tile(W, tx, ty) === gate) hit = { tx, ty };
+      if (!hit) continue;
+      unlock(W, gate, hit.tx, hit.ty, cx, cy);
+      if (--p.keys[kc] <= 0) delete p.keys[kc];
     }
 
     for (const a of W.ammo) {

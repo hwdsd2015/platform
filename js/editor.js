@@ -28,6 +28,7 @@
     { c: 'D', label: 'Door', group: 'Level', chip: '#8F81AB' },
     { c: 'M', label: 'Lift ↔', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
+    { c: '&', label: 'Horde', group: 'Level', chip: '#07060F', note: 'a wall of shadows that chases you right from this column; can’t be shot' },
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },
     { c: 'Q', label: 'Big ammo', group: 'Level', chip: '#FF6B3D', note: '+10 shots: put it somewhere hard to reach' },
     ...Object.entries(LF.FRUITS).map(([c, f]) => ({ c, label: f.name, group: 'Fruit', chip: f.color, note: f.note })),

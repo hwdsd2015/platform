@@ -548,6 +548,51 @@
       }
     }
 
+    // The horde: a churning wall of shadow from the left edge of the view to its front.
+    const hordeEdge = (h, y) => h.x + Math.sin(y * .045 + clock * 3) * 10 + Math.sin(y * .11 - clock * 5) * 6;
+    function drawHorde(W, cam, opts) {
+      const h = W.horde;
+      if (!h) return;
+      if (opts.edit) {
+        ctx.fillStyle = 'rgba(7,6,15,.55)'; ctx.fillRect(h.ox, 0, TS, W.h * TS);
+        ctx.fillStyle = '#FF6B3D'; ctx.font = '600 9px ui-monospace, monospace'; ctx.fillText('HORDE →', h.ox + 2, 12);
+        return;
+      }
+      const { vh } = R.viewSize(cam);
+      const top = cam.y - 40, bot = cam.y + vh + 40, left = Math.min(cam.x - 40, h.x - 200);
+      if (h.x + 30 < cam.x) return;
+      ctx.fillStyle = '#07060F';
+      ctx.beginPath(); ctx.moveTo(left, top);
+      for (let y = top; y <= bot; y += 8) ctx.lineTo(hordeEdge(h, reduced ? 0 : y), y);
+      ctx.lineTo(left, bot); ctx.fill();
+      // Grasping hands and heads along the front.
+      for (let y = Math.floor(top / 22) * 22; y < bot; y += 22) {
+        const reach = reduced ? 8 : 8 + Math.sin(clock * 4 + y) * 8, ex = hordeEdge(h, reduced ? 0 : y);
+        ctx.fillStyle = '#07060F';
+        ctx.beginPath(); ctx.arc(ex - 2, y, 9, 0, TAU); ctx.fill();
+        ctx.fillRect(ex, y + 6, reach, 3);
+        for (let f = 0; f < 3; f++) ctx.fillRect(ex + reach, y + 4 + f * 2.5, 4, 1.5);
+      }
+      const g = ctx.createLinearGradient(h.x, 0, h.x + 90, 0);
+      g.addColorStop(0, 'rgba(7,6,15,.75)'); g.addColorStop(1, 'rgba(7,6,15,0)');
+      ctx.fillStyle = g; ctx.fillRect(h.x, top, 90, bot - top);
+    }
+    function drawHordeEyes(W, cam) {
+      const h = W.horde;
+      if (!h) return;
+      const { vh } = R.viewSize(cam);
+      const rr = LF.rng(7);
+      for (let k = 0; k < 60; k++) {
+        const y = cam.y - 20 + rr() * (vh + 40), depth = rr() * 220;
+        const x = hordeEdge(h, reduced ? 0 : y) - 12 - depth;
+        if (x < cam.x - 20) continue;
+        const blink = reduced ? 1 : Math.sin(clock * (1 + rr() * 2) + k) > -.85 ? 1 : 0;
+        if (!blink) continue;
+        ctx.fillStyle = `rgba(255,${60 + (k % 3) * 30},61,${.9 - depth / 300})`;
+        ctx.fillRect(x - 3, y, 2.5, 2); ctx.fillRect(x + 2, y, 2.5, 2);
+      }
+    }
+
     function drawGhosts(W) {
       for (const g of W.ghosts) {
         const a = g.life / g.max * .45, bx = g.x + g.w / 2, by = g.y + g.h;
@@ -754,6 +799,7 @@
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x, b.y, 6 * flick(b.x, .15), 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(b.x, b.y, 2.8, 0, TAU); ctx.fill();
       }
+      drawHordeEyes(W, cam);
       for (const r of W.rings) {
         ctx.strokeStyle = `rgba(${r.c},${Math.max(0, r.life / r.total) * .8})`; ctx.lineWidth = 2.5 * (r.life / r.total) + .5;
         ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
@@ -803,6 +849,7 @@
       drawGhosts(W);
       if (!opts.hidePlayer) drawPlayer(W.player);
       drawParticles(W, false);
+      drawHorde(W, cam, opts);
       if (opts.edit) {
         drawEmissive(W, cam, opts);
         worldTransform(W, cam, opts);
