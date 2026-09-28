@@ -119,7 +119,7 @@
       vx: 0, vy: 0, face: 1, onGround: false, onPlat: null, ammo: 0,
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
       wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
-      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0, conv: 0, cool: 0, flash: 0,
+      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0, conv: 0, cool: 0, flash: 0, autofire: false,
     };
   }
 
@@ -640,21 +640,25 @@
     if (p.onPlat && !dropping) { moveX(W, p, p.onPlat.dx); p.y += p.onPlat.dy; }
     if (p.onGround && p.conv) moveX(W, p, p.conv * CONVEY * dt);
 
-    // Gun: finite ammo, kills anything it hits. Tap to fire once, hold to keep firing.
+    // Gun: finite ammo, kills anything it hits. One press starts autofire, which keeps
+    // shooting until the ammo runs out; pressing fire again stops it early.
     p.cool -= dt; p.flash -= dt;
-    if ((input.firePressed || input.fire) && p.cool <= 0) {
-      const tapped = input.firePressed;
+    if (input.firePressed) {
       input.firePressed = false;
-      if (p.ammo > 0) {
-        p.ammo--; p.cool = .16; p.flash = .08;
-        const g = LF.gunPos(p);
-        W.bullets.push({ x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1 });
-        p.vx -= p.face * 40;
-        W.emit('shoot');
-      } else if (tapped) {
-        p.cool = .5; W.emit('empty');
+      if (p.autofire) p.autofire = false;
+      else if (p.ammo > 0) p.autofire = true;
+      else {
+        W.emit('empty');
         W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
       }
+    }
+    if (p.autofire && p.cool <= 0) {
+      p.ammo--; p.cool = .16; p.flash = .08;
+      const g = LF.gunPos(p);
+      W.bullets.push({ x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1 });
+      p.vx -= p.face * 40;
+      W.emit('shoot');
+      if (p.ammo <= 0) { p.autofire = false; W.emit('empty'); }
     }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;
