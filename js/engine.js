@@ -26,6 +26,9 @@
     Z: { name: 'Spark', w: 14, h: 14, stomp: false, note: 'circles its spot — time your way past' },
     Y: { name: 'Lantern pike', w: 28, h: 12, stomp: false, note: 'place in water: swims back and forth' },
     U: { name: 'Glow jelly', w: 20, h: 20, stomp: false, note: 'place in water: bobs slowly up and down' },
+    W: { name: 'Wasp', w: 22, h: 16, stomp: true, note: 'hovers, then dashes straight at you' },
+    A: { name: 'Ash archer', w: 22, h: 26, stomp: true, note: 'shoots aimed arrows' },
+    I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, note: 'slow, armored: takes 3 shots' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, note: 'place in water: leaps out at you' },
   };
   // Enemies that live in water: their map cell stays water.
@@ -39,7 +42,8 @@
   };
 
   // T and H are blink blocks (lowercase while switched off); < and > are conveyor belts.
-  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>';
+  // i is ice: solid but slippery.
+  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i';
   const isFloor = LF.isFloor = c => isSolid(c) || c === '=';
   const blocksPlat = c => isSolid(c) || c === '|' || c === '^' || c === '=';
 
@@ -76,6 +80,10 @@
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
+      } else if (c === 'd') {
+        // Falling shingle: shakes when stood on, drops, then grows back.
+        W.plats.push({ kind: 'fall', state: 'idle', t: 0, vy: 0, x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS, h: 12, dx: 0, dy: 0, prevY: y * TS });
+        tiles[y][x] = ' ';
       } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : ' '; }
     }
     // Markers placed underwater (start, lanterns, fruit…) leave water behind, not an air pocket.
@@ -99,8 +107,9 @@
     if (type === 'G') y = ty * TS + 2;
     if (type === 'X') y = ty * TS + 2;
     if (type === 'Z' || LF.SWIMMERS[type]) y = ty * TS + (TS - s.h) / 2;
-    const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85 }[type] || 0;
-    return { type, x, y, w: s.w, h: s.h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0, state: 'idle' };
+    if (type === 'W') y = ty * TS + 8;
+    const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85, I: -30 }[type] || 0;
+    return { hp: s.hp || 1, hurt: 0, type, x, y, w: s.w, h: s.h, ox: x, oy: y, vx, vy: 0, alive: true, dead: 0, t: (tx * 13 + ty * 5) % 7 * .3, face: -1, cool: 1.2, wait: .8, ground: false, fade: 0, state: 'idle' };
   }
 
   function makePlayer(cp) {
@@ -210,6 +219,7 @@
       if (e.type === 'X') { e.y = e.oy; e.state = 'idle'; }
       if (e.type === 'R' && e.state !== 'idle') { e.state = 'idle'; e.vx = 40 * (e.face || -1); }
       if (e.type === 'N') { e.x = e.ox; e.y = e.oy; e.state = 'idle'; e.wait = 1.8; }
+      if (e.type === 'W') { e.x = e.ox; e.y = e.oy; e.state = 'idle'; e.cool = 1.2; }
     }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
     W.emit('respawn');
@@ -250,6 +260,7 @@
   function stepPlats(W, dt) {
     for (const pl of W.plats) {
       pl.prevY = pl.y; pl.dx = 0; pl.dy = 0;
+      if (pl.kind === 'fall') { stepShingle(W, pl, dt); continue; }
       const sp = pl.v * dt * pl.dir;
       if (pl.axis === 'x') {
         const nx = pl.x + sp;
@@ -287,7 +298,13 @@
       if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); continue; }
       for (const e of W.enemies) {
         if (!e.alive || !overlap({ x: b.x - 4, y: b.y - 2, w: 8, h: 4 }, e)) continue;
-        e.alive = false; b.life = 0;
+        b.life = 0;
+        if (e.hp > 1) {
+          e.hp--; e.hurt = .15; e.x += Math.sign(b.vx) * 5;
+          burst(W, b.x, b.y, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
+          break;
+        }
+        e.alive = false;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
         W.shake = Math.max(W.shake, .1); W.emit('zap');
@@ -296,6 +313,18 @@
       for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + 5 - b.x) < 9 && Math.abs(q.y + 5 - b.y) < 9) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
     }
     W.bullets = W.bullets.filter(b => b.life > 0);
+  }
+
+  function stepShingle(W, pl, dt) {
+    pl.t += dt;
+    if (pl.state === 'shake' && pl.t > .4) { pl.state = 'fall'; pl.t = 0; pl.vy = 0; W.emit('crumble'); }
+    else if (pl.state === 'fall') {
+      pl.vy = Math.min(700, pl.vy + G * .6 * dt); pl.dy = pl.vy * dt; pl.y += pl.dy;
+      if (pl.y > W.h * TS + 40 || pl.t > 2.5) { pl.state = 'gone'; pl.t = 0; }
+    } else if (pl.state === 'gone' && pl.t > 3) {
+      const box = { x: pl.ox, y: pl.oy - 4, w: pl.w, h: pl.h + 4 };
+      if (W.player.dead || !overlap(W.player, box)) { pl.state = 'idle'; pl.y = pl.prevY = pl.oy; pl.t = 0; }
+    }
   }
 
   function stepCrumbles(W, dt) {
@@ -369,6 +398,50 @@
           } else e.vx *= -1;
         } else e.x = nx;
         e.face = Math.sign(e.vx) || e.face;
+        break;
+      }
+      case 'W': {
+        // Hover, lock on, dash at where the player was, drift home.
+        e.hurt = Math.max(0, e.hurt - dt);
+        if (e.state === 'idle') {
+          e.x += (e.ox - e.x) * Math.min(1, dt * 2); e.y += (e.oy + Math.sin(e.t * 4) * 6 - e.y) * Math.min(1, dt * 3);
+          e.face = Math.sign(px - ex) || e.face;
+          e.cool -= dt;
+          if (e.cool <= 0 && playing && !p.dead && Math.hypot(px - ex, py - ey) < TS * 6) { e.state = 'aim'; e.wait = .5; e.tx = px; e.ty = py; W.emit('buzz'); }
+        } else if (e.state === 'aim') {
+          e.tx = px; e.ty = py;
+          if ((e.wait -= dt) <= 0) {
+            const d = Math.hypot(e.tx - ex, e.ty - ey) || 1;
+            e.vx = (e.tx - ex) / d * 340; e.vy = (e.ty - ey) / d * 340; e.state = 'dash'; e.wait = .8;
+          }
+        } else if (e.state === 'dash') {
+          e.x += e.vx * dt; e.y += e.vy * dt; e.face = Math.sign(e.vx) || e.face;
+          if ((e.wait -= dt) <= 0 || isSolid(tile(W, Math.floor((e.x + e.w / 2) / TS), Math.floor((e.y + e.h / 2) / TS)))) { e.state = 'idle'; e.cool = 1.4; }
+        }
+        break;
+      }
+      case 'A': {
+        e.cool -= dt;
+        const d = px - ex, dy = py - ey, dist = Math.hypot(d, dy);
+        if (dist < TS * 10) e.face = Math.sign(d) || e.face;
+        if (e.cool <= 0 && playing && !p.dead && dist < TS * 10) {
+          e.cool = 2.4;
+          const sp = 210, ax = ex + e.face * 10, ay = e.y + 8;
+          const n = Math.hypot(px - ax, py - ay) || 1;
+          W.projectiles.push({ kind: 'arrow', x: ax - 5, y: ay - 5, w: 10, h: 6, vx: (px - ax) / n * sp, vy: (py - ay) / n * sp, life: 5 });
+          W.emit('bow');
+        }
+        break;
+      }
+      case 'I': {
+        e.hurt = Math.max(0, e.hurt - dt);
+        const nx = e.x + e.vx * dt;
+        const tx = Math.floor((e.vx < 0 ? nx : nx + e.w) / TS);
+        const tyBody = Math.floor((e.y + e.h - 1) / TS), below = tile(W, tx, Math.floor((e.y + e.h + 2) / TS));
+        if (isSolid(tile(W, tx, tyBody)) || turnMarker(W, tx, tyBody) || !isFloor(below)) e.vx *= -1;
+        else e.x = nx;
+        e.face = Math.sign(e.vx);
+        if (Math.floor(e.t * 1.6) !== Math.floor((e.t - dt) * 1.6) && Math.abs(px - ex) < TS * 8) { W.shake = Math.max(W.shake, .06); }
         break;
       }
       case 'Y': {
@@ -473,7 +546,7 @@
   function stepProjectiles(W, dt, playing) {
     const p = W.player;
     for (const b of W.projectiles) {
-      b.x += b.vx * dt; b.life -= dt;
+      b.x += b.vx * dt; b.y += (b.vy || 0) * dt; b.life -= dt;
       if (isSolid(tile(W, Math.floor((b.x + 5) / TS), Math.floor((b.y + 5) / TS)))) {
         b.life = 0; burst(W, b.x + 5, b.y + 5, 6, WARM, 90, 200, 2);
       } else if (playing && !p.dead && overlap(p, b)) { b.life = 0; hurt(W); }
@@ -513,7 +586,7 @@
       W.emit('splash');
     }
     p.wet = wet;
-    const accel = p.onGround ? (dir ? 2600 : 2200) : p.lock > 0 ? 250 : (dir ? 1700 : 700);
+    const accel = p.onGround ? (p.ice ? (dir ? 450 : 120) : dir ? 2600 : 2200) : p.lock > 0 ? 250 : (dir ? 1700 : 700);
     p.vx = approach(p.vx, dir * RUN * (wet ? .65 : 1), accel * dt);
 
     if (input.jumpPressed) { p.buffer = .13; input.jumpPressed = false; } else p.buffer -= dt;
@@ -585,7 +658,7 @@
     }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;
-    p.onGround = false; p.onPlat = null; p.conv = 0;
+    p.onGround = false; p.onPlat = null; p.conv = 0; p.ice = false;
     if (moveX(W, p, p.vx * dt)) p.vx = 0;
     const pb = p.y + p.h;
     const hit = moveY(W, p, p.vy * dt, dropping);
@@ -595,14 +668,18 @@
       for (const u of hit.under) {
         if (u.c === 'O') bounced = true;
         if (u.c === '<') p.conv = -1; else if (u.c === '>') p.conv = 1;
+        if (u.c === 'i') p.ice = true;
         if (u.c === 'C' && !W.crumbles.some(c => c.tx === u.tx && c.ty === u.ty)) W.crumbles.push({ tx: u.tx, ty: u.ty, t: 0, state: 'shake' });
       }
     } else if (hit && hit.dir === 'up') { p.vy = 0; p.jumping = false; }
 
     if (!p.onGround && p.vy >= 0 && !dropping) {
       for (const pl of W.plats) {
+        if (pl.state === 'gone') continue;
         if (p.x + p.w > pl.x + 2 && p.x < pl.x + pl.w - 2 && pb <= Math.max(pl.prevY, pl.y) + 1 && p.y + p.h >= pl.y) {
-          p.y = pl.y - p.h; p.vy = 0; p.onGround = true; p.onPlat = pl; break;
+          p.y = pl.y - p.h; p.vy = 0; p.onGround = true; p.onPlat = pl;
+          if (pl.kind === 'fall' && pl.state === 'idle') { pl.state = 'shake'; pl.t = 0; }
+          break;
         }
       }
     }

@@ -17,6 +17,8 @@
     { c: 'H', label: 'Blink B', group: 'Terrain', chip: '#7FB0E0', note: 'starts gone — swaps with Blink A every 2s' },
     { c: '<', label: 'Belt ←', group: 'Terrain', chip: '#FF9A2E', glyph: '‹', note: 'conveyor: carries you left' },
     { c: '>', label: 'Belt →', group: 'Terrain', chip: '#FF9A2E', glyph: '›', note: 'conveyor: carries you right' },
+    { c: 'i', label: 'Ice', group: 'Terrain', chip: '#9FC6E8', note: 'slippery: hard to stop on' },
+    { c: 'd', label: 'Shingle', group: 'Terrain', chip: '#A8604A', note: 'falls soon after you land on it, grows back' },
     { c: '|', label: 'Stop', group: 'Terrain', chip: '#FF6B3D', glyph: '┆', note: 'invisible: turns lifts, walkers and bats' },
     { c: 'P', label: 'Start', group: 'Level', chip: '#D9D0F0' },
     { c: 'L', label: 'Lantern', group: 'Level', chip: '#FFB547' },
@@ -26,7 +28,7 @@
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },
     { c: 'Q', label: 'Big ammo', group: 'Level', chip: '#FF6B3D', note: '+10 shots: put it somewhere hard to reach' },
     ...Object.entries(LF.FRUITS).map(([c, f]) => ({ c, label: f.name, group: 'Fruit', chip: f.color, note: f.note })),
-    ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8' }[c], note: e.note })),
+    ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560' }[c], note: e.note })),
   ];
 
   LF.createEditor = function (app) {
