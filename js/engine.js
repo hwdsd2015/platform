@@ -354,6 +354,7 @@
       if (t.type === 'pend') t.a = t.amp * Math.sin(W.clock * TAU / t.per + t.ph);
       else if (t.type === 'bar') t.a += t.spin * dt;
       else if (t.type === 'crush') {
+        t.prevY = t.y; t.dx = 0;
         if (t.state === 'idle') {
           const below = p.y > t.y && p.y - t.y < TS * 10 && Math.abs(p.x + p.w / 2 - (t.x + t.w / 2)) < TS * 1.1;
           if (playing && !p.dead && below) { t.state = 'fall'; t.vy = 0; }
@@ -371,6 +372,7 @@
           }
         } else if (t.state === 'wait') { if ((t.wait -= dt) <= 0) t.state = 'rise'; }
         else if ((t.y -= 70 * dt) <= t.oy) { t.y = t.oy; t.state = 'idle'; }
+        t.dy = t.y - t.prevY;
       }
     }
   }
@@ -378,7 +380,8 @@
     for (const t of W.traps) {
       if (t.type === 'pend') { const b = LF.pendBall(t); if (circleHits(b.x, b.y, 12, p)) return true; }
       else if (t.type === 'bar') { for (const b of LF.barBalls(t)) if (circleHits(b.x, b.y, 5, p)) return true; }
-      else if (overlap(p, { x: t.x + 2, y: t.y + 2, w: t.w - 4, h: t.h - 2 })) return true;
+      // Crushers: the top is safe to stand on; the sides and spiked bottom hurt.
+      else if (p.onPlat !== t && overlap(p, { x: t.x + 2, y: t.y + 6, w: t.w - 4, h: t.h })) return true;
     }
     return false;
   }
@@ -778,6 +781,13 @@
           p.y = pl.y - p.h; p.vy = 0; p.onGround = true; p.onPlat = pl;
           if (pl.kind === 'fall' && pl.state === 'idle') { pl.state = 'shake'; pl.t = 0; }
           break;
+        }
+      }
+      // Crusher tops work like a moving platform (you can ride them, not stomp them).
+      if (!p.onGround) for (const t of W.traps) {
+        if (t.type !== 'crush') continue;
+        if (p.x + p.w > t.x + 2 && p.x < t.x + t.w - 2 && pb <= Math.max(t.prevY ?? t.y, t.y) + 1 && p.y + p.h >= t.y) {
+          p.y = t.y - p.h; p.vy = 0; p.onGround = true; p.onPlat = t; break;
         }
       }
     }
