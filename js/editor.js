@@ -6,7 +6,7 @@
 
   const TOOLS = [
     { c: 'hand', label: 'Pan', group: 'Tools', chip: '#3A2A55', glyph: '✥' },
-    { c: 'select', label: 'Select', group: 'Tools', chip: '#3A2A55', glyph: '↖', note: 'click an enemy to see and tune its stats' },
+    { c: 'select', label: 'Select', group: 'Tools', chip: '#3A2A55', glyph: '↖', note: 'click an enemy to see and tune its stats; Delete erases it' },
     { c: '.', label: 'Erase', group: 'Tools', chip: '#17142F', glyph: '⌫' },
     { c: '#', label: 'Stone', group: 'Terrain', chip: '#5E5173' },
     { c: '=', label: 'Plank', group: 'Terrain', chip: '#9A6A45', note: 'jump up through, ↓ to drop' },
@@ -290,6 +290,16 @@
     }, { passive: false });
 
     addEventListener('keydown', ev => {
+      // Delete or Backspace erases the enemy picked with the Select tool (undo brings it back).
+      // Works even while one of its sliders has focus, but not while typing in a text box.
+      if (E.active && selected && (ev.code === 'Delete' || ev.code === 'Backspace') &&
+          !ev.target.closest('input[type=text], input[type=number], textarea, dialog')) {
+        ev.preventDefault();
+        const { tx, ty, c } = selected;
+        snapshot(); put(tx, ty, '.'); closeInspect();
+        status(`Deleted ${LF.ENEMIES[c].name.toLowerCase()} · ⌘/Ctrl-Z to undo`);
+        return;
+      }
       if (!E.active || ev.target.closest('input, textarea, dialog')) return;
       if (ev.code === 'Space') { spaceDown = true; ev.preventDefault(); }
       const mod = ev.ctrlKey || ev.metaKey;
