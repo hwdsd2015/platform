@@ -6,6 +6,7 @@
 
   const TOOLS = [
     { c: 'hand', label: 'Pan', group: 'Tools', chip: '#3A2A55', glyph: '✥' },
+    { c: 'select', label: 'Select', group: 'Tools', chip: '#3A2A55', glyph: '↖', note: 'click an enemy to see and tune its stats' },
     { c: '.', label: 'Erase', group: 'Tools', chip: '#17142F', glyph: '⌫' },
     { c: '#', label: 'Stone', group: 'Terrain', chip: '#5E5173' },
     { c: '=', label: 'Plank', group: 'Terrain', chip: '#9A6A45', note: 'jump up through, ↓ to drop' },
@@ -58,7 +59,7 @@
         lastGroup = t.group;
       }
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'ed-tool'; b.id = 'tool-' + (t.c === '.' ? 'erase' : t.c === 'hand' ? 'hand' : t.c.charCodeAt(0));
+      b.type = 'button'; b.className = 'ed-tool'; b.id = 'tool-' + (t.c === '.' ? 'erase' : t.c.length > 1 ? t.c : t.c.charCodeAt(0));
       b.title = t.note ? `${t.label} — ${t.note}` : t.label;
       b.innerHTML = `<i style="background:${t.chip}">${t.glyph || ''}</i>${t.label}`;
       b.addEventListener('click', () => selectTool(t));
@@ -68,7 +69,8 @@
       tool = t;
       for (const x of TOOLS) x.el.classList.toggle('on', x === t);
       status(t.note ? `${t.label}: ${t.note}` : t.label);
-      cvs.style.cursor = t.c === 'hand' ? 'grab' : 'crosshair';
+      cvs.style.cursor = t.c === 'hand' ? 'grab' : t.c === 'select' ? 'default' : 'crosshair';
+      if (t.c !== 'select') closeInspect();
     }
 
     // ---------- grid helpers ----------
@@ -94,6 +96,74 @@
     }
 
     // ---------- enemy size & speed ----------
+    const fmtX = v => (+v).toFixed(2) + '×';
+    function tuneSlider(c, k) {
+      const t = LF.tune(meta.tuning, c), v = t[k] ?? 1, e = LF.ENEMIES[c];
+      return `<label>${TUNE[k].label}
+        <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${v}" data-t="${c}" data-k="${k}" aria-label="${e.name} ${TUNE[k].label}">
+        <output>${fmtX(v)}</output></label>`;
+    }
+    function bindSliders(root, after) {
+      for (const inp of root.querySelectorAll('input[type=range][data-t]')) inp.addEventListener('input', () => {
+        const { t, k } = inp.dataset;
+        meta.tuning[t] = { ...meta.tuning[t], [k]: +inp.value };
+        inp.nextElementSibling.textContent = fmtX(inp.value);
+        dirty = true;
+        if (after) after();
+      });
+    }
+
+    // What each enemy does, with its numbers after this level's size & speed settings.
+    const STATS = {
+      B: v => [['Moves', `walks ${v(48)} px/s, turns at edges`]],
+      K: v => [['Moves', `walks ${v(72)} px/s, turns at edges`]],
+      F: v => [['Moves', `flies ${v(64)} px/s, up to 4 tiles each way`]],
+      J: v => [['Moves', `hops ${v(130)} px/s toward you when within 8 tiles`]],
+      S: (v, t) => [['Attack', `fireball ${Math.round(175 * (t.shotSpeed ?? 1))} px/s, ${Math.round(10 * (t.shotSize ?? 1))} px wide`], ['Fire rate', `every ${(2.3 / (t.fireRate ?? 1) / (LF.ENEMY_SPEED * t.speed)).toFixed(1)} s within 11 tiles`]],
+      G: v => [['Moves', `drifts toward you up to ${v(44)} px/s; backs off lit lanterns`]],
+      X: v => [['Attack', `drops ${v(420)} px/s when you pass below, climbs back ${v(90)} px/s`]],
+      R: v => [['Moves', `walks ${v(40)} px/s`], ['Attack', `charges ${v(280)} px/s when it sees you`]],
+      Z: v => [['Moves', `circles a 46 px loop, ${(2.4 * v(1) / 1).toFixed(1)} rad/s`]],
+      Y: v => [['Moves', `swims ${v(85)} px/s, stays in the water`]],
+      U: v => [['Moves', 'bobs up and down about 1.4 tiles']],
+      N: v => [['Attack', 'leaps about 4 tiles out of the water toward you']],
+      W: v => [['Attack', `dashes ${v(340)} px/s at you when within 6 tiles`]],
+      A: v => [['Attack', `arrows 210 px/s, aimed, every ${(2.4 / v(1)).toFixed(1)} s`]],
+      I: v => [['Moves', `walks ${v(30)} px/s, turns at edges`]],
+    };
+    function statRows(c) {
+      const s = LF.ENEMIES[c], t = LF.tune(meta.tuning, c), k = LF.ENEMY_SPEED * t.speed;
+      const v = base => Math.round(base * k * 100) / 100;
+      const rows = [
+        ['Hitbox', `${Math.round(s.w * t.size)} × ${Math.round(s.h * t.size)} px`],
+        ['Stomp', s.stomp ? 'yes' : 'no — touching it hurts'],
+        ['Shots to kill', String(s.hp || 1)],
+        ...(STATS[c] ? STATS[c]((b) => b === 1 ? k : Math.round(b * k), t) : []),
+      ];
+      return rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
+    }
+
+    // ---------- select tool: inspect an enemy ----------
+    let selected = null;
+    function inspect(tx, ty) {
+      const c = grid[ty] && grid[ty][tx];
+      if (!c || !LF.ENEMIES[c]) { closeInspect(); status('Nothing to inspect there — click an enemy.'); return; }
+      selected = { tx, ty, c };
+      const e = LF.ENEMIES[c], count = grid.flat().filter(x => x === c).length;
+      const extra = (EXTRA[c] || []).map(k => tuneSlider(c, k)).join('');
+      $('ed-inspect').innerHTML = `
+        <header><b>${e.name}</b><button class="mini" type="button" id="insp-close" aria-label="Close">✕</button></header>
+        <p>${e.note}</p>
+        <dl id="insp-stats">${statRows(c)}</dl>
+        <div class="insp-sliders">${tuneSlider(c, 'size')}${tuneSlider(c, 'speed')}${extra}</div>
+        <p class="insp-note">${count === 1 ? `Changes apply to this ${e.name.toLowerCase()} (the only one in this level).` : `Changes apply to all ${count} ${e.name.toLowerCase()}s in this level.`}</p>`;
+      $('ed-inspect').hidden = false;
+      $('insp-close').addEventListener('click', closeInspect);
+      bindSliders($('ed-inspect'), () => { $('insp-stats').innerHTML = statRows(c); });
+      status(`${e.name} at column ${tx + 1}, row ${ty + 1}`);
+    }
+    function closeInspect() { selected = null; if ($('ed-inspect')) $('ed-inspect').hidden = true; }
+
     const TUNE = {
       size: { label: 'Size', min: .5, max: 2 }, speed: { label: 'Speed', min: .25, max: 3 },
       shotSpeed: { label: 'Fireball speed', min: .25, max: 3 }, fireRate: { label: 'Fire rate', min: .25, max: 4 }, shotSize: { label: 'Fireball size', min: .5, max: 3 },
@@ -101,28 +171,18 @@
     const EXTRA = { S: ['shotSpeed', 'fireRate', 'shotSize'] };
     function openTuning() {
       const present = [...new Set(grid.flat().filter(c => LF.ENEMIES[c]))];
-      const fmt = v => (+v).toFixed(2) + '×';
       const rows = present.map(c => {
-        const t = LF.tune(meta.tuning, c), e = LF.ENEMIES[c];
-        const slider = k => `<label>${TUNE[k].label}
-          <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${t[k] ?? 1}" data-t="${c}" data-k="${k}" aria-label="${e.name} ${TUNE[k].label}">
-          <output>${fmt(t[k] ?? 1)}</output></label>`;
-        const extra = (EXTRA[c] || []).map(slider).join('');
-        return `<div class="tune-row"><b>${e.name}</b>${slider('size')}${slider('speed')}${extra ? `<div class="tune-extra">${extra}</div>` : ''}</div>`;
+        const extra = (EXTRA[c] || []).map(k => tuneSlider(c, k)).join('');
+        return `<div class="tune-row"><b>${LF.ENEMIES[c].name}</b>${tuneSlider(c, 'size')}${tuneSlider(c, 'speed')}${extra ? `<div class="tune-extra">${extra}</div>` : ''}</div>`;
       }).join('');
       $('tune-body').innerHTML = present.length ? `<div class="tune">${rows}</div>`
         : '<p>There are no enemies in this level yet. Place some from the Enemies group, then come back here.</p>';
-      for (const inp of $('tune-body').querySelectorAll('input[type=range]')) inp.addEventListener('input', () => {
-        const { t, k } = inp.dataset;
-        meta.tuning[t] = { ...meta.tuning[t], [k]: +inp.value };
-        inp.nextElementSibling.textContent = fmt(inp.value);
-        dirty = true;
-      });
+      bindSliders($('tune-body'));
       $('tune-dialog').showModal();
     }
     $('ed-tune').addEventListener('click', openTuning);
     $('tune-reset').addEventListener('click', () => { meta.tuning = {}; dirty = true; openTuning(); });
-    $('tune-done').addEventListener('click', () => { $('tune-dialog').close(); status('Enemy size & speed saved with this level. Test play to try them.'); });
+    $('tune-done').addEventListener('click', () => { $('tune-dialog').close(); if (selected) inspect(selected.tx, selected.ty); status('Enemy size & speed saved with this level. Test play to try them.'); });
     function snapshot() { undo.push(toRows().join('\n')); if (undo.length > 80) undo.shift(); redo = []; }
     function restore(str) { grid = str.split('\n').map(r => r.split('')); syncInputs(); dirty = true; }
 
@@ -181,6 +241,7 @@
         panning = { x: ev.clientX, y: ev.clientY, cx: cam.x, cy: cam.y }; cvs.style.cursor = 'grabbing'; return;
       }
       const cell = cellAt(ev);
+      if (tool.c === 'select') { inspect(cell.tx, cell.ty); return; }
       snapshot();
       painting = { erase: ev.button === 2 };
       put(cell.tx, cell.ty, painting.erase ? '.' : tool.c);
@@ -302,11 +363,12 @@
       status(`${counts()} · paint with the mouse, right-click erases, space-drag or wheel pans, ⌘/Ctrl-wheel zooms, T test plays.`);
     };
     E.resume = () => { E.active = true; $('editor').hidden = false; selectTool(tool); };
-    E.close = () => { E.active = false; $('editor').hidden = true; cvs.style.cursor = ''; };
+    E.close = () => { E.active = false; $('editor').hidden = true; cvs.style.cursor = ''; closeInspect(); };
     E.frame = dt => {
       if (dirty) { world = LF.createWorld(def()); dirty = false; }
       world.clock += dt;
-      R.render(world, cam, { edit: true, hover }, dt);
+      if (selected && grid[selected.ty]?.[selected.tx] !== selected.c) closeInspect();
+      R.render(world, cam, { edit: true, hover, selected }, dt);
     };
     E.current = def;
     return E;

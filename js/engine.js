@@ -5,7 +5,7 @@
   const G = 2100, MAXFALL = 900, RUN = 250, JUMP = 700, SPRING = 1080;
   const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12, SINK = 55;
   // Every enemy runs this much faster than its base numbers (movement, timers, attacks).
-  const ENEMY_SPEED = 1.35;
+  const ENEMY_SPEED = LF.ENEMY_SPEED = 1.35;
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10 };
   const TAU = Math.PI * 2;
 

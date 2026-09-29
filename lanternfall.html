@@ -175,6 +175,22 @@
     padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 8px);
   }
   #ed-status { color: var(--mist); }
+  .ed-inspect {
+    pointer-events: auto; position: absolute; right: 16px; top: 128px; width: min(20rem, calc(100% - 32px)); max-height: calc(100% - 200px); overflow-y: auto;
+    background: rgba(14,12,34,.95); border: 1px solid var(--plum); border-radius: 6px; padding: 14px 16px; display: grid; gap: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45); font-size: 11px;
+  }
+  .ed-inspect header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ed-inspect header b { font-family: var(--display); font-weight: 400; font-size: 20px; color: var(--wick); }
+  .ed-inspect p { margin: 0; color: var(--mist-dim); line-height: 1.6; }
+  .ed-inspect dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; }
+  .ed-inspect dt { color: var(--mist-dim); }
+  .ed-inspect dd { margin: 0; color: var(--mist); font-variant-numeric: tabular-nums; }
+  .insp-sliders { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(217,208,240,.1); }
+  .insp-sliders label { display: grid; grid-template-columns: 6.5rem 1fr 3rem; gap: 6px; align-items: center; color: var(--mist-dim); }
+  .insp-sliders input { width: 100%; min-width: 0; accent-color: var(--wick); }
+  .insp-sliders output { text-align: right; color: var(--wick); font-variant-numeric: tabular-nums; }
+  .ed-inspect .insp-note { font-size: 10px; }
   #ed-coords { font-variant-numeric: tabular-nums; }
 
   /* ---------- dialogs ---------- */
@@ -270,6 +286,7 @@
     </div>
     <div class="ed-palette" id="ed-palette"></div>
   </div>
+  <aside class="ed-inspect" id="ed-inspect" hidden aria-live="polite"></aside>
   <div class="ed-foot"><span id="ed-status"></span><span id="ed-coords"></span></div>
 </section>
 
@@ -343,17 +360,17 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=16"></script>
-<script src="js/render.js?v=16"></script>
-<script src="js/gen.js?v=16"></script>
-<script src="js/levels-1.js?v=16"></script>
-<script src="js/levels-2.js?v=16"></script>
-<script src="js/levels-3.js?v=16"></script>
-<script src="js/levels-4.js?v=16"></script>
-<script src="js/levels-5.js?v=16"></script>
-<script src="js/levels-6.js?v=16"></script>
-<script src="js/levels-7.js?v=16"></script>
-<script src="js/levels-8.js?v=16"></script>
-<script src="js/levels-9.js?v=16"></script>
-<script src="js/editor.js?v=16"></script>
-<script src="js/ui.js?v=16"></script>
+<script src="js/engine.js?v=17"></script>
+<script src="js/render.js?v=17"></script>
+<script src="js/gen.js?v=17"></script>
+<script src="js/levels-1.js?v=17"></script>
+<script src="js/levels-2.js?v=17"></script>
+<script src="js/levels-3.js?v=17"></script>
+<script src="js/levels-4.js?v=17"></script>
+<script src="js/levels-5.js?v=17"></script>
+<script src="js/levels-6.js?v=17"></script>
+<script src="js/levels-7.js?v=17"></script>
+<script src="js/levels-8.js?v=17"></script>
+<script src="js/levels-9.js?v=17"></script>
+<script src="js/editor.js?v=17"></script>
+<script src="js/ui.js?v=17"></script>

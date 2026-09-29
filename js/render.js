@@ -851,6 +851,11 @@
       ctx.stroke();
       ctx.strokeStyle = 'rgba(255,181,71,.7)'; ctx.lineWidth = 2 / sc;
       ctx.strokeRect(0, 0, W.w * TS, W.h * TS);
+      if (opts.selected) {
+        const { tx, ty } = opts.selected, pad = reduced ? 2 : 2 + Math.sin(clock * 5) * 1.5;
+        ctx.strokeStyle = '#FF6B3D'; ctx.lineWidth = 2 / sc; ctx.setLineDash([5 / sc, 3 / sc]);
+        ctx.strokeRect(tx * TS - pad, ty * TS - pad, TS + pad * 2, TS + pad * 2); ctx.setLineDash([]);
+      }
       if (opts.hover) {
         const { tx, ty } = opts.hover;
         ctx.fillStyle = 'rgba(255,181,71,.18)'; ctx.fillRect(tx * TS, ty * TS, TS, TS);
