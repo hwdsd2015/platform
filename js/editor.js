@@ -29,8 +29,6 @@
     { c: 'D', label: 'Door', group: 'Level', chip: '#8F81AB' },
     { c: 'M', label: 'Lift ↔', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
-    { c: '&', label: 'Horde →', group: 'Level', chip: '#07060F', note: 'a wall of shadows that chases you right from this column; can’t be shot' },
-    { c: '%', label: 'Horde ↑', group: 'Level', chip: '#07060F', note: 'a wall of shadows that rises up after you from this row; can’t be shot' },
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },
     { c: 'Q', label: 'Big ammo', group: 'Level', chip: '#FF6B3D', note: '+10 shots: put it somewhere hard to reach' },
     ...Object.entries(LF.FRUITS).map(([c, f]) => ({ c, label: f.name, group: 'Fruit', chip: f.color, note: f.note })),
@@ -39,6 +37,7 @@
       { c: k.gate, label: k.name.replace('key', 'lock'), group: 'Keys & locks', chip: k.dim, note: `solid until you touch it holding the ${k.name.toLowerCase()}` },
     ]),
     ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560' }[c], note: e.note })),
+    ...Object.entries(LF.HORDES).map(([c, h]) => ({ c, label: h.name, group: 'Enemies', chip: '#07060F', note: `${h.note}; can’t be shot` })),
   ];
 
   LF.createEditor = function (app) {
@@ -121,9 +120,12 @@
     }
 
     // ---------- enemy size & speed ----------
+    // Hordes count as enemies here too; they only have a speed setting.
+    const info = c => LF.ENEMIES[c] || LF.HORDES[c];
+    const sliders = c => LF.HORDES[c] ? ['speed'] : ['size', 'speed', ...(EXTRA[c] || [])];
     const fmtX = v => (+v).toFixed(2) + '×';
     function tuneSlider(c, k) {
-      const t = LF.tune(meta.tuning, c), v = t[k] ?? 1, e = LF.ENEMIES[c];
+      const t = LF.tune(meta.tuning, c), v = t[k] ?? 1, e = info(c);
       return `<label>${TUNE[k].label}
         <input type="range" min="${TUNE[k].min}" max="${TUNE[k].max}" step="0.05" value="${v}" data-t="${c}" data-k="${k}" aria-label="${e.name} ${TUNE[k].label}">
         <output>${fmtX(v)}</output></label>`;
@@ -157,6 +159,16 @@
       I: v => [['Moves', `walks ${v(30)} px/s, turns at edges`]],
     };
     function statRows(c) {
+      if (LF.HORDES[c]) {
+        const h = LF.HORDES[c], t = LF.tune(meta.tuning, c);
+        return [
+          ['Moves', `${c === '%' ? 'rises' : 'advances'} a steady ${Math.round(h.speed * t.speed)} px/s`],
+          ['Starts', '0.5 s after the level starts and after each respawn'],
+          ['Touch', 'kills you, even through a shield'],
+          ['Stomp / shoot', 'no — bullets vanish into it'],
+          ['After a death', 'falls back 8 tiles behind you'],
+        ].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
+      }
       const s = LF.ENEMIES[c], t = LF.tune(meta.tuning, c), k = LF.ENEMY_SPEED * t.speed;
       const v = base => Math.round(base * k * 100) / 100;
       const rows = [
@@ -172,15 +184,14 @@
     let selected = null;
     function inspect(tx, ty) {
       const c = grid[ty] && grid[ty][tx];
-      if (!c || !LF.ENEMIES[c]) { closeInspect(); status('Nothing to inspect there — click an enemy.'); return; }
+      if (!c || !info(c)) { closeInspect(); status('Nothing to inspect there — click an enemy.'); return; }
       selected = { tx, ty, c };
-      const e = LF.ENEMIES[c], count = grid.flat().filter(x => x === c).length;
-      const extra = (EXTRA[c] || []).map(k => tuneSlider(c, k)).join('');
+      const e = info(c), count = grid.flat().filter(x => x === c).length;
       $('ed-inspect').innerHTML = `
         <header><b>${e.name}</b><button class="mini" type="button" id="insp-close" aria-label="Close">✕</button></header>
         <p>${e.note}</p>
         <dl id="insp-stats">${statRows(c)}</dl>
-        <div class="insp-sliders">${tuneSlider(c, 'size')}${tuneSlider(c, 'speed')}${extra}</div>
+        <div class="insp-sliders">${sliders(c).map(k => tuneSlider(c, k)).join('')}</div>
         <p class="insp-note">${count === 1 ? `Changes apply to this ${e.name.toLowerCase()} (the only one in this level).` : `Changes apply to all ${count} ${e.name.toLowerCase()}s in this level.`}</p>`;
       $('ed-inspect').hidden = false;
       $('insp-close').addEventListener('click', closeInspect);
@@ -195,10 +206,10 @@
     };
     const EXTRA = { S: ['shotSpeed', 'fireRate', 'shotSize'] };
     function openTuning() {
-      const present = [...new Set(grid.flat().filter(c => LF.ENEMIES[c]))];
+      const present = [...new Set(grid.flat().filter(c => info(c)))];
       const rows = present.map(c => {
-        const extra = (EXTRA[c] || []).map(k => tuneSlider(c, k)).join('');
-        return `<div class="tune-row"><b>${LF.ENEMIES[c].name}</b>${tuneSlider(c, 'size')}${tuneSlider(c, 'speed')}${extra ? `<div class="tune-extra">${extra}</div>` : ''}</div>`;
+        const [a, b, ...extra] = sliders(c);
+        return `<div class="tune-row"><b>${info(c).name}</b>${tuneSlider(c, a)}${b ? tuneSlider(c, b) : '<span></span>'}${extra.length ? `<div class="tune-extra">${extra.map(k => tuneSlider(c, k)).join('')}</div>` : ''}</div>`;
       }).join('');
       $('tune-body').innerHTML = present.length ? `<div class="tune">${rows}</div>`
         : '<p>There are no enemies in this level yet. Place some from the Enemies group, then come back here.</p>';
@@ -249,7 +260,7 @@
     function status(msg) { $('ed-status').textContent = msg; }
     function counts() {
       let l = 0, e = 0;
-      for (const row of grid) for (const c of row) { if (c === 'L') l++; else if (LF.ENEMIES[c]) e++; }
+      for (const row of grid) for (const c of row) { if (c === 'L') l++; else if (info(c)) e++; }
       return `${Wd()}×${H()} · ${l} lantern${l === 1 ? '' : 's'} · ${e} enem${e === 1 ? 'y' : 'ies'}`;
     }
 
@@ -322,7 +333,7 @@
         ev.preventDefault();
         const { tx, ty, c } = selected;
         snapshot(); put(tx, ty, '.'); closeInspect();
-        status(`Deleted ${LF.ENEMIES[c].name.toLowerCase()} · ⌘/Ctrl-Z to undo`);
+        status(`Deleted ${info(c).name.toLowerCase()} · ⌘/Ctrl-Z to undo`);
         return;
       }
       if (!E.active || ev.target.closest('input, textarea, dialog')) return;
