@@ -263,11 +263,11 @@
   });
   $('gen-cancel').addEventListener('click', () => $('gen-dialog').close());
 
-  const encode = d => 'LF1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ n: d.name, d: d.dark, m: d.map.join('/'), t: d.tuning }))));
+  const encode = d => 'LF1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ n: d.name, d: d.dark, m: d.map.join('/'), t: d.tuning, p: d.player }))));
   const decode = code => {
     const j = JSON.parse(decodeURIComponent(escape(atob(code.trim().replace(/^LF1:/, '')))));
     if (!j.m) throw new Error('no map');
-    return { name: j.n || 'Imported level', dark: typeof j.d === 'number' ? j.d : .6, map: j.m.split('/'), tuning: j.t };
+    return { name: j.n || 'Imported level', dark: typeof j.d === 'number' ? j.d : .6, map: j.m.split('/'), tuning: j.t, player: j.p };
   };
   app.openCode = d => {
     $('code-text').value = encode(d);
@@ -287,7 +287,7 @@
 
   app.saveCustom = d => {
     const id = d.id || 'c' + Date.now().toString(36);
-    const rec = { id, name: d.name || 'Untitled', dark: d.dark, map: d.map, tuning: d.tuning, updated: Date.now() };
+    const rec = { id, name: d.name || 'Untitled', dark: d.dark, map: d.map, tuning: d.tuning, player: d.player, updated: Date.now() };
     const i = customs.findIndex(c => c.id === id);
     if (i >= 0) customs[i] = rec; else customs.unshift(rec);
     store.set('custom', customs);

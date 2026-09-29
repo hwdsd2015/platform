@@ -44,7 +44,7 @@
   LF.createEditor = function (app) {
     const cvs = app.canvas, R = app.renderer;
     const E = { active: false };
-    let grid = [], meta = { name: 'My level', dark: .6, id: null, tuning: {} };
+    let grid = [], meta = { name: 'My level', dark: .6, id: null, tuning: {}, player: {} };
     let tool = TOOLS[2], world = null, dirty = true;
     const cam = { x: 0, y: 0, zoom: 1 };
     let hover = null, painting = null, panning = null, spaceDown = false;
@@ -78,11 +78,36 @@
     const toRows = () => grid.map(r => r.join(''));
     function load(def) {
       grid = LF.normalize(def.map).map(r => r.split(''));
-      meta = { name: def.name || 'My level', dark: def.dark ?? .6, id: def.id || null, signs: def.signs, tuning: { ...def.tuning } };
+      meta = { name: def.name || 'My level', dark: def.dark ?? .6, id: def.id || null, signs: def.signs, tuning: { ...def.tuning }, player: { ...def.player } };
       undo = []; redo = [];
       syncInputs(); fitCamera(); dirty = true;
     }
-    function def() { return { name: meta.name, dark: meta.dark, map: toRows(), id: meta.id, tuning: tuningOut() }; }
+    function def() { return { name: meta.name, dark: meta.dark, map: toRows(), id: meta.id, tuning: tuningOut(), player: playerOut() }; }
+    function playerOut() {
+      const out = {};
+      for (const [k, s] of Object.entries(LF.PLAYER_TUNE)) if (meta.player[k] != null && meta.player[k] !== s.def) out[k] = meta.player[k];
+      return Object.keys(out).length ? out : undefined;
+    }
+
+    // ---------- player settings ----------
+    function openPlayer() {
+      const t = LF.playerTune({ player: meta.player });
+      const show = (k, v) => LF.PLAYER_TUNE[k].count ? String(Math.round(v)) : (+v).toFixed(2) + '×';
+      $('player-body').innerHTML = '<div class="insp-sliders player-sliders">' + Object.entries(LF.PLAYER_TUNE).map(([k, s]) => `
+        <label title="${s.note || ''}">${s.label}
+          <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${t[k]}" data-p="${k}" aria-label="${s.label}">
+          <output>${show(k, t[k])}</output></label>`).join('') + '</div>';
+      for (const inp of $('player-body').querySelectorAll('input[data-p]')) inp.addEventListener('input', () => {
+        const k = inp.dataset.p;
+        meta.player[k] = +inp.value;
+        inp.nextElementSibling.textContent = show(k, inp.value);
+        dirty = true;
+      });
+      $('player-dialog').showModal();
+    }
+    $('ed-player').addEventListener('click', openPlayer);
+    $('player-reset').addEventListener('click', () => { meta.player = {}; dirty = true; openPlayer(); });
+    $('player-done').addEventListener('click', () => { $('player-dialog').close(); status('Player settings saved with this level. Test play to try them.'); });
     // Only keep the settings that differ from normal, so levels stay small.
     function tuningOut() {
       const out = {};

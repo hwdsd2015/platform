@@ -4,6 +4,25 @@
   const TS = LF.TS = 32;
   const G = 2100, MAXFALL = 900, RUN = 250, JUMP = 700, SPRING = 1080;
   const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12, SINK = 55;
+
+  // Per-level player settings, set in the editor's Player dialog (def.player).
+  // Most are multipliers on the normal feel; airJumps and ammo are counts.
+  LF.PLAYER_TUNE = {
+    jump: { label: 'Jump height', min: .5, max: 2.5, step: .05, def: 1 },
+    run: { label: 'Run speed', min: .5, max: 2.5, step: .05, def: 1 },
+    air: { label: 'Air control', min: .25, max: 2, step: .05, def: 1 },
+    gravity: { label: 'Gravity', min: .4, max: 2, step: .05, def: 1, note: 'lower = floatier; jump height stays the same' },
+    wallKick: { label: 'Wall jump distance', min: 0, max: 2.5, step: .05, def: 1 },
+    wallJump: { label: 'Wall jump height', min: .3, max: 2, step: .05, def: 1 },
+    wallSlide: { label: 'Wall slide speed', min: .2, max: 3, step: .05, def: 1 },
+    airJumps: { label: 'Extra mid-air jumps', min: 0, max: 3, step: 1, def: 0, count: true },
+    ammo: { label: 'Starting ammo', min: 0, max: 30, step: 1, def: 0, count: true },
+  };
+  const playerTune = LF.playerTune = def => {
+    const t = {};
+    for (const [k, s] of Object.entries(LF.PLAYER_TUNE)) t[k] = def && def.player && def.player[k] != null ? def.player[k] : s.def;
+    return t;
+  };
   // Every enemy runs this much faster than its base numbers (movement, timers, attacks).
   const ENEMY_SPEED = LF.ENEMY_SPEED = 1.35;
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10 };
@@ -110,6 +129,7 @@
     W.checkpoint = { ...W.start };
     W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
+    W.player.ammo = playerTune(def).ammo;
     W.emit = (type, data) => W.events.push({ type, data });
     return W;
   };
@@ -736,8 +756,9 @@
       W.emit('splash');
     }
     p.wet = wet;
-    const accel = p.onGround ? (p.ice ? (dir ? 450 : 120) : dir ? 2600 : 2200) : p.lock > 0 ? 250 : (dir ? 1700 : 700);
-    p.vx = approach(p.vx, dir * RUN * (wet ? .65 : 1), accel * dt);
+    const T = playerTune(W.def), grav = G * T.gravity, run = RUN * T.run;
+    const accel = p.onGround ? (p.ice ? (dir ? 450 : 120) : dir ? 2600 : 2200) : p.lock > 0 ? 250 : (dir ? 1700 : 700) * T.air;
+    p.vx = approach(p.vx, dir * run * (wet ? .65 : 1), accel * dt);
 
     if (input.jumpPressed) { p.buffer = .13; input.jumpPressed = false; } else p.buffer -= dt;
     p.coyote = p.onGround ? .1 : p.coyote - dt;
@@ -747,12 +768,14 @@
 
     // Walls: touching one in the air allows a wall jump; pushing into it while falling slides slowly.
     p.wall = p.onGround ? 0 : wallBeside(W, p, -1) ? -1 : wallBeside(W, p, 1) ? 1 : 0;
-    if (p.wall) { p.wallDir = p.wall; p.wallCoyote = .1; p.airJumps = p.dbl > 0 ? 1 : 0; }
+    const airJumps = T.airJumps + (p.dbl > 0 ? 1 : 0);
+    if (p.wall) { p.wallDir = p.wall; p.wallCoyote = .1; p.airJumps = airJumps; }
     else p.wallCoyote -= dt;
-    if (p.onGround || wet) p.airJumps = p.dbl > 0 ? 1 : 0;
+    if (p.onGround || wet) p.airJumps = airJumps;
     p.sliding = !!p.wall && dir === p.wall && p.vy > 0;
 
-    const jumpV = JUMP * (p.boost > 0 ? BOOST : 1);
+    // Jump speed scales with sqrt(height x gravity) so the height setting is exact at any gravity.
+    const jumpV = JUMP * Math.sqrt(T.jump * T.gravity) * (p.boost > 0 ? BOOST : 1);
     if (p.buffer > 0 && p.coyote > 0 && !dropping) {
       p.vy = -jumpV; p.buffer = 0; p.coyote = 0; p.jumping = true;
       p.onGround = false; p.onPlat = null; p.sx = .75; p.sy = 1.3;
@@ -765,7 +788,7 @@
       W.emit('swim');
     } else if (p.buffer > 0 && p.wallCoyote > 0 && !p.onGround) {
       const away = -p.wallDir;
-      p.vy = -jumpV * .92; p.vx = away * WALL_KICK; p.face = away; p.lock = .16;
+      p.vy = -jumpV * .92 * Math.sqrt(T.wallJump); p.vx = away * WALL_KICK * T.wallKick; p.face = away; p.lock = .16;
       p.buffer = 0; p.wallCoyote = 0; p.jumping = true; p.sliding = false; p.sx = .8; p.sy = 1.25;
       burst(W, p.wallDir > 0 ? p.x + p.w : p.x, p.y + p.h / 2, 7, ['#9A8FBF', '#D9D0F0'], 90, 200, 2);
       const wx = p.wallDir > 0 ? p.x + p.w : p.x;
@@ -784,11 +807,11 @@
     if (p.jumping && !input.jump && p.vy < 0) { p.vy *= .45; p.jumping = false; }
     if (p.vy >= 0) p.jumping = false;
     if (wet) {
-      p.vy = Math.min(SINK, p.vy + G * .45 * dt);
+      p.vy = Math.min(SINK, p.vy + grav * .45 * dt);
       if (Math.random() < .05) W.particles.push({ x: p.x + p.w / 2 + p.face * 4, y: p.y + 4, vx: 0, vy: -40, life: .6, max: .6, c: '#9FD8FF', size: 2, g: -60 });
-    } else p.vy = Math.min(MAXFALL, p.vy + G * dt * (p.vy > 0 ? 1.15 : 1));
+    } else p.vy = Math.min(MAXFALL * Math.sqrt(T.gravity), p.vy + grav * dt * (p.vy > 0 ? 1.15 : 1));
     if (p.sliding) {
-      p.vy = Math.min(p.vy, WALL_SLIDE);
+      p.vy = Math.min(p.vy, WALL_SLIDE * T.wallSlide);
       if (Math.random() < .12) W.particles.push({ x: p.wall > 0 ? p.x + p.w : p.x, y: p.y + p.h - 4, vx: -p.wall * 20, vy: -30, life: .35, max: .35, c: '#9A8FBF', size: 2, g: 200 });
     }
     if (p.boost > 0 && Math.random() < .08) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y + p.h, vx: 0, vy: -40, life: .4, max: .4, c: '#FFB547', size: 2, g: -40 });
@@ -849,7 +872,7 @@
       }
     }
     if (bounced) {
-      p.vy = -SPRING; p.onGround = false; p.coyote = 0; p.jumping = false; p.sx = .7; p.sy = 1.35;
+      p.vy = -SPRING * Math.sqrt(T.gravity); p.onGround = false; p.coyote = 0; p.jumping = false; p.sx = .7; p.sy = 1.35;
       burst(W, p.x + p.w / 2, p.y + p.h, 10, ['#FFB547', '#D9D0F0'], 120, 300, 2);
       ring(W, p.x + p.w / 2, p.y + p.h, 30, '255,181,71', .3);
       p.trail = .4; p.trailC = '255,181,71';
@@ -862,7 +885,7 @@
     }
     p.sx += (1 - p.sx) * Math.min(1, dt * 14);
     p.sy += (1 - p.sy) * Math.min(1, dt * 14);
-    p.anim += dt * (Math.abs(p.vx) / RUN);
+    p.anim += dt * (Math.abs(p.vx) / run);
     trail(W, p, dt, '154,143,191');
 
     // Water at the bottom edge of the map has a floor: you can't sink out of the world.
@@ -883,7 +906,7 @@
       const spec = LF.ENEMIES[e.type];
       if (e.type === 'G' && e.fade > .85) continue;
       if (spec.stomp && p.vy > 0 && p.y + p.h - e.y < 14) {
-        e.alive = false; p.vy = input.jump ? -620 : -460; p.jumping = input.jump;
+        e.alive = false; p.vy = (input.jump ? -620 : -460) * Math.sqrt(T.gravity); p.jumping = input.jump;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FF6B3D', '#463C6B'], 160, 500);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
         W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp');

@@ -191,6 +191,8 @@
   .insp-sliders input { width: 100%; min-width: 0; accent-color: var(--wick); }
   .insp-sliders output { text-align: right; color: var(--wick); font-variant-numeric: tabular-nums; }
   .ed-inspect .insp-note { font-size: 10px; }
+  .player-sliders { border-top: 0; padding-top: 0; margin-bottom: 18px; font-size: 11px; }
+  .player-sliders label { grid-template-columns: 9.5rem 1fr 3rem; }
   #ed-coords { font-variant-numeric: tabular-nums; }
 
   /* ---------- dialogs ---------- */
@@ -276,6 +278,7 @@
         <button class="mini go-mini" id="ed-play" type="button">Test play</button>
         <button class="mini" id="ed-check" type="button">Check</button>
         <button class="mini" id="ed-tune" type="button">Enemies</button>
+        <button class="mini" id="ed-player" type="button">Player</button>
         <button class="mini" id="ed-save" type="button">Save</button>
         <button class="mini" id="ed-gen" type="button">Generate</button>
         <button class="mini" id="ed-code" type="button">Share code</button>
@@ -336,6 +339,16 @@
   </div>
 </dialog>
 
+<dialog id="player-dialog">
+  <h2>Player</h2>
+  <p>How the lamplighter moves in this level. Saved with the level and in its share code.</p>
+  <div id="player-body"></div>
+  <div class="dlg-actions">
+    <button class="go" id="player-done" type="button">Done</button>
+    <button class="alt" id="player-reset" type="button">Reset to normal</button>
+  </div>
+</dialog>
+
 <dialog id="code-dialog">
   <h2>Share code</h2>
   <p id="code-msg"></p>
@@ -360,17 +373,17 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=18"></script>
-<script src="js/render.js?v=18"></script>
-<script src="js/gen.js?v=18"></script>
-<script src="js/levels-1.js?v=18"></script>
-<script src="js/levels-2.js?v=18"></script>
-<script src="js/levels-3.js?v=18"></script>
-<script src="js/levels-4.js?v=18"></script>
-<script src="js/levels-5.js?v=18"></script>
-<script src="js/levels-6.js?v=18"></script>
-<script src="js/levels-7.js?v=18"></script>
-<script src="js/levels-8.js?v=18"></script>
-<script src="js/levels-9.js?v=18"></script>
-<script src="js/editor.js?v=18"></script>
-<script src="js/ui.js?v=18"></script>
+<script src="js/engine.js?v=19"></script>
+<script src="js/render.js?v=19"></script>
+<script src="js/gen.js?v=19"></script>
+<script src="js/levels-1.js?v=19"></script>
+<script src="js/levels-2.js?v=19"></script>
+<script src="js/levels-3.js?v=19"></script>
+<script src="js/levels-4.js?v=19"></script>
+<script src="js/levels-5.js?v=19"></script>
+<script src="js/levels-6.js?v=19"></script>
+<script src="js/levels-7.js?v=19"></script>
+<script src="js/levels-8.js?v=19"></script>
+<script src="js/levels-9.js?v=19"></script>
+<script src="js/editor.js?v=19"></script>
+<script src="js/ui.js?v=19"></script>
