@@ -133,8 +133,8 @@
     W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
     W.player.ammo = playerTune(def).ammo;
-    // The horde begins off screen, well behind the start.
-    if (W.horde) W.horde.f = Math.min(W.horde.f, playerAlong(W.horde, W.player) - HORDE_START);
+    // The horde begins HORDE_BACK behind the start, the same distance it falls back to after a death.
+    if (W.horde) W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK;
     W.emit = (type, data) => W.events.push({ type, data });
     return W;
   };
@@ -284,7 +284,7 @@
     }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
     // After a death the horde falls back so the respawn is fair.
-    if (W.horde) { W.horde.f = Math.min(W.horde.f, playerAlong(W.horde, W.player) - HORDE_BACK); W.horde.wait = HORDE_WAIT; }
+    if (W.horde) { W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK; W.horde.wait = HORDE_WAIT; }
     W.emit('respawn');
   }
 
@@ -454,8 +454,8 @@
     '&': { name: 'Horde →', speed: 80, note: 'a wall of shadows that chases you right from this column' },
     '%': { name: 'Horde ↑', speed: 64, note: 'a wall of shadows that rises up after you from this row' },
   };
-  // After a death it falls back this far behind you; it pauses briefly at level start and respawn.
-  const HORDE_BACK = TS * 8, HORDE_WAIT = .5, HORDE_START = TS * 16;
+  // At level start and after every respawn it sits this far behind you, then pauses briefly.
+  const HORDE_BACK = TS * 4, HORDE_WAIT = .5;
   const along = LF.hordeAlong = (h, x, y) => h.up ? -y : x;
   const playerAlong = (h, p) => along(h, p.x + p.w / 2, p.y + p.h / 2);
   function stepHorde(W, dt, playing) {

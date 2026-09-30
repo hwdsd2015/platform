@@ -167,7 +167,7 @@
           ['Starts', '0.5 s after the level starts and after each respawn'],
           ['Touch', 'kills you, even through a shield'],
           ['Stomp / shoot', 'no — bullets vanish into it'],
-          ['After a death', 'falls back 8 tiles behind you'],
+          ['Starts / respawn', '4 tiles behind you'],
         ].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
       }
       const s = LF.ENEMIES[c], t = LF.tune(meta.tuning, c), k = LF.ENEMY_SPEED * t.speed;
