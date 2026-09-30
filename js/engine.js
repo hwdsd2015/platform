@@ -127,6 +127,15 @@
     // Lava surface tiles: they glow and throw off embers.
     W.lavaTop = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tiles[y][x] === '!' && (y === 0 || tiles[y - 1][x] !== '!')) W.lavaTop.push({ tx: x, ty: y });
+    // Jellies bob only within their water: find the surface above and the bottom below.
+    for (const e of W.enemies) {
+      if (e.type !== 'U') continue;
+      const tx = Math.floor((e.x + e.w / 2) / TS);
+      let top = Math.floor((e.y + e.h / 2) / TS), bot = top;
+      while (top > 0 && tiles[top - 1][tx] === '~') top--;
+      while (bot < h - 1 && tiles[bot + 1][tx] === '~') bot++;
+      e.minY = top * TS + 10; e.maxY = Math.max(e.minY, (bot + 1) * TS - e.h);
+    }
     W.total = W.lanterns.length;
     if (W.door && !W.total) W.door.open = true;
     W.checkpoint = { ...W.start };
@@ -522,8 +531,27 @@
 
   function turnMarker(W, tx, ty) { return tile(W, tx, ty) === '|'; }
 
+  // Ground enemies fall when there's nothing under them (placed in mid-air, or their floor
+  // crumbled or blinked away), and die if they land in water or lava or leave the level.
+  const WALKERS = new Set(['B', 'K', 'R', 'I', 'S', 'A']);
+  function supported(W, e) {
+    const ty = Math.floor((e.y + e.h + 1) / TS);
+    for (let tx = Math.floor((e.x + 2) / TS); tx <= Math.floor((e.x + e.w - 2) / TS); tx++) if (isFloor(tile(W, tx, ty))) return true;
+    return false;
+  }
+
   function stepEnemy(W, e, dt, playing) {
     e.t += dt;
+    if (WALKERS.has(e.type)) {
+      if (!supported(W, e)) {
+        e.vy = Math.min(MAXFALL, (e.vy || 0) + G * dt);
+        const hit = moveY(W, e, e.vy * dt, false);
+        if (hit && hit.dir === 'down') e.vy = 0;
+        if (e.y > W.h * TS + 40 || hazardHit(W, e)) e.alive = false;
+        return;
+      }
+      e.vy = 0;
+    }
     const p = W.player;
     const px = p.x + p.w / 2, py = p.y + p.h / 2, ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     switch (e.type) {
@@ -633,7 +661,8 @@
         break;
       }
       case 'U': {
-        e.y = e.oy + Math.sin(e.t * 1.1) * 44;
+        // Bob up and down, but stop at the water's surface and bottom.
+        e.y = Math.max(e.minY, Math.min(e.maxY, e.oy + Math.sin(e.t * 1.1) * 44));
         e.x = e.ox + Math.sin(e.t * .5) * 6;
         break;
       }
