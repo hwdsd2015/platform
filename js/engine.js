@@ -50,6 +50,7 @@
     W: { name: 'Wasp', w: 22, h: 16, stomp: true, note: 'hovers, then dashes straight at you' },
     A: { name: 'Ash archer', w: 22, h: 26, stomp: true, note: 'shoots aimed arrows' },
     I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, note: 'slow, armored: takes 3 shots' },
+    '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, note: 'place in water: leaps out at you' },
   };
   // Enemies that live in water: their map cell stays water.
@@ -118,7 +119,7 @@
         // Falling shingle: shakes when stood on, drops, then grows back.
         W.plats.push({ kind: 'fall', state: 'idle', t: 0, vy: 0, x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS, h: 12, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
-      } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y, def.tuning)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : ' '; }
+      } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y, def.tuning)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : c === '*' ? '!' : ' '; }
     }
     // Markers placed underwater (start, lanterns, fruit…) leave water behind, not an air pocket.
     for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) {
@@ -127,6 +128,14 @@
     // Lava surface tiles: they glow and throw off embers.
     W.lavaTop = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tiles[y][x] === '!' && (y === 0 || tiles[y - 1][x] !== '!')) W.lavaTop.push({ tx: x, ty: y });
+    // Every lava pool gets lava bubbles: about one per 7 tiles of surface with room to jump.
+    for (const l of W.lavaTop) {
+      if (l.tx % 7 !== 3 || W.enemies.some(e => e.type === '*' && Math.abs(e.ox / TS - l.tx) < 4)) continue;
+      let room = true;
+      for (let k = 1; k <= 3; k++) if (isSolid(tile(W, l.tx, l.ty - k))) room = false;
+      if (room) W.enemies.push(makeEnemy('*', l.tx, l.ty, def.tuning));
+    }
+    for (const e of W.enemies) if (e.type === '*') e.wait = 1 + Math.floor(e.ox / TS) % 4 * .5;
     // Jellies bob only within their water: find the surface above and the bottom below.
     for (const e of W.enemies) {
       if (e.type !== 'U') continue;
@@ -160,6 +169,7 @@
     if (type === 'G') y = ty * TS + 2;
     if (type === 'X') y = ty * TS + 2;
     if (type === 'Z' || LF.SWIMMERS[type]) y = ty * TS + (TS - s.h) / 2;
+    if (type === '*') y = ty * TS + 12;
     if (type === 'W') y = ty * TS + 8;
     const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85, I: -30 }[type] || 0;
     // Resize around the spot the enemy is anchored to: its top if it hangs from a ceiling,
@@ -688,6 +698,21 @@
               burst(W, cx, e.y + e.h / 2, 12, ['#A9B8C8', '#7C8C9E', '#D9E2EC'], 120, 400, 2.5);
               W.emit('flop');
             }
+          }
+        }
+        break;
+      }
+      case '*': {
+        // Rest just under the lava, then shoot about 4 tiles up and fall back in.
+        if (e.state === 'idle') {
+          e.y = e.oy;
+          if ((e.wait -= dt) <= 0) { e.state = 'up'; e.vy = -740; burst(W, ex, e.oy, 8, LF.WARM, 110, 300, 2); W.emit('bubble'); }
+        } else {
+          e.vy += G * dt; e.y += e.vy * dt;
+          if (Math.random() < .5) W.particles.push({ x: ex + (Math.random() - .5) * 8, y: e.y + e.h, vx: 0, vy: 20, life: .35, max: .35, c: LF.WARM[Math.floor(Math.random() * 3)], size: 2.5, g: 0 });
+          if (e.vy > 0 && e.y >= e.oy) {
+            e.y = e.oy; e.state = 'idle'; e.wait = 2 + Math.floor(e.ox / TS) % 3 * .6;
+            burst(W, ex, e.oy, 10, LF.WARM, 130, 400, 2.5);
           }
         }
         break;

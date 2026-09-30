@@ -37,7 +37,7 @@
       { c, label: k.name, group: 'Keys & locks', chip: k.color, glyph: '⚷' },
       { c: k.gate, label: k.name.replace('key', 'lock'), group: 'Keys & locks', chip: k.dim, note: `solid until you touch it holding the ${k.name.toLowerCase()}` },
     ]),
-    ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560' }[c], note: e.note })),
+    ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560', '*': '#FF6B3D' }[c], note: e.note })),
     ...Object.entries(LF.HORDES).map(([c, h]) => ({ c, label: h.name, group: 'Enemies', chip: '#07060F', note: `${h.note}; can’t be shot` })),
   ];
 
@@ -158,6 +158,7 @@
       W: v => [['Attack', `dashes ${v(340)} px/s at you when within 6 tiles`]],
       A: v => [['Attack', `arrows 210 px/s, aimed, every ${(2.4 / v(1)).toFixed(1)} s`]],
       I: v => [['Moves', `walks ${v(30)} px/s, turns at edges`]],
+      '*': v => [['Attack', `shoots about 4 tiles up out of the lava every ${(2.6 / v(1)).toFixed(1)} s`], ['Where', 'lava only; lava pools also get them automatically']],
     };
     function statRows(c) {
       if (LF.HORDES[c]) {
@@ -225,6 +226,7 @@
 
     function put(tx, ty, c) {
       if (tx < 0 || ty < 0 || ty >= H() || tx >= Wd()) return;
+      if (c === '*' && grid[ty][tx] !== '!' && grid[ty][tx] !== '*') { status('Lava bubbles can only go in lava — paint some lava first.'); return; }
       if (c === 'P' || c === 'D') for (const row of grid) for (let x = 0; x < row.length; x++) if (row[x] === c) row[x] = '.';
       if (grid[ty][tx] === c) return;
       grid[ty][tx] = c;

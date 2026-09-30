@@ -684,6 +684,7 @@
       for (const e of W.enemies) if (e.alive && e.type === 'S') out.push({ x: e.x + 12, y: e.y + 2, r: 34 });
       for (const e of W.enemies) if (e.alive && e.type === 'Z') out.push({ x: e.x + 7, y: e.y + 7, r: 56 });
       for (const e of W.enemies) if (e.alive && e.type === 'U') out.push({ x: e.x + 10, y: e.y + 8, r: 70 });
+      for (const e of W.enemies) if (e.alive && e.type === '*' && e.state !== 'idle') out.push({ x: e.x + e.w / 2, y: e.y + 8, r: 80 });
       for (const e of W.enemies) if (e.alive && e.type === 'Y') out.push({ x: e.x + 14 + e.face * 18, y: e.y - 4, r: 40 });
       return out;
     }
@@ -784,6 +785,17 @@
           ctx.fillStyle = 'rgba(159,216,255,.55)';
           ctx.beginPath(); ctx.ellipse(cx, cy + 2, 10 * pulse, 10 * pulse, 0, Math.PI, 0); ctx.fill();
           ctx.fillStyle = 'rgba(230,245,255,.8)'; ctx.beginPath(); ctx.ellipse(cx, cy - 1, 4, 3.5, 0, 0, TAU); ctx.fill();
+        } else if (e.type === '*') {
+          if (e.state === 'idle') { /* hidden under the lava */ }
+          else {
+            const cy = e.y + 8, k = flick(e.ox, .12);
+            const g = ctx.createRadialGradient(cx - 2, cy - 3, 1, cx, cy, 10 * k);
+            g.addColorStop(0, '#FFF1CF'); g.addColorStop(.45, '#FFB547'); g.addColorStop(1, '#E0561E');
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 9 * k, 0, TAU); ctx.fill();
+            ctx.fillStyle = '#5A1E0E';
+            const look = e.vy < 0 ? -2 : 2;
+            ctx.fillRect(cx - 4, cy - 1 + look, 2.5, 3); ctx.fillRect(cx + 1.5, cy - 1 + look, 2.5, 3);
+          }
         } else if (e.type === 'Z') {
           const k = flick(e.ox, .25);
           ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(cx, e.y + 7, 7 * k, 0, TAU); ctx.fill();

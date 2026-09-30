@@ -4,7 +4,7 @@
   // 1, 2, 3 are locked doors (red, blue, gold); r, u, y are their keys.
   const solid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === 'f' || c === '1' || c === '2' || c === '3';
   const KEY_GATE = { r: '1', u: '2', y: '3' };
-  const hazard = c => c === '^' || c === '~' || c === '!';
+  const hazard = c => c === '^' || c === '~' || c === '!' || c === '*';
   const blocksPlat = c => solid(c) || c === '|' || c === '^' || c === '=';
 
   // Approximate check: can the start reach every lantern and the door?
