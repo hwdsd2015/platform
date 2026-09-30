@@ -434,16 +434,26 @@
     }
     // Grenade: falls, bounces off walls and floors; each hard bounce blasts 2 blocks,
     // and the third bounce (or the fuse running out) sets off the big 3-block blast.
+    // It bounces off anything: blocks and spikes from any side; the tops of water, lava,
+    // planks, lifts, shingles and crushers when coming down on them; and enemies.
     b.vy = Math.min(MAXFALL, b.vy + G * .8 * dt);
     let bounced = false;
+    const wall = c => isSolid(c) || c === '^';
+    const surface = c => wall(c) || c === '~' || c === '!' || c === '=';
     const nx = b.x + b.vx * dt;
-    if (isSolid(tile(W, Math.floor(nx / TS), Math.floor(b.y / TS)))) { b.vx *= -.6; bounced = Math.abs(b.vx) > 40; }
+    if (wall(tile(W, Math.floor(nx / TS), Math.floor(b.y / TS)))) { b.vx *= -.6; bounced = Math.abs(b.vx) > 40; }
     else b.x = nx;
-    const ny = b.y + b.vy * dt;
-    if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(ny / TS)))) {
+    const ny = b.y + b.vy * dt, row = Math.floor(ny / TS), c = tile(W, Math.floor(b.x / TS), row);
+    const topHit = b.vy > 0 && Math.floor(b.y / TS) < row && surface(c);
+    const onPlat = b.vy > 0 && [...W.plats.filter(pl => pl.state !== 'gone'), ...W.traps.filter(t => t.type === 'crush')]
+      .some(pl => b.x > pl.x && b.x < pl.x + pl.w && b.y <= pl.y + 1 && ny >= pl.y);
+    if ((b.vy < 0 && wall(c)) || (b.vy > 0 && wall(c)) || topHit || onPlat) {
       const hard = Math.abs(b.vy) > 160;
       b.vy *= -.55; b.vx *= .8; bounced = bounced || hard;
     } else b.y = ny;
+    const foe = W.enemies.find(e => e.alive && overlap({ x: b.x - 5, y: b.y - 5, w: 10, h: 10 }, e));
+    if (foe && !b.lastFoe) { b.vx = -b.vx * .7; b.vy = -Math.max(220, Math.abs(b.vy) * .6); bounced = true; }
+    b.lastFoe = foe;
     if (inHorde()) { b.life = 0; return; }
     if (bounced) {
       b.bounces++;
