@@ -61,6 +61,7 @@
     buzz: () => tone(220, 260, .3, 'sawtooth', .02),
     bow: () => tone(600, 250, .1, 'triangle', .03),
     clank: () => { tone(1400, 900, .08, 'square', .03); tone(300, 200, .1, 'triangle', .04); },
+    flop: () => { tone(260, 120, .08, 'triangle', .04); tone(200, 90, .1, 'triangle', .03, .09); },
     leap: () => tone(400, 800, .12, 'sine', .03),
     snort: () => tone(140, 90, .2, 'sawtooth', .04),
     splash: () => tone(500, 120, .18, 'sine', .04),

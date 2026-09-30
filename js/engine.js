@@ -646,10 +646,19 @@
             W.emit('leap');
           }
         } else {
+          // Falling back: splash down wherever it meets water and stay there;
+          // land on anything solid (or fall out of the level) and it dies.
           e.vy += G * .8 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
-          if (e.vy > 0 && e.y >= e.oy) {
-            e.y = e.oy; e.x = e.ox + (e.x - e.ox) * .5; e.vx = 0; e.state = 'idle'; e.wait = 1.8;
-            burst(W, ex, e.y, 6, ['#7FB0E0', '#D9D0F0'], 70, 300, 2);
+          if (e.vy > 0) {
+            const cx = e.x + e.w / 2, tx = Math.floor(cx / TS);
+            if (tile(W, tx, Math.floor((e.y + e.h / 2) / TS)) === '~') {
+              e.ox = e.x; e.oy = e.y; e.vx = 0; e.state = 'idle'; e.wait = 1.8;
+              burst(W, cx, e.y, 6, ['#7FB0E0', '#D9D0F0'], 70, 300, 2);
+            } else if (isSolid(tile(W, tx, Math.floor((e.y + e.h) / TS))) || e.y > W.h * TS) {
+              e.alive = false;
+              burst(W, cx, e.y + e.h / 2, 12, ['#A9B8C8', '#7C8C9E', '#D9E2EC'], 120, 400, 2.5);
+              W.emit('flop');
+            }
           }
         }
         break;

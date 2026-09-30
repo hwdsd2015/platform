@@ -154,7 +154,7 @@
       Z: v => [['Moves', `circles a 46 px loop, ${(2.4 * v(1) / 1).toFixed(1)} rad/s`]],
       Y: v => [['Moves', `swims ${v(85)} px/s, stays in the water`]],
       U: v => [['Moves', 'bobs up and down about 1.4 tiles']],
-      N: v => [['Attack', 'leaps about 4 tiles out of the water toward you']],
+      N: v => [['Attack', 'leaps about 4 tiles out of the water toward you'], ['Landing', 'stays where it splashes down; dies if it lands on dry ground']],
       W: v => [['Attack', `dashes ${v(340)} px/s at you when within 6 tiles`]],
       A: v => [['Attack', `arrows 210 px/s, aimed, every ${(2.4 / v(1)).toFixed(1)} s`]],
       I: v => [['Moves', `walks ${v(30)} px/s, turns at edges`]],
