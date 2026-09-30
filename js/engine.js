@@ -982,14 +982,18 @@
         W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
       }
     }
+    // X and Q work like E: tap for one, hold to keep firing while there's ammo for it.
     for (const kind of ['rocket', 'grenade']) {
-      if (!input[kind + 'Pressed']) continue;
+      const tapped = input[kind + 'Pressed'];
+      if (!tapped && !input[kind]) continue;
+      if (p.cool > 0) continue;
       input[kind + 'Pressed'] = false;
       const spec = SPECIAL[kind];
-      if (p.cool > 0) continue;
       if (p.ammo < spec.cost) {
-        p.cool = .3; W.emit('empty');
-        W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: `${spec.name} needs ${spec.cost} ammo`, life: 1, c: '#D9D0F0' });
+        if (tapped) {
+          p.cool = .3; W.emit('empty');
+          W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: `${spec.name} needs ${spec.cost} ammo`, life: 1, c: '#D9D0F0' });
+        }
         continue;
       }
       p.ammo -= spec.cost; p.cool = .4; p.flash = .1;
