@@ -158,7 +158,7 @@
       W: v => [['Attack', `dashes ${v(340)} px/s at you when within 6 tiles`]],
       A: v => [['Attack', `arrows 210 px/s, aimed, every ${(2.4 / v(1)).toFixed(1)} s`]],
       I: v => [['Moves', `walks ${v(30)} px/s, turns at edges`]],
-      '*': v => [['Attack', `shoots about 4 tiles up out of the lava every ${(2.6 / v(1)).toFixed(1)} s`], ['Where', 'lava only; lava pools also get them automatically']],
+      '*': v => [['Attack', `rises about 5.5 tiles out of the lava, hangs for ${(.5 * LF.ENEMY_SPEED / v(1)).toFixed(2)} s, sinks back`], ['Where', 'lava only; lava pools also get them automatically']],
     };
     function statRows(c) {
       if (LF.HORDES[c]) {

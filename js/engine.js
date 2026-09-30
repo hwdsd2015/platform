@@ -128,12 +128,22 @@
     // Lava surface tiles: they glow and throw off embers.
     W.lavaTop = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tiles[y][x] === '!' && (y === 0 || tiles[y - 1][x] !== '!')) W.lavaTop.push({ tx: x, ty: y });
-    // Every lava pool gets lava bubbles: about one per 7 tiles of surface with room to jump.
+    // Every lava pool gets lava bubbles, spread evenly and centered along each stretch of
+    // surface: one per ~7 tiles, only where there's room above to jump.
+    const runs = [];
     for (const l of W.lavaTop) {
-      if (l.tx % 7 !== 3 || W.enemies.some(e => e.type === '*' && Math.abs(e.ox / TS - l.tx) < 4)) continue;
-      let room = true;
-      for (let k = 1; k <= 3; k++) if (isSolid(tile(W, l.tx, l.ty - k))) room = false;
-      if (room) W.enemies.push(makeEnemy('*', l.tx, l.ty, def.tuning));
+      const last = runs[runs.length - 1];
+      if (last && last.ty === l.ty && last.x1 === l.tx - 1) last.x1 = l.tx; else runs.push({ ty: l.ty, x0: l.tx, x1: l.tx });
+    }
+    for (const r of runs) {
+      const n = r.x1 - r.x0 + 1, count = Math.max(1, Math.round(n / 7));
+      for (let k = 0; k < count; k++) {
+        const tx = r.x0 + Math.floor((k + .5) * n / count);
+        if (W.enemies.some(e => e.type === '*' && Math.abs(e.ox / TS - tx) < 3)) continue;
+        let room = true;
+        for (let j = 1; j <= 3; j++) if (isSolid(tile(W, tx, r.ty - j))) room = false;
+        if (room) W.enemies.push(makeEnemy('*', tx, r.ty, def.tuning));
+      }
     }
     for (const e of W.enemies) if (e.type === '*') e.wait = 1 + Math.floor(e.ox / TS) % 4 * .5;
     // Jellies bob only within their water: find the surface above and the bottom below.
@@ -703,12 +713,17 @@
         break;
       }
       case '*': {
-        // Rest just under the lava, then shoot about 4 tiles up and fall back in.
+        // Rest just under the lava, then rise slowly about 5.5 tiles, hang at the top for
+        // half a second, and sink back in.
         if (e.state === 'idle') {
           e.y = e.oy;
-          if ((e.wait -= dt) <= 0) { e.state = 'up'; e.vy = -740; burst(W, ex, e.oy, 8, LF.WARM, 110, 300, 2); W.emit('bubble'); }
+          if ((e.wait -= dt) <= 0) { e.state = 'up'; e.vy = -640; burst(W, ex, e.oy, 8, LF.WARM, 110, 300, 2); W.emit('bubble'); }
+        } else if (e.state === 'hang') {
+          e.y = e.hangY + Math.sin(e.t * 12) * 1.5;
+          if ((e.wait -= dt) <= 0) { e.state = 'down'; e.vy = 0; }
         } else {
-          e.vy += G * dt; e.y += e.vy * dt;
+          e.vy += G * .55 * dt; e.y += e.vy * dt;
+          if (e.state === 'up' && e.vy >= 0) { e.state = 'hang'; e.wait = .5 * ENEMY_SPEED; e.hangY = e.y; e.vy = 0; break; }
           if (Math.random() < .5) W.particles.push({ x: ex + (Math.random() - .5) * 8, y: e.y + e.h, vx: 0, vy: 20, life: .35, max: .35, c: LF.WARM[Math.floor(Math.random() * 3)], size: 2.5, g: 0 });
           if (e.vy > 0 && e.y >= e.oy) {
             e.y = e.oy; e.state = 'idle'; e.wait = 2 + Math.floor(e.ox / TS) % 3 * .6;
