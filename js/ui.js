@@ -19,7 +19,7 @@
   let progress = store.get('progress', {});
   let customs = store.get('custom', []);
   // Hardcore: every lantern is removed, so the door starts open and there are no checkpoints,
-  // and water kills instead of letting you swim.
+  // and water turns to lava wherever the level can be finished without swimming.
   let hardcore = store.get('hardcore', false);
   let progressHC = store.get('progressHC', {});
 
@@ -105,14 +105,16 @@
   };
   const nextStory = () => { const i = LF.LEVELS.findIndex((_, k) => !progress[k]); return i < 0 ? 0 : i; };
 
-  // Remove every lantern; each becomes empty space (or water, if it was underwater).
+  // Remove every lantern (each becomes empty space, or water if it was underwater), then turn
+  // the water and anything swimming in it into lava, unless the level needs swimming.
   function hardcoreDef(def) {
     const rows = LF.normalize(def.map).map(r => r.split(''));
     rows.forEach((r, y) => r.forEach((c, x) => { if (c === 'L') r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
-    const out = { ...def, map: rows.map(r => r.join('')), deadlyWater: true };
-    // A few levels can't be finished without swimming; there the water stays safe.
-    if (!LF.analyze(out).ok && LF.analyze({ ...out, deadlyWater: false }).ok) { out.deadlyWater = false; out.needsSwim = true; }
-    return out;
+    const water = { ...def, map: rows.map(r => r.join('')) };
+    const lava = { ...water, map: water.map.map(r => r.replace(/[~YUN]/g, '!')) };
+    if (!lava.map.some((r, i) => r !== water.map[i])) return water;
+    if (!LF.analyze(lava).ok && LF.analyze(water).ok) return { ...water, needsSwim: true };
+    return lava;
   }
 
   // ---------- screens ----------
@@ -133,7 +135,7 @@
         <button class="alt" data-act="editor">Level editor</button>
         <button class="alt${hardcore ? ' hc-on' : ''}" data-act="toggleHardcore" aria-pressed="${hardcore}">Hardcore: ${hardcore ? 'on' : 'off'}</button>
       </div>
-      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns at all. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water kills.</p>' : ''}
+      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns at all. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
@@ -194,7 +196,7 @@
     $('hud-num').textContent = hudLabel();
     $('hud-name').textContent = W.name;
     hudCache = '';
-    flash(W.def.needsSwim ? `${W.name} · water is safe here: you have to swim` : W.name);
+    flash(W.def.needsSwim ? `${W.name} · no lava here: you have to swim` : W.name);
   }
   app.play = play;
 

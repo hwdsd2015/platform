@@ -164,6 +164,8 @@
             ctx.fillStyle = '#8D82B0';
             ctx.beginPath(); ctx.moveTo(sx + 4, y + 13); ctx.lineTo(sx + 8, y + TS - 4); ctx.lineTo(sx + 4, y + TS - 4); ctx.fill();
           }
+        } else if (c === '!') {
+          // Lava itself is drawn in the emissive pass; leave the tile empty here.
         } else if (c === '~') {
           ctx.fillStyle = 'rgba(46,78,130,.88)';
           if (t(tx, ty - 1) !== '~') {
@@ -671,6 +673,7 @@
       const out = [], p = W.player;
       if (!p.dead) { const f = LF.flamePos(p); out.push({ x: f.x, y: f.y, r: 150 * flick(0, .03) }); }
       for (const f of W.fruits) if (!f.taken) out.push({ x: f.x, y: f.y, r: 44 });
+      for (let k = 0; k < W.lavaTop.length; k += 3) { const l = W.lavaTop[k]; out.push({ x: l.tx * TS + 16, y: l.ty * TS + 10, r: 95 }); }
       for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: 40 });
       for (const k of W.keys) if (!k.taken) out.push({ x: k.x, y: k.y, r: 60 });
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 });
@@ -715,6 +718,26 @@
       }
       ctx.globalCompositeOperation = 'source-over';
 
+      // Lava is drawn over the darkness so it glows.
+      if (W.lavaTop.length) {
+        const { x0, x1, y0, y1 } = visibleRange(W, cam);
+        for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+          if (W.tiles[ty][tx] !== '!') continue;
+          const x = tx * TS, y = ty * TS, top = LF.tile(W, tx, ty - 1) !== '!';
+          const wave = top && !reduced ? Math.sin(clock * 2.6 + tx * .9) * 2 : 0, y0p = top ? y + 7 + wave : y;
+          const g = ctx.createLinearGradient(0, y0p, 0, y + TS);
+          g.addColorStop(0, top ? '#FF8A2E' : '#D8481C'); g.addColorStop(1, '#A82A14');
+          ctx.fillStyle = g; ctx.fillRect(x, y0p, TS, y + TS - y0p);
+          if (top) {
+            ctx.fillStyle = '#FFE2A8'; ctx.fillRect(x, y0p, TS, 2);
+            const b = reduced ? 0 : (clock * 1.3 + tx * .37) % 1;
+            ctx.fillStyle = `rgba(255,226,168,${.7 * (1 - b)})`;
+            ctx.beginPath(); ctx.arc(x + 8 + (tx * 7) % 16, y0p + 6 - b * 6, 1.5 + b * 2.5, 0, TAU); ctx.fill();
+          } else if (!reduced) {
+            ctx.fillStyle = 'rgba(255,181,71,.25)'; ctx.fillRect(x + (tx * 11 + ty * 5) % 24, y + 10 + Math.sin(clock + tx + ty) * 4, 5, 2);
+          }
+        }
+      }
       for (const l of W.lanterns) {
         if (l.lit) {
           ctx.globalAlpha = Math.min(1, .85 * flick(l.f, .08)); ctx.fillStyle = '#FFB547'; ctx.fillRect(l.x - 5, l.y - 7, 10, 14);

@@ -122,8 +122,11 @@
     }
     // Markers placed underwater (start, lanterns, fruit…) leave water behind, not an air pocket.
     for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) {
-      if (tiles[y][x] === ' ' && tiles[y - 1][x] === '~' && rows[y][x] !== '.') tiles[y][x] = '~';
+      if (tiles[y][x] === ' ' && (tiles[y - 1][x] === '~' || tiles[y - 1][x] === '!') && rows[y][x] !== '.') tiles[y][x] = tiles[y - 1][x];
     }
+    // Lava surface tiles: they glow and throw off embers.
+    W.lavaTop = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tiles[y][x] === '!' && (y === 0 || tiles[y - 1][x] !== '!')) W.lavaTop.push({ tx: x, ty: y });
     W.total = W.lanterns.length;
     if (W.door && !W.total) W.door.open = true;
     W.checkpoint = { ...W.start };
@@ -224,8 +227,17 @@
     if (W.particles.length > 600) W.particles.splice(0, W.particles.length - 600);
   }
 
-  // Water only drowns enemies; the player swims (see inWater).
+  // Water only drowns enemies; the player swims (see inWater). Lava (!) kills anything.
+  const lavaAt = (W, p) => {
+    const x0 = Math.floor((p.x + 3) / TS), x1 = Math.floor((p.x + p.w - 3) / TS);
+    const y0 = Math.floor((p.y + 4) / TS), y1 = Math.floor((p.y + p.h - 1) / TS);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      if (tile(W, tx, ty) === '!' && (tile(W, tx, ty - 1) === '!' || p.y + p.h > ty * TS + 10)) return true;
+    }
+    return false;
+  };
   function hazardHit(W, p, swims = false) {
+    if (lavaAt(W, p)) return true;
     const x0 = Math.floor((p.x + 3) / TS), x1 = Math.floor((p.x + p.w - 3) / TS);
     const y0 = Math.floor((p.y + 4) / TS), y1 = Math.floor((p.y + p.h - 1) / TS);
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
@@ -289,6 +301,10 @@
     stepBlinks(W, dt);
     stepBullets(W, dt);
     stepTraps(W, dt, playing);
+    if (W.lavaTop.length && Math.random() < dt * Math.min(40, W.lavaTop.length * .6)) {
+      const l = W.lavaTop[Math.floor(Math.random() * W.lavaTop.length)];
+      W.particles.push({ x: l.tx * TS + Math.random() * TS, y: l.ty * TS + 8, vx: (Math.random() - .5) * 30, vy: -60 - Math.random() * 90, life: .9, max: .9, c: LF.WARM[Math.floor(Math.random() * 3)], size: 2 + Math.random() * 2, g: 60 });
+    }
     stepUnlocking(W, dt);
     stepHorde(W, dt, playing);
     for (const r of W.rings) { r.life -= dt; r.r += (r.max - r.r) * Math.min(1, dt * 10); }
@@ -753,9 +769,7 @@
     p.boost = Math.max(0, p.boost - dt); p.dbl = Math.max(0, p.dbl - dt);
     if (dir && p.lock <= 0) p.face = dir;
     // Right after a wall jump, steering is weak so the kick carries you off the wall.
-    // def.deadlyWater (Hardcore): no swimming, water kills on touch, shield or not.
-    const wet = !W.def.deadlyWater && inWater(W, p);
-    if (W.def.deadlyWater && inWater(W, p)) { p.shield = false; p.inv = 0; return kill(W); }
+    const wet = inWater(W, p);
     if (wet && !p.wet) {
       burst(W, p.x + p.w / 2, p.y + p.h, 10, ['#7FB0E0', '#D9D0F0'], 110, 500, 2);
       W.emit('splash');
@@ -894,8 +908,10 @@
     trail(W, p, dt, '154,143,191');
 
     // Water at the bottom edge of the map has a floor: you can't sink out of the world.
-    if (!W.def.deadlyWater && p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
+    if (p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
     if (p.y > W.h * TS + 60) return kill(W);
+    // Lava kills outright; the shield doesn't help.
+    if (lavaAt(W, p)) { p.shield = false; p.inv = 0; return kill(W); }
     if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
     if (p.inv <= 0 && trapHit(W, p)) { hurt(W); if (p.dead) return; }
     // Crusher sides push you out instead of hurting.
