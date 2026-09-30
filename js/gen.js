@@ -44,7 +44,7 @@
     if (doors > 1) problems.push('There is more than one door (D).');
 
     // Water is swimmable: you can jump from anywhere in it.
-    const wet = c => c === '~' || !!(LF.SWIMMERS && LF.SWIMMERS[c]);
+    const wet = c => !def.deadlyWater && (c === '~' || !!(LF.SWIMMERS && LF.SWIMMERS[c]));
     const stand = (x, y) => x >= 0 && x < w && y >= 0 && y < h && (wet(T(x, y)) || !solid(T(x, y)) && !hazard(T(x, y)) &&
       (solid(T(x, y + 1)) || T(x, y + 1) === '=' || T(x, y + 1) === 'd' || platStand.has(key(x, y))));
 

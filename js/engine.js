@@ -753,7 +753,9 @@
     p.boost = Math.max(0, p.boost - dt); p.dbl = Math.max(0, p.dbl - dt);
     if (dir && p.lock <= 0) p.face = dir;
     // Right after a wall jump, steering is weak so the kick carries you off the wall.
-    const wet = inWater(W, p);
+    // def.deadlyWater (Hardcore): no swimming, water kills on touch, shield or not.
+    const wet = !W.def.deadlyWater && inWater(W, p);
+    if (W.def.deadlyWater && inWater(W, p)) { p.shield = false; p.inv = 0; return kill(W); }
     if (wet && !p.wet) {
       burst(W, p.x + p.w / 2, p.y + p.h, 10, ['#7FB0E0', '#D9D0F0'], 110, 500, 2);
       W.emit('splash');
@@ -892,7 +894,7 @@
     trail(W, p, dt, '154,143,191');
 
     // Water at the bottom edge of the map has a floor: you can't sink out of the world.
-    if (p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
+    if (!W.def.deadlyWater && p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
     if (p.y > W.h * TS + 60) return kill(W);
     if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
     if (p.inv <= 0 && trapHit(W, p)) { hurt(W); if (p.dead) return; }
