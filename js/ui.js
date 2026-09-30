@@ -105,12 +105,14 @@
   };
   const nextStory = () => { const i = LF.LEVELS.findIndex((_, k) => !progress[k]); return i < 0 ? 0 : i; };
 
-  // Remove every lantern (each becomes empty space, or water if it was underwater), then turn
-  // the water and anything swimming in it into lava, unless the level needs swimming.
+  // Remove every lantern, ammo crate and piece of fruit (each becomes empty space, or water if
+  // it was underwater) and any starting ammo, then turn the water and anything swimming in it
+  // into lava, unless the level needs swimming.
+  const HARDCORE_GONE = new Set(['L', 'q', 'Q', 'a', 'o', 'b']);
   function hardcoreDef(def) {
     const rows = LF.normalize(def.map).map(r => r.split(''));
-    rows.forEach((r, y) => r.forEach((c, x) => { if (c === 'L') r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
-    const water = { ...def, map: rows.map(r => r.join('')) };
+    rows.forEach((r, y) => r.forEach((c, x) => { if (HARDCORE_GONE.has(c)) r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
+    const water = { ...def, map: rows.map(r => r.join('')), player: { ...def.player, ammo: 0 } };
     const lava = { ...water, map: water.map.map(r => r.replace(/[~YUN]/g, '!')) };
     if (!lava.map.some((r, i) => r !== water.map[i])) return water;
     if (!LF.analyze(lava).ok && LF.analyze(water).ok) return { ...water, needsSwim: true };
@@ -135,7 +137,7 @@
         <button class="alt" data-act="editor">Level editor</button>
         <button class="alt${hardcore ? ' hc-on' : ''}" data-act="toggleHardcore" aria-pressed="${hardcore}">Hardcore: ${hardcore ? 'on' : 'off'}</button>
       </div>
-      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns at all. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
+      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
