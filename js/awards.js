@@ -12,11 +12,11 @@
     { id: 'clear10', name: 'Lamplighter', desc: 'Clear 10 story levels.', stat: 'storyLit', goal: 10 },
     { id: 'clear25', name: 'Halfway Home', desc: 'Clear 25 story levels.', stat: 'storyLit', goal: 25 },
     { id: 'clearAll', name: 'Every Lamp Burns', desc: 'Clear every story level.', stat: 'storyLit', goal: () => LF.LEVELS.length },
-    { id: 'flawless', name: 'Not a Scratch', desc: 'Clear a level without falling once.' },
+    { id: 'flawless', name: 'Not a Scratch', desc: 'Clear a story level without falling once.' },
     { id: 'quick', name: 'Quick Flame', desc: 'Clear a story level in under 15 seconds.' },
-    { id: 'hc1', name: 'Hard as Wax', desc: 'Clear a level on Hardcore.' },
+    { id: 'hc1', name: 'Hard as Wax', desc: 'Clear a story level on Hardcore.' },
     { id: 'hc10', name: 'Iron Wick', desc: 'Clear 10 story levels on Hardcore.', stat: 'hcLit', goal: 10 },
-    { id: 'horde', name: 'Outran the Dark', desc: 'Clear a level with a horde in it.' },
+    { id: 'horde', name: 'Outran the Dark', desc: 'Clear a story level with a horde in it.' },
     { id: 'random', name: 'Wanderer', desc: 'Clear a random map.' },
     { id: 'stomp', name: 'Stompy', desc: 'Stomp 50 enemies.', stat: 'stomp', goal: 50 },
     { id: 'zap', name: 'Sharpshooter', desc: 'Shoot 100 enemies.', stat: 'zap', goal: 100 },
@@ -30,7 +30,7 @@
     { id: 'keys', name: 'Keymaster', desc: 'Unlock 20 locked-door blocks.', stat: 'unlock', goal: 20 },
     { id: 'crates', name: 'Challenge Accepted', desc: 'Grab 5 big ammo crates.', stat: 'bigammo', goal: 5 },
     { id: 'falls', name: 'Persistence', desc: 'Fall 100 times. It happens.', stat: 'falls', goal: 100 },
-    { id: 'architect', name: 'Architect', desc: 'Save a level of your own.' },
+    { id: 'architect', name: 'Architect', desc: 'Save a level of your own in the editor.' },
   ];
   const goalOf = a => (typeof a.goal === 'function' ? a.goal() : a.goal);
 
@@ -82,19 +82,16 @@
         stats.fruitSeen = [...kinds]; bump('fruitKinds', kinds.size - (stats.fruitKinds || 0));
       }
     },
-    // A level was cleared.
+    // A level was cleared. Only story levels count, except that a random map earns Wanderer.
     clear({ kind, index, time, falls, hardcore, horde, storyLit, hcLit }) {
-      if (kind === 'story') {
-        if (index === 0) earn('first');
-        if (time < 15) earn('quick');
-        stats.storyLit = storyLit; stats.hcLit = hcLit; save(STATS, stats);
-      }
-      if (kind === 'random') earn('random');
-      if (kind !== 'test') {
-        if (falls === 0) earn('flawless');
-        if (hardcore) earn('hc1');
-        if (horde) earn('horde');
-      }
+      if (kind === 'random') return earn('random');
+      if (kind !== 'story') return;
+      if (index === 0) earn('first');
+      if (time < 15) earn('quick');
+      if (falls === 0) earn('flawless');
+      if (hardcore) earn('hc1');
+      if (horde) earn('horde');
+      stats.storyLit = storyLit; stats.hcLit = hcLit; save(STATS, stats);
       check();
     },
     saved() { earn('architect'); },

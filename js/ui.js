@@ -135,6 +135,7 @@
     card(`
       <p class="eyebrow">${earned} of ${total} earned</p>
       <h2>Awards</h2>
+      <p class="lede">Awards count in story levels. Random maps only earn Wanderer, and the editor only Architect.</p>
       <ul class="awards">${items}</ul>
       <div class="menu"><button class="go" data-act="menu">Back</button></div>`);
   }
@@ -451,7 +452,8 @@
       }
       for (const ev of W.events) {
         if (SFX[ev.type]) SFX[ev.type]();
-        LF.awards.event(ev);
+        // Awards only count in story levels (random maps have their own award; the editor only Architect).
+        if (playCtx.kind === 'story') LF.awards.event(ev);
         if (ev.type === 'door') flash('The door is open');
         if (ev.type === 'clear') clearTimer = .7;
       }
