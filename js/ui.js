@@ -18,6 +18,9 @@
   };
   let progress = store.get('progress', {});
   let customs = store.get('custom', []);
+  // Hardcore: every level keeps only its farthest lantern, so there are no checkpoints on the way.
+  let hardcore = store.get('hardcore', false);
+  let progressHC = store.get('progressHC', {});
 
   // ---------- audio ----------
   let ac = null, muted = store.get('muted', false);
@@ -101,6 +104,17 @@
   };
   const nextStory = () => { const i = LF.LEVELS.findIndex((_, k) => !progress[k]); return i < 0 ? 0 : i; };
 
+  // Keep only the lantern farthest from the start; the others become empty space (or water).
+  function hardcoreDef(def) {
+    const rows = LF.normalize(def.map).map(r => r.split(''));
+    let start = { x: 0, y: 0 }; const lamps = [];
+    rows.forEach((r, y) => r.forEach((c, x) => { if (c === 'P') start = { x, y }; else if (c === 'L') lamps.push({ x, y }); }));
+    if (lamps.length <= 1) return def;
+    const far = lamps.reduce((a, b) => (Math.hypot(b.x - start.x, b.y - start.y) > Math.hypot(a.x - start.x, a.y - start.y) ? b : a));
+    for (const l of lamps) if (l !== far) rows[l.y][l.x] = rows[l.y - 1]?.[l.x] === '~' ? '~' : '.';
+    return { ...def, map: rows.map(r => r.join('')) };
+  }
+
   // ---------- screens ----------
   function showTitle() {
     screen = 'title';
@@ -109,7 +123,7 @@
     setVisible({ overlay: true });
     const n = nextStory(), cleared = Object.keys(progress).length;
     card(`
-      <p class="eyebrow">A lamplighter's night · ${LF.LEVELS.length} levels · ${cleared} lit</p>
+      <p class="eyebrow">A lamplighter's night · ${LF.LEVELS.length} levels · ${cleared} lit${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}</p>
       <h1>Lanternfall</h1>
       <p class="lede">Night is falling on the old town. Light every lantern to open each door: across the rooftops, up the belfry, down through the kilns and into the Hollow Spire.</p>
       <div class="menu">
@@ -117,7 +131,9 @@
         <button class="alt" data-act="select">Choose a level</button>
         <button class="alt" data-act="random">Random map</button>
         <button class="alt" data-act="editor">Level editor</button>
+        <button class="alt${hardcore ? ' hc-on' : ''}" data-act="toggleHardcore" aria-pressed="${hardcore}">Hardcore: ${hardcore ? 'on' : 'off'}</button>
       </div>
+      ${hardcore ? '<p class="lede hc-note">Hardcore is on: each level has only one lantern, the farthest one. No checkpoints: every fall sends you back to the start.</p>' : ''}
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
@@ -142,11 +158,11 @@
       <section class="chapter">
         <h3><span>Chapter ${ROMAN[k]}</span>${esc(ch.name)}</h3>
         <div class="tiles">${ch.items.map(({ lv, i }) => {
-          const p = progress[i];
+          const p = progress[i], hc = progressHC[i];
           return `<button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
             <b>${i + 1}</b><strong>${esc(lv.name)}</strong>
             <small>${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)}</small>
-            <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}</em></button>`;
+            <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · <span class="hc">hardcore ${fmt(hc.best)}</span>` : ''}</em></button>`;
         }).join('')}</div>
       </section>`).join('');
     html += `<section class="chapter"><h3><span>Workshop</span>Your levels</h3>` + (customs.length
@@ -158,6 +174,9 @@
   }
 
   function hudLabel() {
+    return hudLabelBase() + (hardcore && playCtx.kind !== 'test' ? ' · Hardcore' : '');
+  }
+  function hudLabelBase() {
     if (playCtx.kind === 'story') return `Chapter ${ROMAN[chapterIndex(playCtx.index)]} · Level ${playCtx.index + 1} of ${LF.LEVELS.length}`;
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
@@ -167,7 +186,7 @@
 
   function play(def, ctx) {
     playDef = def; playCtx = ctx;
-    W = LF.createWorld(def);
+    W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(def) : def);
     for (const k in input) input[k] = false;
     LF.followCamera(W, cam, 0, true);
     screen = 'play';
@@ -204,12 +223,14 @@
     let eyebrow = 'Every lamp lit', title = W.name, stats = '', buttons = '';
     const tally = (extra = '') => `<dl class="tally"><div><dt>Time</dt><dd>${fmt(t)}</dd></div><div><dt>Falls</dt><dd>${falls}</dd></div>${extra}</dl>`;
     if (playCtx.kind === 'story') {
-      const i = playCtx.index, prev = progress[i];
+      // Hardcore runs keep their own best times; a hardcore clear also counts the level as lit.
+      const book = hardcore ? progressHC : progress, i = playCtx.index, prev = book[i];
       const isBest = !prev || t < prev.best;
-      if (isBest) { progress[i] = { best: t, falls }; store.set('progress', progress); }
+      if (isBest) { book[i] = { best: t, falls }; store.set(hardcore ? 'progressHC' : 'progress', book); }
+      if (hardcore && !progress[i]) { progress[i] = { best: t, falls }; store.set('progress', progress); }
       story.time += t; story.falls += falls;
       const last = i === LF.LEVELS.length - 1;
-      eyebrow = `Level ${i + 1} of ${LF.LEVELS.length} · every lamp lit`;
+      eyebrow = `Level ${i + 1} of ${LF.LEVELS.length} · ${hardcore ? 'hardcore clear' : 'every lamp lit'}`;
       stats = tally(`<div class="best"><dt>${isBest ? 'New best' : 'Best'}</dt><dd>${fmt(isBest ? t : prev.best)}</dd></div>`);
       if (last) {
         eyebrow = 'The whole town is lit'; title = 'Every lamp burns.';
@@ -302,6 +323,7 @@
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
     menu: showTitle,
+    toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); showTitle(); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
     restart: () => play(playDef, playCtx),
     backToEditor: () => { screen = 'editor'; setVisible({}); editor.resume(); },
