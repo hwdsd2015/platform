@@ -41,7 +41,7 @@
     chapter: 'The Clockworks', name: 'Blinkworks', dark: .55,
     signs: [
       { x: 1, y: 8.4, t: 'amber and blue blocks take turns' },
-      { x: 1, y: 9.4, t: 'E to fire · hold for autofire' },
+      { x: 1, y: 9.4, t: 'E fire · X explosive · Q grenade' },
       { x: 33, y: 8.4, t: 'belts push you' },
     ],
     map: B(70, 16, ({ r, s }) => {

@@ -844,6 +844,19 @@
       for (const a of W.ammo) drawAmmo(a);
       for (const k of W.keys) drawKey(k);
       for (const b of W.bullets) {
+        if (b.kind === 'rocket') {
+          const d = Math.sign(b.vx) || 1;
+          ctx.fillStyle = '#FF6B3D'; ctx.fillRect(b.x - d * 12, b.y - 2.5, d * 10, 5);
+          ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.moveTo(b.x - d * 2, b.y - 3.5); ctx.lineTo(b.x + d * 5, b.y); ctx.lineTo(b.x - d * 2, b.y + 3.5); ctx.fill();
+          continue;
+        }
+        if (b.kind === 'grenade') {
+          ctx.fillStyle = '#3A2F55'; ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, TAU); ctx.fill();
+          ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();
+          const blink = reduced || Math.floor(b.life * (b.life < .8 ? 16 : 6)) % 2;
+          ctx.fillStyle = blink ? '#FF6B3D' : '#7A2E1C'; ctx.beginPath(); ctx.arc(b.x + 1.5, b.y - 5, 1.8, 0, TAU); ctx.fill();
+          continue;
+        }
         ctx.fillStyle = '#FFB547'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);
         ctx.fillStyle = '#FFF1CF'; ctx.fillRect(b.x - 2, b.y - 1.5, 4, 3);
       }

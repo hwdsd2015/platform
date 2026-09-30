@@ -63,6 +63,10 @@
     clank: () => { tone(1400, 900, .08, 'square', .03); tone(300, 200, .1, 'triangle', .04); },
     flop: () => { tone(260, 120, .08, 'triangle', .04); tone(200, 90, .1, 'triangle', .03, .09); },
     award: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, .16, 'triangle', .045, i * .07)),
+    rocket: () => { tone(220, 900, .12, 'sawtooth', .035); tone(120, 60, .15, 'square', .03); },
+    lob: () => tone(500, 260, .12, 'triangle', .04),
+    pop: () => { tone(220, 60, .18, 'sawtooth', .05); tone(900, 200, .08, 'square', .02); },
+    boom: () => { tone(160, 30, .5, 'sawtooth', .07); tone(80, 25, .6, 'square', .05, .02); tone(1200, 200, .15, 'triangle', .03); },
     bubble: () => tone(180, 520, .15, 'sine', .035),
     leap: () => tone(400, 800, .12, 'sine', .03),
     snort: () => tone(140, 90, .2, 'sawtooth', .04),
@@ -79,7 +83,7 @@
   // ---------- state ----------
   let screen = 'title', W = null, playDef = null, playCtx = null;
   const cam = { x: 0, y: 0, zoom: 1 };
-  const input = { left: false, right: false, jump: false, down: false, jumpPressed: false, fire: false, firePressed: false };
+  const input = { left: false, right: false, jump: false, down: false, jumpPressed: false, fire: false, firePressed: false, rocket: false, rocketPressed: false, grenade: false, grenadePressed: false };
   let attract = LF.createWorld(LF.LEVELS[0]);
   let story = { time: 0, falls: 0 };
 
@@ -165,7 +169,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire · ammo crates are hidden through each level; big crates hold 10</li>
+        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · <kbd>Q</kbd> bouncing grenade (3 ammo) · ammo crates are hidden through each level; big crates hold 10</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
@@ -374,7 +378,7 @@
   $('sel-back').addEventListener('click', showTitle);
 
   // ---------- input ----------
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyX: 'fire', KeyF: 'fire' };
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyQ: 'grenade' };
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
@@ -385,7 +389,7 @@
       if (k) {
         e.preventDefault();
         if (k === 'jump' && !input.jump && !e.repeat) input.jumpPressed = true;
-        if (k === 'fire' && !input.fire && !e.repeat) input.firePressed = true;
+        if ((k === 'fire' || k === 'rocket' || k === 'grenade') && !input[k] && !e.repeat) input[k + 'Pressed'] = true;
         input[k] = true;
       }
       // R is instant death: respawn at the last lit lantern (full restart is in the pause menu).
@@ -406,12 +410,12 @@
 
   function bindTouch(id, k) {
     const el = $(id);
-    const on = e => { e.preventDefault(); initAudio(); if (k === 'jump' && !input.jump) input.jumpPressed = true; if (k === 'fire' && !input.fire) input.firePressed = true; input[k] = true; el.classList.add('on'); };
+    const on = e => { e.preventDefault(); initAudio(); if (k === 'jump' && !input.jump) input.jumpPressed = true; if ((k === 'fire' || k === 'rocket' || k === 'grenade') && !input[k]) input[k + 'Pressed'] = true; input[k] = true; el.classList.add('on'); };
     const off = e => { e.preventDefault(); input[k] = false; el.classList.remove('on'); };
     el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
     el.addEventListener('pointercancel', off); el.addEventListener('pointerleave', off);
   }
-  bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down'); bindTouch('t-fire', 'fire');
+  bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down'); bindTouch('t-fire', 'fire'); bindTouch('t-rocket', 'rocket'); bindTouch('t-grenade', 'grenade');
   $('t-pause').addEventListener('click', () => pause());
 
   // ---------- HUD ----------

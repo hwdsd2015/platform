@@ -25,6 +25,11 @@
   };
   // Every enemy runs this much faster than its base numbers (movement, timers, attacks).
   const ENEMY_SPEED = LF.ENEMY_SPEED = 1.35;
+  // Special shots: X fires an explosive round, Q lobs a bouncing grenade. Both use shared ammo.
+  const SPECIAL = LF.SPECIAL = {
+    rocket: { cost: 2, name: 'explosive round' },
+    grenade: { cost: 3, name: 'grenade' },
+  };
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10 };
   const TAU = Math.PI * 2;
 
@@ -397,8 +402,60 @@
     }
   }
 
+  // An explosion kills every enemy within `r` (golems included; the horde is immune) and
+  // any embers or arrows in range.
+  function explode(W, x, y, r, big) {
+    for (const e of W.enemies) {
+      if (!e.alive || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
+      e.alive = false;
+      burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
+      W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'boom', life: .8, c: '#FFB547' });
+      W.emit('zap', { type: e.type });
+    }
+    for (const q of W.projectiles) if (Math.hypot(q.x + q.w / 2 - x, q.y + q.h / 2 - y) < r) q.life = 0;
+    burst(W, x, y, big ? 40 : 22, ['#FFF1CF', '#FFB547', '#FF6B3D', '#463C6B'], big ? 320 : 220, 300, big ? 4 : 3);
+    ring(W, x, y, r, '255,181,71', big ? .5 : .35);
+    ring(W, x, y, r * .55, '255,241,207', .25);
+    W.shake = Math.max(W.shake, big ? .3 : .15); W.freeze = Math.max(W.freeze, big ? .06 : .03);
+    W.emit(big ? 'boom' : 'pop');
+  }
+
+  function stepSpecial(W, b, dt) {
+    b.life -= dt;
+    const inHorde = () => W.horde && along(W.horde, b.x, b.y) < W.horde.f;
+    if (b.kind === 'rocket') {
+      b.x += b.vx * dt;
+      if (Math.random() < .6) W.particles.push({ x: b.x - Math.sign(b.vx) * 6, y: b.y, vx: -b.vx * .15, vy: (Math.random() - .5) * 30, life: .3, max: .3, c: LF.WARM[Math.floor(Math.random() * 3)], size: 2.5, g: 0 });
+      if (inHorde()) { b.life = 0; return; }
+      const hitWall = isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)));
+      const hitEnemy = W.enemies.some(e => e.alive && overlap({ x: b.x - 5, y: b.y - 3, w: 10, h: 6 }, e));
+      if (hitWall || hitEnemy || b.life <= 0) { b.life = 0; explode(W, b.x - Math.sign(b.vx) * (hitWall ? 6 : 0), b.y, TS * 3, true); }
+      return;
+    }
+    // Grenade: falls, bounces off walls and floors; each hard bounce blasts 2 blocks,
+    // and the third bounce (or the fuse running out) sets off the big 3-block blast.
+    b.vy = Math.min(MAXFALL, b.vy + G * .8 * dt);
+    let bounced = false;
+    const nx = b.x + b.vx * dt;
+    if (isSolid(tile(W, Math.floor(nx / TS), Math.floor(b.y / TS)))) { b.vx *= -.6; bounced = Math.abs(b.vx) > 40; }
+    else b.x = nx;
+    const ny = b.y + b.vy * dt;
+    if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(ny / TS)))) {
+      const hard = Math.abs(b.vy) > 160;
+      b.vy *= -.55; b.vx *= .8; bounced = bounced || hard;
+    } else b.y = ny;
+    if (inHorde()) { b.life = 0; return; }
+    if (bounced) {
+      b.bounces++;
+      if (b.bounces >= 3) { b.life = 0; return explode(W, b.x, b.y, TS * 3, true); }
+      explode(W, b.x, b.y, TS * 2, false);
+    }
+    if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3, true); }
+  }
+
   function stepBullets(W, dt) {
     for (const b of W.bullets) {
+      if (b.kind) { stepSpecial(W, b, dt); continue; }
       b.x += b.vx * dt; b.life -= dt;
       if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); continue; }
       // Bullets just vanish into the horde.
@@ -924,6 +981,23 @@
         p.cool = .5; W.emit('empty');
         W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
       }
+    }
+    for (const kind of ['rocket', 'grenade']) {
+      if (!input[kind + 'Pressed']) continue;
+      input[kind + 'Pressed'] = false;
+      const spec = SPECIAL[kind];
+      if (p.cool > 0) continue;
+      if (p.ammo < spec.cost) {
+        p.cool = .3; W.emit('empty');
+        W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: `${spec.name} needs ${spec.cost} ammo`, life: 1, c: '#D9D0F0' });
+        continue;
+      }
+      p.ammo -= spec.cost; p.cool = .4; p.flash = .1;
+      const g = LF.gunPos(p);
+      if (kind === 'rocket') W.bullets.push({ kind, x: g.x, y: g.y, vx: p.face * 430, vy: 0, life: 1.6 });
+      else W.bullets.push({ kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0 });
+      p.vx -= p.face * 70;
+      W.emit(kind === 'rocket' ? 'rocket' : 'lob');
     }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;
