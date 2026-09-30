@@ -404,7 +404,7 @@
         e.alive = false;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
-        W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap');
+        W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap', { type: e.type });
         break;
       }
       for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 4) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
@@ -984,7 +984,7 @@
         e.alive = false; p.vy = (input.jump ? -620 : -460) * Math.sqrt(T.gravity); p.jumping = input.jump;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FF6B3D', '#463C6B'], 160, 500);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
-        W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp');
+        W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp', { type: e.type });
       } else { hurt(W); if (p.dead) return; }
     }
 

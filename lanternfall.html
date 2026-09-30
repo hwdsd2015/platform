@@ -85,6 +85,26 @@
   .tally dd { margin: 0; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .tally .best dd { color: var(--wick); }
   .menu { display: grid; gap: 10px; justify-items: start; padding-top: 2px; }
+  .award-toast {
+    position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); z-index: 40; max-width: min(20rem, calc(100% - 32px));
+    display: grid; gap: 2px; padding: 12px 16px; border-radius: 6px; pointer-events: none;
+    background: rgba(14,12,34,.95); border: 1px solid var(--wick); box-shadow: 0 0 30px rgba(255,181,71,.25);
+    opacity: 0; transform: translateY(12px); transition: opacity .3s ease, transform .3s ease;
+  }
+  .award-toast.show { opacity: 1; transform: none; }
+  .award-toast span { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ember); }
+  .award-toast b { font-family: var(--display); font-weight: 400; font-size: 20px; color: var(--wick); }
+  .award-toast small { font-size: 11px; color: var(--mist-dim); }
+  .awards { list-style: none; margin: 0; padding: 0 8px 0 0; display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; }
+  .awards li { display: grid; grid-template-columns: 1.4rem 1fr; gap: 10px; align-items: start; padding: 6px 0; border-bottom: 1px solid rgba(217,208,240,.08); color: var(--mist-dim); }
+  .awards li i { font-style: normal; font-size: 16px; line-height: 1.2; color: var(--plum); }
+  .awards li.won i { color: var(--wick); text-shadow: 0 0 12px rgba(255,181,71,.6); }
+  .awards li b { display: block; font-size: 12px; color: var(--mist-dim); }
+  .awards li.won b { color: var(--mist); }
+  .awards li small { display: block; font-size: 11px; line-height: 1.5; }
+  .awards .bar { display: block; height: 4px; margin-top: 5px; background: var(--plum-2); border-radius: 2px; overflow: hidden; }
+  .awards .bar span { display: block; height: 100%; background: var(--wick); }
+  .awards em { font-style: normal; font-size: 10px; font-variant-numeric: tabular-nums; }
   .menu .hc-on { color: var(--ember); border-color: var(--ember); }
   .hc-note { color: var(--ember); font-size: 12px; }
   .lvl .hc { color: var(--ember); }
@@ -261,6 +281,7 @@
 </div>
 
 <div class="flash" id="flash"></div>
+<div class="award-toast" id="award-toast" role="status" aria-live="polite"></div>
 
 <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
 
@@ -376,17 +397,18 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=31"></script>
-<script src="js/render.js?v=31"></script>
-<script src="js/gen.js?v=31"></script>
-<script src="js/levels-1.js?v=31"></script>
-<script src="js/levels-2.js?v=31"></script>
-<script src="js/levels-3.js?v=31"></script>
-<script src="js/levels-4.js?v=31"></script>
-<script src="js/levels-5.js?v=31"></script>
-<script src="js/levels-6.js?v=31"></script>
-<script src="js/levels-7.js?v=31"></script>
-<script src="js/levels-8.js?v=31"></script>
-<script src="js/levels-9.js?v=31"></script>
-<script src="js/editor.js?v=31"></script>
-<script src="js/ui.js?v=31"></script>
+<script src="js/engine.js?v=32"></script>
+<script src="js/render.js?v=32"></script>
+<script src="js/gen.js?v=32"></script>
+<script src="js/levels-1.js?v=32"></script>
+<script src="js/levels-2.js?v=32"></script>
+<script src="js/levels-3.js?v=32"></script>
+<script src="js/levels-4.js?v=32"></script>
+<script src="js/levels-5.js?v=32"></script>
+<script src="js/levels-6.js?v=32"></script>
+<script src="js/levels-7.js?v=32"></script>
+<script src="js/levels-8.js?v=32"></script>
+<script src="js/levels-9.js?v=32"></script>
+<script src="js/awards.js?v=32"></script>
+<script src="js/editor.js?v=32"></script>
+<script src="js/ui.js?v=32"></script>

@@ -62,6 +62,7 @@
     bow: () => tone(600, 250, .1, 'triangle', .03),
     clank: () => { tone(1400, 900, .08, 'square', .03); tone(300, 200, .1, 'triangle', .04); },
     flop: () => { tone(260, 120, .08, 'triangle', .04); tone(200, 90, .1, 'triangle', .03, .09); },
+    award: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, .16, 'triangle', .045, i * .07)),
     bubble: () => tone(180, 520, .15, 'sine', .035),
     leap: () => tone(400, 800, .12, 'sine', .03),
     snort: () => tone(140, 90, .2, 'sawtooth', .04),
@@ -121,6 +122,25 @@
     return lava;
   }
 
+  // ---------- awards ----------
+  function showAwards() {
+    setVisible({ overlay: true });
+    const { earned, total } = LF.awards.count();
+    const items = LF.awards.list().map(a => `
+      <li class="${a.earned ? 'won' : ''}">
+        <i aria-hidden="true">${a.earned ? '★' : '☆'}</i>
+        <div><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>
+        ${a.goal && !a.earned ? `<span class="bar"><span style="width:${Math.round(a.have / a.goal * 100)}%"></span></span><em>${a.have} / ${a.goal}</em>` : ''}</div>
+      </li>`).join('');
+    card(`
+      <p class="eyebrow">${earned} of ${total} earned</p>
+      <h2>Awards</h2>
+      <ul class="awards">${items}</ul>
+      <div class="menu"><button class="go" data-act="menu">Back</button></div>`);
+  }
+  LF.awards.onEarn = () => SFX.award();
+  LF.awards.sync({ storyLit: Object.keys(progress).length, hcLit: Object.keys(progressHC).length, first: !!progress[0] });
+
   // ---------- screens ----------
   function showTitle() {
     screen = 'title';
@@ -137,6 +157,7 @@
         <button class="alt" data-act="select">Choose a level</button>
         <button class="alt" data-act="random">Random map</button>
         <button class="alt" data-act="editor">Level editor</button>
+        <button class="alt" data-act="awards">Awards · ${LF.awards.count().earned}/${LF.awards.count().total}</button>
         <button class="alt${hardcore ? ' hc-on' : ''}" data-act="toggleHardcore" aria-pressed="${hardcore}">Hardcore: ${hardcore ? 'on' : 'off'}</button>
       </div>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
@@ -234,6 +255,7 @@
       const isBest = !prev || t < prev.best;
       if (isBest) { book[i] = { best: t, falls }; store.set(hardcore ? 'progressHC' : 'progress', book); }
       if (hardcore && !progress[i]) { progress[i] = { best: t, falls }; store.set('progress', progress); }
+      LF.awards.clear({ kind: 'story', index: i, time: t, falls, hardcore, horde: !!W.horde, storyLit: Object.keys(progress).length, hcLit: Object.keys(progressHC).length });
       story.time += t; story.falls += falls;
       const last = i === LF.LEVELS.length - 1;
       eyebrow = `Level ${i + 1} of ${LF.LEVELS.length} · ${hardcore ? 'hardcore clear' : 'every lamp lit'}`;
@@ -248,12 +270,14 @@
         buttons = `<button class="go" data-act="story" data-i="${i + 1}">Next level</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="select">Choose a level</button>`;
       }
     } else if (playCtx.kind === 'random') {
+      LF.awards.clear({ kind: 'random', time: t, falls, hardcore, horde: !!W.horde });
       eyebrow = `Random map · seed ${playCtx.opts.seed}`; stats = tally();
       buttons = `<button class="go" data-act="rerollRandom">Another random map</button><button class="alt" data-act="saveRandom">Save to Your levels</button><button class="alt" data-act="editRandom">Open in editor</button><button class="alt" data-act="menu">Main menu</button>`;
     } else if (playCtx.kind === 'test') {
       eyebrow = 'Test play · cleared'; stats = tally();
       buttons = `<button class="go" data-act="backToEditor">Back to editor</button><button class="alt" data-act="restart">Play again</button>`;
     } else {
+      LF.awards.clear({ kind: 'custom', time: t, falls, hardcore, horde: !!W.horde });
       eyebrow = 'Your level · cleared'; stats = tally();
       buttons = `<button class="go" data-act="restart">Play again</button><button class="alt" data-act="editCustom" data-id="${playCtx.id}">Edit</button><button class="alt" data-act="select">Choose a level</button>`;
     }
@@ -313,6 +337,7 @@
   $('code-cancel').addEventListener('click', () => $('code-dialog').close());
 
   app.saveCustom = d => {
+    LF.awards.saved();
     const id = d.id || 'c' + Date.now().toString(36);
     const rec = { id, name: d.name || 'Untitled', dark: d.dark, map: d.map, tuning: d.tuning, player: d.player, updated: Date.now() };
     const i = customs.findIndex(c => c.id === id);
@@ -329,6 +354,7 @@
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
     menu: showTitle,
+    awards: showAwards,
     toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); showTitle(); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
     restart: () => play(playDef, playCtx),
@@ -425,6 +451,7 @@
       }
       for (const ev of W.events) {
         if (SFX[ev.type]) SFX[ev.type]();
+        LF.awards.event(ev);
         if (ev.type === 'door') flash('The door is open');
         if (ev.type === 'clear') clearTimer = .7;
       }
