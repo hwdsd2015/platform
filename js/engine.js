@@ -472,22 +472,11 @@
   }
 
   // ---------- keys & locked doors ----------
-  // Touching a locked door with its key opens just that door:
-  // the connected blocks of that color, nearest first.
+  // Touching a locked door with its key opens just the block you touched.
   function unlock(W, gate, sx, sy, fx, fy) {
-    const cells = [], seen = new Set([sy * W.w + sx]), q = [[sx, sy]];
-    while (q.length) {
-      const [x, y] = q.pop();
-      cells.push({ tx: x, ty: y, d: Math.hypot(x * TS + 16 - fx, y * TS + 16 - fy) });
-      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
-        const k = ny * W.w + nx;
-        if (!seen.has(k) && tile(W, nx, ny) === gate && ny >= 0 && ny < W.h) { seen.add(k); q.push([nx, ny]); }
-      }
-    }
-    cells.sort((a, b) => a.d - b.d);
-    cells.forEach((c, i) => W.unlocking.push({ ...c, gate, t: .12 + i * .07 }));
-    for (const c of cells) W.tiles[c.ty][c.tx] = gate + '*';
-    W.floaters.push({ x: fx, y: fy - 24, t: 'unlocked', life: 1.1, c: LF.KEYS[LF.GATES[gate]].color });
+    W.unlocking.push({ tx: sx, ty: sy, gate, t: .1 });
+    W.tiles[sy][sx] = gate + '*';
+    W.floaters.push({ x: sx * TS + 16, y: sy * TS - 6, t: 'unlocked', life: .9, c: LF.KEYS[LF.GATES[gate]].color });
     W.emit('unlock');
   }
   function stepUnlocking(W, dt) {
@@ -956,7 +945,7 @@
       W.floaters.push({ x: k.x, y: k.y - 20, t: spec.name.toLowerCase(), life: 1.2, c: spec.color });
       W.emit('key');
     }
-    // Touching a locked door while holding its key opens that one door. You keep the key.
+    // Touching a locked door block while holding its key opens that one block. You keep the key.
     for (const kc in p.keys) {
       const gate = LF.KEYS[kc].gate;
       const x0 = Math.floor((p.x - 3) / TS), x1 = Math.floor((p.x + p.w + 3) / TS);

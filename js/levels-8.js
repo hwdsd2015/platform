@@ -8,7 +8,7 @@
     chapter: 'The Vault', name: "Locksmith's Cellar", dark: .56,
     signs: [
       { x: 1, y: 6.4, t: 'keys open doors of their color' },
-      { x: 16.5, y: 6.4, t: 'each key opens every door of its color' },
+      { x: 16.5, y: 6.4, t: 'a key opens the blocks you touch' },
     ],
     map: B(60, 16, ({ r, s }) => {
       r(0, 0, 59, 4);
