@@ -453,25 +453,36 @@
     if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3, true); }
   }
 
+  // One bullet hit on an enemy: armored ones lose a point of armor, the rest die.
+  function shootEnemy(W, e, dir) {
+    if (e.hp > 1) {
+      e.hp--; e.hurt = .15; e.x += dir * 5;
+      burst(W, e.x + e.w / 2, e.y + e.h / 2, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
+      return;
+    }
+    e.alive = false;
+    burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
+    W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
+    W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap', { type: e.type });
+  }
+  // Regular bullets splash: every other enemy within a block of where it hit takes a hit too.
+  function splash(W, x, y, dir, except) {
+    ring(W, x, y, TS, '255,226,168', .2);
+    for (const e of W.enemies) if (e.alive && e !== except && circleHits(x, y, TS, e)) shootEnemy(W, e, dir);
+  }
+
   function stepBullets(W, dt) {
     for (const b of W.bullets) {
       if (b.kind) { stepSpecial(W, b, dt); continue; }
       b.x += b.vx * dt; b.life -= dt;
-      if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); continue; }
+      if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx)); continue; }
       // Bullets just vanish into the horde.
       if (W.horde && along(W.horde, b.x, b.y) < W.horde.f) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
         if (!e.alive || !overlap({ x: b.x - 4, y: b.y - 2, w: 8, h: 4 }, e)) continue;
         b.life = 0;
-        if (e.hp > 1) {
-          e.hp--; e.hurt = .15; e.x += Math.sign(b.vx) * 5;
-          burst(W, b.x, b.y, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
-          break;
-        }
-        e.alive = false;
-        burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
-        W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
-        W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap', { type: e.type });
+        shootEnemy(W, e, Math.sign(b.vx));
+        splash(W, e.x + e.w / 2, e.y + e.h / 2, Math.sign(b.vx), e);
         break;
       }
       for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 4) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }

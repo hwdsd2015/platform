@@ -169,7 +169,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · ammo crates are hidden through each level; big crates hold 10</li>
+        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · ammo crates are hidden through each level; big crates hold 10</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
