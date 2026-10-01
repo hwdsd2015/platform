@@ -205,7 +205,8 @@
       vx: 0, vy: 0, face: 1, onGround: false, onPlat: null, ammo: 0, keys: {},
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
       wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
-      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 0, conv: 0, cool: 0, flash: 0,
+      // One second of invincibility at the start of a level and after every respawn.
+      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 1, conv: 0, cool: 0, flash: 0,
     };
   }
 
@@ -574,7 +575,7 @@
     if (gap < TS * 5 && (h.growl -= dt) <= 0) { h.growl = .9 + gap / TS * .2; W.emit('growl'); W.shake = Math.max(W.shake, .05); }
   }
   function hordeCaught(W, p) {
-    if (!W.horde || playerAlong(W.horde, p) > W.horde.f) return false;
+    if (!W.horde || p.inv > 0 || playerAlong(W.horde, p) > W.horde.f) return false;
     p.shield = false; p.inv = 0; kill(W);
     return true;
   }
@@ -1078,7 +1079,7 @@
     if (p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
     if (p.y > W.h * TS + 60) return kill(W);
     // Lava kills outright; the shield doesn't help.
-    if (lavaAt(W, p)) { p.shield = false; p.inv = 0; return kill(W); }
+    if (p.inv <= 0 && lavaAt(W, p)) { p.shield = false; return kill(W); }
     if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
     if (p.inv <= 0 && trapHit(W, p)) { hurt(W); if (p.dead) return; }
     // Crusher sides push you out instead of hurting.
