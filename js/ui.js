@@ -119,7 +119,7 @@
   function hardcoreDef(def) {
     const rows = LF.normalize(def.map).map(r => r.split(''));
     rows.forEach((r, y) => r.forEach((c, x) => { if (HARDCORE_GONE.has(c)) r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
-    const water = { ...def, map: rows.map(r => r.join('')), player: { ...def.player, ammo: 0 } };
+    const water = { ...def, map: rows.map(r => r.join('')), player: { ...def.player, ammo: 0 }, noSpawnInv: true };
     const lava = { ...water, map: water.map.map(r => r.replace(/[~YUN]/g, '!')) };
     if (!lava.map.some((r, i) => r !== water.map[i])) return water;
     if (!LF.analyze(lava).ok && LF.analyze(water).ok) return { ...water, needsSwim: true };
@@ -165,7 +165,7 @@
         <button class="alt" data-act="awards">Awards · ${LF.awards.count().earned}/${LF.awards.count().total}</button>
         <button class="alt${hardcore ? ' hc-on' : ''}" data-act="toggleHardcore" aria-pressed="${hardcore}">Hardcore: ${hardcore ? 'on' : 'off'}</button>
       </div>
-      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
+      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>

@@ -166,6 +166,8 @@
     W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
     W.player.ammo = playerTune(def).ammo;
+    // def.noSpawnInv (Hardcore): no invincible second at the start or after respawning.
+    if (def.noSpawnInv) W.player.inv = 0;
     // The horde begins HORDE_BACK behind the start, the same distance it falls back to after a death.
     if (W.horde) W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK;
     W.emit = (type, data) => W.events.push({ type, data });
@@ -309,6 +311,7 @@
   function respawn(W) {
     const { ammo, keys } = W.player;
     Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
+    if (W.def.noSpawnInv) W.player.inv = 0;
     W.projectiles = [];
     for (const e of W.enemies) {
       if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
