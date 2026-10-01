@@ -212,6 +212,7 @@
     if (playCtx.kind === 'story') return `Chapter ${ROMAN[chapterIndex(playCtx.index)]} · Level ${playCtx.index + 1} of ${LF.LEVELS.length}`;
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
+    if (playCtx.kind === 'shared') return 'Shared level';
     return 'Your level';
   }
   const chapterIndex = i => { const names = [...new Set(LF.LEVELS.map(l => l.chapter))]; return names.indexOf(LF.LEVELS[i].chapter); };
@@ -281,6 +282,9 @@
     } else if (playCtx.kind === 'test') {
       eyebrow = 'Test play · cleared'; stats = tally();
       buttons = `<button class="go" data-act="backToEditor">Back to editor</button><button class="alt" data-act="restart">Play again</button>`;
+    } else if (playCtx.kind === 'shared') {
+      eyebrow = 'Shared level · cleared'; stats = tally();
+      buttons = `<button class="go" data-act="restart">Play again</button><button class="alt" data-act="editShared">Open in editor</button><button class="alt" data-act="menu">Main menu</button>`;
     } else {
       LF.awards.clear({ kind: 'custom', time: t, falls, hardcore, horde: !!W.horde });
       eyebrow = 'Your level · cleared'; stats = tally();
@@ -320,14 +324,32 @@
   $('gen-cancel').addEventListener('click', () => $('gen-dialog').close());
 
   const encode = d => 'LF1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ n: d.name, d: d.dark, m: d.map.join('/'), t: d.tuning, p: d.player }))));
+  // Accepts an LF1: share code, or a raw map: lines of tiles like the editor's (P start, D door...).
   const decode = code => {
-    const j = JSON.parse(decodeURIComponent(escape(atob(code.trim().replace(/^LF1:/, '')))));
+    const text = code.trim();
+    const lines = text.split(/\r?\n|\//).map(l => l.trimEnd()).filter(l => l.length);
+    if (!/^LF1:/.test(text) && lines.length > 1 && lines.join('').includes('P')) return { name: 'Pasted level', dark: .6, map: lines };
+    const j = JSON.parse(decodeURIComponent(escape(atob(text.replace(/^LF1:/, '')))));
     if (!j.m) throw new Error('no map');
     return { name: j.n || 'Imported level', dark: typeof j.d === 'number' ? j.d : .6, map: j.m.split('/'), tuning: j.t, player: j.p };
   };
+  // A link that opens straight into a level: lanternfall.html#level=LF1:...
+  const linkFor = d => `${location.origin}${location.pathname}#level=${encodeURIComponent(encode(d))}`;
+  function openFromLink() {
+    const m = location.hash.match(/^#level=(.+)$/);
+    if (!m) return false;
+    try { play(decode(decodeURIComponent(m[1])), { kind: 'shared' }); return true; }
+    catch (e) { flash('That level link could not be read'); return false; }
+  }
+  addEventListener('hashchange', () => { if (screen !== 'editor') openFromLink(); });
   app.openCode = d => {
     $('code-text').value = encode(d);
-    $('code-msg').textContent = 'Copy this code to share your level. Paste someone else’s code here and choose Load.';
+    $('code-msg').textContent = 'Copy this code or a play link to share your level. Paste someone else’s code (or a raw map) here and choose Load.';
+    $('code-link').onclick = async () => {
+      const url = linkFor(d);
+      try { await navigator.clipboard.writeText(url); $('code-msg').textContent = 'Link copied. Anyone who opens it plays the level straight away.'; }
+      catch (e) { $('code-text').value = url; $('code-text').select(); $('code-msg').textContent = 'Copy this link with ⌘C / Ctrl+C.'; }
+    };
     $('code-dialog').showModal();
     $('code-text').select();
   };
@@ -336,8 +358,8 @@
     catch (e) { $('code-text').select(); $('code-msg').textContent = 'Select the text and copy it with ⌘C / Ctrl+C.'; }
   });
   $('code-load').addEventListener('click', () => {
-    try { const d = decode($('code-text').value); $('code-dialog').close(); openEditor(d); flash('Level loaded'); }
-    catch (e) { $('code-msg').textContent = 'That code could not be read. Check that you pasted the whole thing, starting with LF1:'; }
+    try { const raw = $('code-text').value.trim(), link = raw.match(/#level=(.+)$/); const d = decode(link ? decodeURIComponent(link[1]) : raw); $('code-dialog').close(); openEditor(d); flash('Level loaded'); }
+    catch (e) { $('code-msg').textContent = 'That could not be read. Paste a whole LF1: code, a level link, or a raw map with a start (P).'; }
   });
   $('code-cancel').addEventListener('click', () => $('code-dialog').close());
 
@@ -358,7 +380,7 @@
     select: showSelect,
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
-    menu: showTitle,
+    menu: () => { if (location.hash) history.replaceState(null, '', location.pathname + location.search); showTitle(); },
     awards: showAwards,
     toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); showTitle(); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
@@ -368,6 +390,7 @@
     rerollRandom: () => { const o = { ...playCtx.opts, seed: Math.floor(Math.random() * 1e6) }; play(LF.generate(o), { kind: 'random', opts: o }); },
     saveRandom: () => { app.saveCustom({ ...playDef }); flash('Saved to Your levels'); },
     custom: d => { const c = customs.find(x => x.id === d.id); if (c) play(c, { kind: 'custom', id: c.id }); },
+    editShared: () => { history.replaceState(null, '', location.pathname); openEditor({ ...playDef }); },
     editCustom: d => { const c = customs.find(x => x.id === d.id); if (c) openEditor({ ...c }); },
     deleteCustom: d => {
       const c = customs.find(x => x.id === d.id);
@@ -479,7 +502,7 @@
   function start(data) {
     try { window.claude?.hot?.snapshot?.(() => ({ screen, ctx: playCtx && playCtx.kind === 'story' ? playCtx : null })); } catch (e) {}
     if (data && data.ctx && data.ctx.kind === 'story' && LF.LEVELS[data.ctx.index]) play(LF.LEVELS[data.ctx.index], data.ctx);
-    else showTitle();
+    else if (!openFromLink()) showTitle();
     requestAnimationFrame(frame);
   }
   window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
