@@ -193,7 +193,7 @@
           const p = progress[i], hc = progressHC[i];
           return `<button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
             <b>${i + 1}</b><strong>${esc(lv.name)}</strong>
-            <small>${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)}</small>
+            <small>${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)} · key <span class="lvl-key">${levelKey(lv.name)}</span></small>
             <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · <span class="hc">hardcore ${fmt(hc.best)}</span>` : ''}</em></button>`;
         }).join('')}</div>
       </section>`).join('');
@@ -240,6 +240,7 @@
       <p class="eyebrow">${esc(hudLabel())}</p>
       <h2>Paused</h2>
       <p class="lede">${esc(W.name)} · ${lit} of ${W.total} lanterns lit · ${fmt(W.time)}</p>
+      ${playCtx.kind === 'story' ? `<p class="lede">Level key <b class="lvl-key">${levelKey(W.def.name)}</b> · <span class="key-link">${esc(keyLink(playCtx.index))}</span></p>` : ''}
       <div class="menu">
         <button class="go" data-act="resume">Resume</button>
         <button class="alt" data-act="restart">Restart level</button>
@@ -333,9 +334,27 @@
     if (!j.m) throw new Error('no map');
     return { name: j.n || 'Imported level', dark: typeof j.d === 'number' ? j.d : .6, map: j.m.split('/'), tuning: j.t, player: j.p };
   };
-  // A link that opens straight into a level: lanternfall.html#level=LF1:...
+  // Every story level has a short, permanent key made from its name, e.g. K7QXM.
+  // Typing the site address followed by #KEY opens that level.
+  const KEY_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const levelKey = LF.levelKey = name => {
+    let h = 2166136261;
+    for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    let key = '';
+    for (let k = 0; k < 5; k++) { key += KEY_ABC[h % 32]; h = Math.floor(h / 32); }
+    return key;
+  };
+  const keyLink = i => `${location.origin}${location.pathname.replace(/lanternfall\.html$/, '')}#${levelKey(LF.LEVELS[i].name)}`;
+
+  // A link that opens straight into a level: lanternfall.html#level=LF1:...  or  #KEY for a story level.
   const linkFor = d => `${location.origin}${location.pathname}#level=${encodeURIComponent(encode(d))}`;
   function openFromLink() {
+    const k = location.hash.match(/^#([A-Za-z0-9]{5})$/);
+    if (k) {
+      const i = LF.LEVELS.findIndex(lv => levelKey(lv.name) === k[1].toUpperCase());
+      if (i >= 0) { play(LF.LEVELS[i], { kind: 'story', index: i }); return true; }
+      flash(`No level has the key ${k[1].toUpperCase()}`); return false;
+    }
     const m = location.hash.match(/^#level=(.+)$/);
     if (!m) return false;
     try { play(decode(decodeURIComponent(m[1])), { kind: 'shared' }); return true; }
