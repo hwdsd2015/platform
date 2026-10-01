@@ -7,8 +7,8 @@
   // ---- Chapter III: The Kilns ----
   L.push({
     chapter: 'The Kilns', name: 'Kiln Row', dark: .68,
-    signs: [{ x: 11, y: 9.4, t: 'ember pots spit — jump the embers' }, { x: 27, y: 7.4, t: 'thornbacks can’t be stomped' }],
-    map: B(84, 16, ({ r, s, water }) => {
+    signs: [{ x: 11, y: 9.4, t: 'ember pots spit — jump the embers' }, { x: 27, y: 7.4, t: 'thornbacks can’t be stomped' }, { x: 1, y: 8.4, t: 'lava! bubbles leap from the pits' }],
+    map: B(84, 16, ({ r, s, lava }) => {
       r(0, 12, 9, 15); s(2, 11, 'P');
       r(12, 12, 24, 15); s(14, 11, 'L'); s(23, 11, 'S');
       r(27, 10, 38, 15); s(33, 9, 'K');
@@ -17,7 +17,7 @@
       r(52, 8, 54, 8, '='); s(53, 7, 'L');
       r(61, 9, 63, 9, 'C'); r(66, 9, 68, 9, 'C');
       r(71, 12, 83, 15); s(76, 11, 'K'); s(81, 11, 'D');
-      water(15);
+      lava(15);
     }),
   });
 

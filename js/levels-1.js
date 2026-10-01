@@ -7,9 +7,10 @@
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (y >= 0 && y < h && x >= 0 && x < w) g[y][x] = c;
     };
     const s = (x, y, c) => r(x, y, x, y, c);
-    const water = y0 => { for (let y = y0; y < h; y++) for (let x = 0; x < w; x++) if (g[y][x] === '.') g[y][x] = '~'; };
+    const fill = c => y0 => { for (let y = y0; y < h; y++) for (let x = 0; x < w; x++) if (g[y][x] === '.') g[y][x] = c; };
+    const water = fill('~'), lava = fill('!');
     const walls = () => { r(0, 0, 0, h - 1); r(w - 1, 0, w - 1, h - 1); r(0, h - 1, w - 1, h - 1); };
-    fn({ r, s, water, walls });
+    fn({ r, s, water, lava, walls });
     return g.map(row => row.join(''));
   };
   const B = LF.build;
