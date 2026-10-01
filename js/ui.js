@@ -191,14 +191,15 @@
         <h3><span>Chapter ${ROMAN[k]}</span>${esc(ch.name)}</h3>
         <div class="tiles">${ch.items.map(({ lv, i }) => {
           const p = progress[i], hc = progressHC[i];
-          return `<button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
+          return `<div class="lvl-wrap"><button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
             <b>${i + 1}</b><strong>${esc(lv.name)}</strong>
             <small>${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)} · key <span class="lvl-key">${levelKey(lv.name)}</span></small>
-            <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · <span class="hc">hardcore ${fmt(hc.best)}</span>` : ''}</em></button>`;
+            <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · <span class="hc">hardcore ${fmt(hc.best)}</span>` : ''}</em></button>
+            <button class="mini lvl-copy" data-act="copyStory" data-i="${i}" title="Open a copy of this level in the editor">Copy to editor</button></div>`;
         }).join('')}</div>
       </section>`).join('');
     html += `<section class="chapter"><h3><span>Workshop</span>Your levels</h3>` + (customs.length
-      ? `<ul class="customs">${customs.map(c => `<li><div><strong>${esc(c.name)}</strong><small>${c.map[0].length}×${c.map.length} · ${shapeOf(c)}</small></div>
+      ? `<ul class="customs">${customs.map(c => `<li><div><strong>${esc(c.name)}</strong><small>${c.map[0].length}×${c.map.length} · ${shapeOf(c)} · key <span class="lvl-key">${customKey(c)}</span></small></div>
           <span><button class="mini go-mini" data-act="custom" data-id="${c.id}">Play</button><button class="mini" data-act="editCustom" data-id="${c.id}">Edit</button><button class="mini danger" data-act="deleteCustom" data-id="${c.id}">Delete</button></span></li>`).join('')}</ul>`
       : `<p class="empty">Nothing saved yet. Build one in the editor, or generate a random map and save it.</p>`) + `</section>`;
     $('sel-body').innerHTML = html;
@@ -213,12 +214,14 @@
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
     if (playCtx.kind === 'shared') return 'Shared level';
-    return 'Your level';
+    const key = keyFor(playCtx);
+    return key ? `Your level · key ${key}` : 'Your level';
   }
   const chapterIndex = i => { const names = [...new Set(LF.LEVELS.map(l => l.chapter))]; return names.indexOf(LF.LEVELS[i].chapter); };
 
   function play(def, ctx) {
     playDef = def; playCtx = ctx;
+    if (ctx.kind !== 'shared') setHash(keyFor(ctx));
     W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(def) : def);
     for (const k in input) input[k] = false;
     LF.followCamera(W, cam, 0, true);
@@ -240,12 +243,13 @@
       <p class="eyebrow">${esc(hudLabel())}</p>
       <h2>Paused</h2>
       <p class="lede">${esc(W.name)} · ${lit} of ${W.total} lanterns lit · ${fmt(W.time)}</p>
-      ${playCtx.kind === 'story' ? `<p class="lede">Level key <b class="lvl-key">${levelKey(W.def.name)}</b> · <span class="key-link">${esc(keyLink(playCtx.index))}</span></p>` : ''}
+      ${keyFor(playCtx) ? `<p class="lede">Level key <b class="lvl-key">${keyFor(playCtx)}</b> · <span class="key-link">${esc(keyLink(keyFor(playCtx)))}</span>${playCtx.kind === 'custom' ? '<br><small>Your own levels’ keys only work in this browser. To share one, use Copy play link in the editor’s Share code.</small>' : ''}</p>` : ''}
       <div class="menu">
         <button class="go" data-act="resume">Resume</button>
         <button class="alt" data-act="restart">Restart level</button>
         ${playCtx.kind === 'test' ? '<button class="alt" data-act="backToEditor">Back to editor</button>' : ''}
         ${playCtx.kind === 'random' ? '<button class="alt" data-act="editRandom">Open in editor</button>' : ''}
+        ${playCtx.kind !== 'test' ? '<button class="alt" data-act="copyToEditor">Copy to editor</button>' : ''}
         <button class="alt" data-act="menu">Main menu</button>
       </div>`);
   }
@@ -270,11 +274,11 @@
       if (last) {
         eyebrow = 'The whole town is lit'; title = 'Every lamp burns.';
         stats += `<p class="lede">All ${LF.LEVELS.length} levels done. The lamplighter goes home. Try the random maps, or build a level of your own.</p>`;
-        buttons = `<button class="go" data-act="random">Random map</button><button class="alt" data-act="editor">Level editor</button><button class="alt" data-act="menu">Main menu</button>`;
+        buttons = `<button class="go" data-act="random">Random map</button><button class="alt" data-act="copyToEditor">Copy to editor</button><button class="alt" data-act="editor">Level editor</button><button class="alt" data-act="menu">Main menu</button>`;
       } else {
         const nx = LF.LEVELS[i + 1];
         stats += `<p class="lede">Next: ${esc(nx.name)} · ${nx.map[0].length}×${nx.map.length}, ${shapeOf(nx)}.</p>`;
-        buttons = `<button class="go" data-act="story" data-i="${i + 1}">Next level</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="select">Choose a level</button>`;
+        buttons = `<button class="go" data-act="story" data-i="${i + 1}">Next level</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="copyToEditor">Copy to editor</button><button class="alt" data-act="select">Choose a level</button>`;
       }
     } else if (playCtx.kind === 'random') {
       LF.awards.clear({ kind: 'random', time: t, falls, hardcore, horde: !!W.horde });
@@ -295,6 +299,7 @@
   }
 
   function openEditor(def) {
+    setHash(null);
     screen = 'editor';
     setVisible({});
     editor.open(def);
@@ -337,23 +342,36 @@
   // Every story level has a short, permanent key made from its name, e.g. K7QXM.
   // Typing the site address followed by #KEY opens that level.
   const KEY_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const levelKey = LF.levelKey = name => {
+  const hashKey = (text, len) => {
     let h = 2166136261;
-    for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     let key = '';
-    for (let k = 0; k < 5; k++) { key += KEY_ABC[h % 32]; h = Math.floor(h / 32); }
+    for (let k = 0; k < len; k++) { key += KEY_ABC[h % 32]; h = Math.floor(h / 32); }
     return key;
   };
-  const keyLink = i => `${location.origin}${location.pathname.replace(/lanternfall\.html$/, '')}#${levelKey(LF.LEVELS[i].name)}`;
+  const levelKey = LF.levelKey = name => hashKey(name, 5);
+  // Your own saved levels get 6-character keys (so they never clash with story keys).
+  // They're stored in this browser, so the key only opens the level here.
+  const customKey = c => hashKey('custom:' + c.id, 6);
+  const keyFor = ctx => ctx.kind === 'story' ? levelKey(LF.LEVELS[ctx.index].name)
+    : ctx.kind === 'custom' ? (customs.find(c => c.id === ctx.id) ? customKey(customs.find(c => c.id === ctx.id)) : null) : null;
+  const siteBase = () => `${location.origin}${location.pathname.replace(/lanternfall\.html$/, '')}`;
+  const keyLink = key => `${siteBase()}#${key}`;
+  // Keep the address bar's #part in step with what's being played.
+  const setHash = h => history.replaceState(null, '', location.pathname + location.search + (h ? '#' + h : ''));
 
   // A link that opens straight into a level: lanternfall.html#level=LF1:...  or  #KEY for a story level.
   const linkFor = d => `${location.origin}${location.pathname}#level=${encodeURIComponent(encode(d))}`;
   function openFromLink() {
-    const k = location.hash.match(/^#([A-Za-z0-9]{5})$/);
+    const k = location.hash.match(/^#([A-Za-z0-9]{5,6})$/);
     if (k) {
-      const i = LF.LEVELS.findIndex(lv => levelKey(lv.name) === k[1].toUpperCase());
+      const key = k[1].toUpperCase();
+      const i = LF.LEVELS.findIndex(lv => levelKey(lv.name) === key);
       if (i >= 0) { play(LF.LEVELS[i], { kind: 'story', index: i }); return true; }
-      flash(`No level has the key ${k[1].toUpperCase()}`); return false;
+      const c = customs.find(x => customKey(x) === key);
+      if (c) { play(c, { kind: 'custom', id: c.id }); return true; }
+      flash(key.length === 6 ? `${key} is a level saved in someone else's browser — ask them for its play link` : `No level has the key ${key}`);
+      return false;
     }
     const m = location.hash.match(/^#level=(.+)$/);
     if (!m) return false;
@@ -410,6 +428,9 @@
     saveRandom: () => { app.saveCustom({ ...playDef }); flash('Saved to Your levels'); },
     custom: d => { const c = customs.find(x => x.id === d.id); if (c) play(c, { kind: 'custom', id: c.id }); },
     editShared: () => { history.replaceState(null, '', location.pathname); openEditor({ ...playDef }); },
+    // Open a copy of any level in the editor (saved as a new level of your own).
+    copyToEditor: () => openEditor({ ...playDef, name: `${playDef.name} (copy)`, id: null }),
+    copyStory: d => { const lv = LF.LEVELS[+d.i]; openEditor({ ...lv, name: `${lv.name} (copy)`, id: null }); },
     editCustom: d => { const c = customs.find(x => x.id === d.id); if (c) openEditor({ ...c }); },
     deleteCustom: d => {
       const c = customs.find(x => x.id === d.id);
