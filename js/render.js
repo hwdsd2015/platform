@@ -534,8 +534,20 @@
         if (t.type === 'pend') {
           const b = LF.pendBall(t);
           ctx.fillStyle = '#2A2348'; ctx.fillRect(t.ax - 5, t.ay - 3, 10, 6);
-          ctx.strokeStyle = '#6E6186'; ctx.lineWidth = 2; ctx.setLineDash([4, 2]);
-          ctx.beginPath(); ctx.moveTo(t.ax, t.ay); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+          if (t.spiked) {
+            // Thorny chain: a darker red line with barbs sticking out both sides.
+            const dx = b.x - t.ax, dy = b.y - t.ay, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+            ctx.strokeStyle = '#7A2E1C'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(t.ax, t.ay); ctx.lineTo(b.x, b.y); ctx.stroke();
+            ctx.fillStyle = '#CFC6E8';
+            for (let k = 1; k < 12; k++) {
+              const f = k / 12, cx = t.ax + dx * f, cy = t.ay + dy * f, side = k % 2 ? 1 : -1, nx = -uy * side, ny = ux * side;
+              ctx.beginPath(); ctx.moveTo(cx - ux * 3, cy - uy * 3); ctx.lineTo(cx + nx * 6, cy + ny * 6); ctx.lineTo(cx + ux * 3, cy + uy * 3); ctx.fill();
+            }
+          } else {
+            ctx.strokeStyle = '#6E6186'; ctx.lineWidth = 2; ctx.setLineDash([4, 2]);
+            ctx.beginPath(); ctx.moveTo(t.ax, t.ay); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+          }
           ctx.fillStyle = '#CFC6E8';
           for (let k = 0; k < 8; k++) {
             const a = k / 8 * TAU + t.a;

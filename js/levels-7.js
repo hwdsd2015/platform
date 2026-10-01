@@ -7,14 +7,14 @@
   L.push({
     chapter: 'The Clock Tower', name: 'Pendulum Hall', dark: .6,
     signs: [
-      { x: 1, y: 9.4, t: 'time the pendulums' },
+      { x: 1, y: 9.4, t: 'time the pendulums — the red chain cuts too' },
       { x: 37, y: 9.4, t: 'fire bars spin' },
       { x: 48, y: 9.4, t: 'crushers drop' },
     ],
     map: B(80, 16, ({ r, s }) => {
       r(0, 0, 79, 7);
       r(0, 12, 79, 15); s(2, 11, 'P'); s(5, 11, 'q');
-      s(10, 8, 'E'); s(18, 8, 'E'); s(26, 8, 'E'); s(14, 11, 'L'); s(22, 11, 'q');
+      s(10, 8, 'E'); s(18, 8, 'e'); s(26, 8, 'E'); s(14, 11, 'L'); s(22, 11, 'q');
       r(33, 12, 35, 12, '^'); s(30, 11, 'L');
       s(41, 10, 'f'); s(46, 11, 'Q');
       s(51, 8, 'k'); s(55, 8, 'k'); s(59, 8, 'k'); s(53, 11, 'L');

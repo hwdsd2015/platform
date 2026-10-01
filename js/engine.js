@@ -110,7 +110,8 @@
       // & starts a horde chasing right from this column; % one rising from this row.
       else if (c === '&') { W.horde = { c, up: false, f: x * TS, ox: x * TS, oy: y * TS, growl: 0, wait: HORDE_WAIT }; tiles[y][x] = ' '; }
       else if (c === '%') { W.horde = { c, up: true, f: -y * TS, ox: x * TS, oy: y * TS, growl: 0, wait: HORDE_WAIT }; tiles[y][x] = ' '; }
-      else if (c === 'E') { W.traps.push({ type: 'pend', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
+      // E is a pendulum (only the ball hurts); e is a spiked pendulum whose thorny chain hurts too.
+      else if (c === 'E' || c === 'e') { W.traps.push({ type: 'pend', spiked: c === 'e', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
       else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
       else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
       else if (AMMO[c]) { W.ammo.push({ big: c === 'Q', n: AMMO[c], tx: x, ty: y, x: x * TS + 16, y: y * TS + 20, taken: false }); tiles[y][x] = ' '; }
@@ -548,7 +549,12 @@
   }
   function trapHit(W, p) {
     for (const t of W.traps) {
-      if (t.type === 'pend') { const b = LF.pendBall(t); if (circleHits(b.x, b.y, 12, p)) return true; }
+      if (t.type === 'pend') {
+        const b = LF.pendBall(t);
+        if (circleHits(b.x, b.y, 12, p)) return true;
+        // A spiked chain hurts along its whole length.
+        if (t.spiked) for (let k = 1; k < 14; k++) { const f = k / 14; if (circleHits(t.ax + (b.x - t.ax) * f, t.ay + (b.y - t.ay) * f, 4, p)) return true; }
+      }
       else if (t.type === 'bar') { for (const b of LF.barBalls(t)) if (circleHits(b.x, b.y, 5, p)) return true; }
       // Crushers: only the spiked underside hurts. The top is a platform and the sides are solid.
       else if (p.onPlat !== t && overlap(p, { x: t.x + 3, y: t.y + t.h - 6, w: t.w - 6, h: 12 })) return true;
