@@ -472,19 +472,15 @@
     if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3 * b.s, true, b.id); }
   }
 
-  // Killing an enemy (shot, blown up or stomped) sprays out one bullet per point of its drop
-  // value all at once, and they fly to the player together: each one that arrives is +1 ammo. Hardcore has no
-  // ammo, so nothing drops there.
+  // Killing an enemy (shot, blown up or stomped) pops out one bullet per point of its drop
+  // value. They fly to the player side by side as one group (n bullets, spaced so you can
+  // count them) and arrive together for +n ammo. Hardcore has no ammo, so nothing drops there.
   function dropAmmo(W, e) {
     const n = LF.ENEMIES[e.type].drop;
     if (!n || W.def.noSpawnInv) return;
-    const x = e.x + e.w / 2, y = e.y + e.h / 2;
-    for (let k = 0; k < n; k++) {
-      const a = -Math.PI / 2 + (k - (n - 1) / 2) * .5 + (Math.random() - .5) * .3, sp = 260 + Math.random() * 80;
-      W.ammoFly.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
-    }
+    W.ammoFly.push({ n, x: e.x + e.w / 2, y: e.y + e.h / 2, vx: (Math.random() - .5) * 80, vy: -300, t: 0 });
   }
-  // A flying bullet drifts out for a moment, then homes in on the player faster and faster.
+  // A group of bullets pops up for a moment, then homes in on the player faster and faster.
   function stepAmmoFly(W, dt) {
     const p = W.player, px = p.x + p.w / 2, py = p.y + p.h / 2;
     for (const b of W.ammoFly) {
@@ -495,8 +491,9 @@
         const k = Math.min(1, 10 * dt);
         b.vx += (dx / d * sp - b.vx) * k; b.vy += (dy / d * sp - b.vy) * k;
         if (d < 14 + sp * dt) {
-          b.done = true; p.ammo++;
-          burst(W, px, py, 3, ['#FFE2A8', '#FFB547'], 60, 0, 1.5);
+          b.done = true; p.ammo += b.n;
+          burst(W, px, py, 3 + b.n, ['#FFE2A8', '#FFB547'], 70, 0, 1.5);
+          W.floaters.push({ x: px, y: p.y - 10, t: `+${b.n} ammo`, life: .8, c: '#FFE2A8' });
           W.emit('ammotick');
           continue;
         }

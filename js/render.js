@@ -873,12 +873,16 @@
       }
       for (const fr of W.fruits) drawFruit(fr);
       for (const a of W.ammo) drawAmmo(a);
-      // Ammo dropped by enemies: little bullets streaking toward the player, nose first.
+      // Ammo dropped by enemies: a row of little bullets streaking toward the player, nose
+      // first, side by side and spaced so you can count them.
       for (const b of W.ammoFly) {
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx));
-        ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(-12, -1, 9, 2);
-        ctx.fillStyle = '#C08A3E'; ctx.fillRect(-4, -2, 5, 4);
-        ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.moveTo(1, -2); ctx.lineTo(4, -1); ctx.lineTo(5, 0); ctx.lineTo(4, 1); ctx.lineTo(1, 2); ctx.fill();
+        for (let k = 0; k < b.n; k++) {
+          const o = (k - (b.n - 1) / 2) * 7;
+          ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(-12, o - 1, 9, 2);
+          ctx.fillStyle = '#C08A3E'; ctx.fillRect(-4, o - 2, 5, 4);
+          ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.moveTo(1, o - 2); ctx.lineTo(4, o - 1); ctx.lineTo(5, o); ctx.lineTo(4, o + 1); ctx.lineTo(1, o + 2); ctx.fill();
+        }
         ctx.restore();
       }
       for (const k of W.keys) drawKey(k);
