@@ -262,6 +262,8 @@
   .touch button.jump { width: 84px; height: 84px; border-color: rgba(255,181,71,.6); color: var(--wick); font-size: 13px; }
   .touch button.on { background: rgba(255,181,71,.25); }
   .touch .pause { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 64px); right: 16px; width: 44px; height: 44px; font-size: 14px; }
+  .touch .big { position: fixed; left: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 98px); width: 56px; height: 56px; font-size: 12px; }
+  .touch .big.on { border-color: rgba(255,181,71,.8); color: var(--wick); }
   @media (pointer: coarse) { .touch:not([hidden]) { display: flex; } }
   @media (max-width: 560px) {
     .hud-level strong { font-size: 17px; }
@@ -392,6 +394,7 @@
 
 <div class="touch" id="touch" hidden>
   <button class="pause" id="t-pause" aria-label="Pause">❚❚</button>
+  <button class="big" id="t-big" aria-label="Big shots (2× size and blast, 2× ammo)" aria-pressed="false">BIG</button>
   <div class="pad">
     <button id="t-left" aria-label="Walk left">◀</button>
     <button id="t-right" aria-label="Walk right">▶</button>
@@ -405,18 +408,18 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=49"></script>
-<script src="js/render.js?v=49"></script>
-<script src="js/gen.js?v=49"></script>
-<script src="js/levels-1.js?v=49"></script>
-<script src="js/levels-2.js?v=49"></script>
-<script src="js/levels-3.js?v=49"></script>
-<script src="js/levels-4.js?v=49"></script>
-<script src="js/levels-5.js?v=49"></script>
-<script src="js/levels-6.js?v=49"></script>
-<script src="js/levels-7.js?v=49"></script>
-<script src="js/levels-8.js?v=49"></script>
-<script src="js/levels-9.js?v=49"></script>
-<script src="js/awards.js?v=49"></script>
-<script src="js/editor.js?v=49"></script>
-<script src="js/ui.js?v=49"></script>
+<script src="js/engine.js?v=50"></script>
+<script src="js/render.js?v=50"></script>
+<script src="js/gen.js?v=50"></script>
+<script src="js/levels-1.js?v=50"></script>
+<script src="js/levels-2.js?v=50"></script>
+<script src="js/levels-3.js?v=50"></script>
+<script src="js/levels-4.js?v=50"></script>
+<script src="js/levels-5.js?v=50"></script>
+<script src="js/levels-6.js?v=50"></script>
+<script src="js/levels-7.js?v=50"></script>
+<script src="js/levels-8.js?v=50"></script>
+<script src="js/levels-9.js?v=50"></script>
+<script src="js/awards.js?v=50"></script>
+<script src="js/editor.js?v=50"></script>
+<script src="js/ui.js?v=50"></script>

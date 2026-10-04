@@ -224,6 +224,7 @@
     if (ctx.kind !== 'shared') setHash(keyFor(ctx));
     W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(def) : def);
     for (const k in input) input[k] = false;
+    syncBig(false);
     LF.followCamera(W, cam, 0, true);
     screen = 'play';
     setVisible({ hud: true, touch: true });
@@ -442,8 +443,11 @@
 
   // ---------- input ----------
   const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyQ: 'grenade' };
+  // Big shots: hold Shift, or on a phone tap BIG to switch them on until tapped again.
+  let bigLock = false;
+  const syncBig = shift => { input.big = shift || bigLock; };
   addEventListener('keydown', e => {
-    input.big = e.shiftKey;
+    syncBig(e.shiftKey);
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -468,8 +472,8 @@
     if (screen === 'select' && e.code === 'Escape') { showTitle(); return; }
     if (k === 'jump' || e.code === 'Space') e.preventDefault();
   });
-  addEventListener('keyup', e => { input.big = e.shiftKey; const k = KEYMAP[e.code]; if (k) input[k] = false; });
-  addEventListener('blur', () => { for (const k in input) input[k] = false; });
+  addEventListener('keyup', e => { syncBig(e.shiftKey); const k = KEYMAP[e.code]; if (k) input[k] = false; });
+  addEventListener('blur', () => { for (const k in input) input[k] = false; syncBig(false); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'play') pause(); });
 
   function bindTouch(id, k) {
@@ -481,6 +485,11 @@
   }
   bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down'); bindTouch('t-fire', 'fire'); bindTouch('t-rocket', 'rocket'); bindTouch('t-grenade', 'grenade');
   $('t-pause').addEventListener('click', () => pause());
+  $('t-big').addEventListener('pointerdown', e => {
+    e.preventDefault(); initAudio();
+    bigLock = !bigLock; syncBig(false);
+    e.currentTarget.classList.toggle('on', bigLock); e.currentTarget.setAttribute('aria-pressed', bigLock);
+  });
 
   // ---------- HUD ----------
   let hudCache = '';
