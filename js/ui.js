@@ -173,7 +173,7 @@
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
-        <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
+        <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>`);
   }
 
@@ -460,8 +460,8 @@
         if ((k === 'fire' || k === 'rocket' || k === 'grenade') && !input[k] && !e.repeat) input[k + 'Pressed'] = true;
         input[k] = true;
       }
-      // R is instant death: respawn at the last lit lantern (full restart is in the pause menu).
-      if (e.code === 'KeyR' && !e.repeat) LF.kill(W);
+      // R is instant death: respawn at the last lit lantern. Shift+R restarts the whole level.
+      if (e.code === 'KeyR' && !e.repeat) { if (e.shiftKey) ACTIONS.restart(); else LF.kill(W); }
       if (e.code === 'Escape' && playCtx.kind === 'test') ACTIONS.backToEditor();
       else if (e.code === 'Escape' || e.code === 'KeyP') pause();
       if (e.code === 'KeyM') { muted = !muted; store.set('muted', muted); flash(muted ? 'Sound off' : 'Sound on'); }
