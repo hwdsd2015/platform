@@ -33,6 +33,7 @@
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },
     { c: 'Q', label: 'Big ammo', group: 'Level', chip: '#FF6B3D', note: '+10 shots: put it somewhere hard to reach' },
+    { c: '$', label: 'Huge ammo', group: 'Level', chip: '#E0A526', note: '+25 shots: make it really hard to reach' },
     ...Object.entries(LF.FRUITS).map(([c, f]) => ({ c, label: f.name, group: 'Fruit', chip: f.color, note: f.note })),
     ...Object.entries(LF.KEYS).flatMap(([c, k]) => [
       { c, label: k.name, group: 'Keys & locks', chip: k.color, glyph: '⚷' },

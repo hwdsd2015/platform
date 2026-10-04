@@ -30,7 +30,7 @@
     rocket: { cost: 2, name: 'explosive round' },
     grenade: { cost: 3, name: 'grenade' },
   };
-  const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10 };
+  const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10, $: 25 };
   const TAU = Math.PI * 2;
 
   // Fruit: touch to gain a power. Picked fruit grows back after REGROW seconds.
@@ -114,7 +114,8 @@
       else if (c === 'E' || c === 'e') { W.traps.push({ type: 'pend', spiked: c === 'e', ax: x * TS + 16, ay: y * TS + 2, len: TS * 3.5, amp: 1.1, per: 2.8, ph: (x * 1.3) % TAU, a: 0 }); tiles[y][x] = ' '; }
       else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
       else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
-      else if (AMMO[c]) { W.ammo.push({ big: c === 'Q', n: AMMO[c], tx: x, ty: y, x: x * TS + 16, y: y * TS + 20, taken: false }); tiles[y][x] = ' '; }
+      // q ammo, Q big ammo, $ huge ammo.
+      else if (AMMO[c]) { W.ammo.push({ big: c !== 'q', huge: c === '$', n: AMMO[c], tx: x, ty: y, x: x * TS + 16, y: y * TS + 20, taken: false }); tiles[y][x] = ' '; }
       else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
       else if (c === 'D') { W.door = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: false, glow: 0 }; tiles[y][x] = ' '; }
@@ -1150,7 +1151,7 @@
     for (const a of W.ammo) {
       if (a.taken || Math.abs(cx - a.x) > 20 || Math.abs(cy - a.y) > 22) continue;
       a.taken = true; p.ammo += a.n;
-      burst(W, a.x, a.y, a.big ? 24 : 12, ['#FFE2A8', '#FFB547'], 130, 150, 2.5);
+      burst(W, a.x, a.y, a.huge ? 40 : a.big ? 24 : 12, ['#FFE2A8', '#FFB547'], a.huge ? 180 : 130, 150, 2.5);
       W.floaters.push({ x: a.x, y: a.y - 20, t: `+${a.n} ammo`, life: 1.1, c: '#FFE2A8' });
       W.emit(a.big ? 'bigammo' : 'ammo');
     }

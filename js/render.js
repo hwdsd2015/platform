@@ -492,16 +492,16 @@
     function drawAmmo(a) {
       if (a.taken) return;
       const bob = reduced ? 0 : Math.sin(clock * 3 + a.tx) * 2;
-      const s = a.big ? 1.35 : 1;
+      const s = a.huge ? 1.75 : a.big ? 1.35 : 1;
       ctx.save(); ctx.translate(a.x, a.y + bob); ctx.scale(s, s);
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
       g.addColorStop(0, 'rgba(255,226,168,.3)'); g.addColorStop(1, 'rgba(255,226,168,0)');
       ctx.fillStyle = g; ctx.fillRect(-16, -16, 32, 32);
-      ctx.fillStyle = '#5A4C7C'; ctx.fillRect(-7, -5, 14, 10);
-      ctx.fillStyle = '#8F81AB'; ctx.fillRect(-7, -5, 14, 2);
+      ctx.fillStyle = a.huge ? '#6B4A2A' : '#5A4C7C'; ctx.fillRect(-7, -5, 14, 10);
+      ctx.fillStyle = a.huge ? '#FFB547' : '#8F81AB'; ctx.fillRect(-7, -5, 14, 2);
       ctx.fillStyle = a.big ? '#FF6B3D' : '#FFB547';
       for (let k = -1; k <= 1; k++) { ctx.fillRect(k * 4 - 1, -9, 2, 5); ctx.fillStyle = '#FFE2A8'; ctx.fillRect(k * 4 - 1, -10, 2, 1.5); ctx.fillStyle = a.big ? '#FF6B3D' : '#FFB547'; }
-      if (a.big) { ctx.fillStyle = '#FFE2A8'; ctx.font = '700 7px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('10', 0, 3.5); ctx.textAlign = 'left'; }
+      if (a.big) { ctx.fillStyle = '#FFE2A8'; ctx.font = '700 7px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText(String(a.n), 0, 3.5); ctx.textAlign = 'left'; }
       ctx.restore();
     }
 
@@ -686,7 +686,7 @@
       if (!p.dead) { const f = LF.flamePos(p); out.push({ x: f.x, y: f.y, r: 150 * flick(0, .03) }); }
       for (const f of W.fruits) if (!f.taken) out.push({ x: f.x, y: f.y, r: 44 });
       for (let k = 0; k < W.lavaTop.length; k += 3) { const l = W.lavaTop[k]; out.push({ x: l.tx * TS + 16, y: l.ty * TS + 10, r: 95 }); }
-      for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: 40 });
+      for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: a.huge ? 70 : 40 });
       for (const k of W.keys) if (!k.taken) out.push({ x: k.x, y: k.y, r: 60 });
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 * (b.s || 1) });
       for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }

@@ -115,7 +115,7 @@
   // Remove every lantern, ammo crate and piece of fruit (each becomes empty space, or water if
   // it was underwater) and any starting ammo, then turn the water and anything swimming in it
   // into lava, unless the level needs swimming.
-  const HARDCORE_GONE = new Set(['L', 'q', 'Q', 'a', 'o', 'b']);
+  const HARDCORE_GONE = new Set(['L', 'q', 'Q', '$', 'a', 'o', 'b']);
   function hardcoreDef(def) {
     const rows = LF.normalize(def.map).map(r => r.split(''));
     rows.forEach((r, y) => r.forEach((c, x) => { if (HARDCORE_GONE.has(c)) r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
@@ -169,7 +169,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10</li>
+        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
