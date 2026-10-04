@@ -58,7 +58,7 @@
     I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, drop: 5, note: 'slow, armored: takes 3 shots' },
     '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
-    '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, drop: 3, note: 'rolls along; 5 hits of any kind and it blows up everything within 10 blocks' },
+    '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, note: 'rolls along; 5 hits of any kind and it blows up, killing everything within 10 blocks' },
   };
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
@@ -100,7 +100,7 @@
     const tiles = rows.map(r => r.split('').map(c => (c === '.' ? ' ' : c)));
     const W = {
       def, name: def.name || 'Untitled', dark: def.dark ?? .6, w, h, tiles,
-      lanterns: [], fruits: [], ammo: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
+      lanterns: [], fruits: [], ammo: [], ammoFly: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
       door: null, start: { tx: 1, ty: h - 2 }, clock: 0, time: 0, falls: 0, shake: 0,
       deadTimer: 0, cleared: false, events: [],
     };
@@ -344,7 +344,7 @@
     stepProjectiles(W, dt, playing);
     stepBlinks(W, dt);
     stepBullets(W, dt);
-    stepDrops(W, dt);
+    stepAmmoFly(W, dt);
     stepTraps(W, dt, playing);
     if (W.lavaTop.length && Math.random() < dt * Math.min(40, W.lavaTop.length * .6)) {
       const l = W.lavaTop[Math.floor(Math.random() * W.lavaTop.length)];
@@ -414,9 +414,12 @@
   // An explosion hits every enemy within `r` once (the horde is immune) and destroys any
   // embers or arrows in range. `shot` is the shot it came from: a grenade's bounces all
   // share one, so a grenade still only counts as one hit on each enemy.
-  function explode(W, x, y, r, big, shot = newShot(W)) {
+  // A `lethal` blast (a TNT cart going up) kills outright instead: golems die and other
+  // carts explode too.
+  function explode(W, x, y, r, big, shot = newShot(W), lethal = false) {
     for (const e of W.enemies) {
       if (!e.alive || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
+      if (lethal) e.hp = 1;
       shootEnemy(W, e, Math.sign(e.x + e.w / 2 - x) || 1, shot, 'boom');
     }
     for (const q of W.projectiles) if (Math.hypot(q.x + q.w / 2 - x, q.y + q.h / 2 - y) < r) q.life = 0;
@@ -469,28 +472,39 @@
     if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3 * b.s, true, b.id); }
   }
 
-  // Killing an enemy (shot, blown up or stomped) drops a crate worth its drop value, which
-  // falls to the ground. Hardcore has no ammo, so nothing drops there.
+  // Killing an enemy (shot, blown up or stomped) sprays out one bullet per point of its drop
+  // value, and they fly to the player: each one that arrives is +1 ammo. Hardcore has no
+  // ammo, so nothing drops there.
   function dropAmmo(W, e) {
     const n = LF.ENEMIES[e.type].drop;
     if (!n || W.def.noSpawnInv) return;
-    const x = e.x + e.w / 2, y = e.y + e.h / 2, toward = Math.sign(W.player.x + W.player.w / 2 - x) || 1;
-    W.ammo.push({ big: n >= 5, drop: true, n, tx: Math.floor(x / TS), ty: Math.floor(y / TS), x, y, vx: toward * 110, vy: -380, falling: true, taken: false });
-  }
-  // Dropped crates pop out toward the player and fall until they land; lava burns them up.
-  function stepDrops(W, dt) {
-    for (const a of W.ammo) {
-      if (!a.falling || a.taken) continue;
-      a.vy = Math.min(MAXFALL, a.vy + G * dt);
-      const nx = a.x + a.vx * dt;
-      if (isSolid(tile(W, Math.floor((nx + Math.sign(a.vx) * 8) / TS), Math.floor(a.y / TS)))) a.vx = 0; else a.x = nx;
-      const ny = a.y + a.vy * dt, tx = Math.floor(a.x / TS), row = Math.floor((ny + 12) / TS), c = tile(W, tx, row);
-      if (a.vy > 0 && (isSolid(c) || c === '^' || c === '=' || c === '~' || c === '!') && !isSolid(tile(W, tx, Math.floor((a.y + 12) / TS)))) {
-        if (c === '!') { a.taken = true; burst(W, a.x, a.y, 8, ['#FF6B3D', '#FFB547'], 80, 200, 2); continue; }
-        a.y = row * TS - 12; a.ty = Math.floor(a.y / TS); a.falling = false;
-      } else if (ny > W.h * TS + 40) a.taken = true;
-      else a.y = ny;
+    const x = e.x + e.w / 2, y = e.y + e.h / 2;
+    for (let k = 0; k < n; k++) {
+      const a = -Math.PI / 2 + (k - (n - 1) / 2) * .5 + (Math.random() - .5) * .3, sp = 260 + Math.random() * 80;
+      W.ammoFly.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: -k * .06 });
     }
+  }
+  // A flying bullet drifts out for a moment, then homes in on the player faster and faster.
+  function stepAmmoFly(W, dt) {
+    const p = W.player, px = p.x + p.w / 2, py = p.y + p.h / 2;
+    for (const b of W.ammoFly) {
+      b.t += dt;
+      if (b.t < 0) continue;
+      if (b.t < .25) { b.vx *= 1 - 3 * dt; b.vy *= 1 - 3 * dt; }
+      else {
+        const dx = px - b.x, dy = py - b.y, d = Math.hypot(dx, dy) || 1, sp = 300 + (b.t - .25) * 1400;
+        const k = Math.min(1, 10 * dt);
+        b.vx += (dx / d * sp - b.vx) * k; b.vy += (dy / d * sp - b.vy) * k;
+        if (d < 14 + sp * dt) {
+          b.done = true; p.ammo++;
+          burst(W, px, py, 3, ['#FFE2A8', '#FFB547'], 60, 0, 1.5);
+          W.emit('ammotick');
+          continue;
+        }
+      }
+      b.x += b.vx * dt; b.y += b.vy * dt;
+    }
+    W.ammoFly = W.ammoFly.filter(b => !b.done);
   }
 
   // Every shot (bullet, explosive round or grenade) gets an id, so it can only hit each
@@ -508,9 +522,10 @@
     burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
     W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: how, life: .8, c: how === 'boom' ? '#FFB547' : '#FFE2A8' });
     W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap', { type: e.type });
-    // A TNT cart goes up in a 10-block blast; any other carts it reaches take a hit too.
+    // A TNT cart goes up in a 10-block blast that kills everything it reaches, golems
+    // included, and sets off any other carts.
     if (e.type === '@') {
-      explode(W, e.x + e.w / 2, e.y + e.h / 2, TS * 10, true);
+      explode(W, e.x + e.w / 2, e.y + e.h / 2, TS * 10, true, newShot(W), true);
       W.shake = Math.max(W.shake, .6); W.freeze = Math.max(W.freeze, .1);
     }
   }
@@ -1188,7 +1203,7 @@
       a.taken = true; p.ammo += a.n;
       burst(W, a.x, a.y, a.huge ? 40 : a.big ? 24 : 12, ['#FFE2A8', '#FFB547'], a.huge ? 180 : 130, 150, 2.5);
       W.floaters.push({ x: a.x, y: a.y - 20, t: `+${a.n} ammo`, life: 1.1, c: '#FFE2A8' });
-      W.emit(a.big && !a.drop ? 'bigammo' : 'ammo');
+      W.emit(a.big ? 'bigammo' : 'ammo');
     }
 
     for (const f of W.fruits) {
