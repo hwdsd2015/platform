@@ -423,6 +423,24 @@
           for (let k = 0; k < e.hp; k++) { ctx.fillStyle = '#FF6B3D'; ctx.fillRect(cx - 7 + k * 5, by - 14, 3, 3); }
           break;
         }
+        case '@': {
+          // TNT cart: a mine cart full of red sticks, a lit fuse, and a pip per hit left.
+          const roll = reduced ? 0 : e.x / 6, hurt = e.hurt > 0;
+          ctx.fillStyle = '#C0392B';
+          for (let k = -1; k <= 1; k++) ctx.fillRect(cx + k * 7 - 2.5, by - 22, 5, 10);
+          ctx.fillStyle = '#FFE2A8'; ctx.fillRect(cx - 9.5, by - 20, 19, 2);
+          ctx.fillStyle = hurt ? '#CFC6E8' : '#5C3B24'; ctx.fillRect(cx - 14, by - 15, 28, 10);
+          ctx.fillStyle = hurt ? '#A99CC4' : '#3A2516'; ctx.fillRect(cx - 14, by - 15, 28, 2); ctx.fillRect(cx - 14, by - 7, 28, 2);
+          ctx.fillStyle = '#FFE2A8'; ctx.font = '700 6px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('TNT', cx, by - 8.5); ctx.textAlign = 'left';
+          for (const wx of [-8, 8]) {
+            ctx.fillStyle = '#1A1530'; ctx.beginPath(); ctx.arc(cx + wx, by - 3, 3.5, 0, TAU); ctx.fill();
+            ctx.strokeStyle = '#6E6186'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx + wx, by - 3); ctx.lineTo(cx + wx + Math.cos(roll) * 3, by - 3 + Math.sin(roll) * 3); ctx.stroke();
+          }
+          ctx.strokeStyle = '#2A2348'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(cx, by - 22); ctx.quadraticCurveTo(cx + 3, by - 27, cx + 1, by - 29); ctx.stroke();
+          ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(cx + 1, by - 29.5, 2 * flick(e.ox, .4), 0, TAU); ctx.fill();
+          for (let k = 0; k < e.hp; k++) { ctx.fillStyle = '#FF6B3D'; ctx.fillRect(cx - 11 + k * 5, by - 33, 3, 2); }
+          break;
+        }
         case 'Y': {
           const cy = e.y + 6, tail = reduced ? 0 : Math.sin(clock * 10 + e.ox) * 3;
           ctx.fillStyle = '#244250';

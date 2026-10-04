@@ -58,6 +58,7 @@
     I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, drop: 5, note: 'slow, armored: takes 3 shots' },
     '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
+    '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, drop: 3, note: 'rolls along; 5 hits of any kind and it blows up everything within 10 blocks' },
   };
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
@@ -191,7 +192,7 @@
     if (type === 'Z' || LF.SWIMMERS[type]) y = ty * TS + (TS - s.h) / 2;
     if (type === '*') y = ty * TS + 12;
     if (type === 'W') y = ty * TS + 8;
-    const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85, I: -30 }[type] || 0;
+    const vx = { B: -48, K: -72, F: -64, R: -40, Y: -85, I: -30, '@': -36 }[type] || 0;
     // Resize around the spot the enemy is anchored to: its top if it hangs from a ceiling,
     // its middle if it flies or swims, otherwise its feet.
     const scale = tune(tuning, type).size;
@@ -410,15 +411,13 @@
     }
   }
 
-  // An explosion kills every enemy within `r` (golems included; the horde is immune) and
-  // any embers or arrows in range.
-  function explode(W, x, y, r, big) {
+  // An explosion hits every enemy within `r` once (the horde is immune) and destroys any
+  // embers or arrows in range. `shot` is the shot it came from: a grenade's bounces all
+  // share one, so a grenade still only counts as one hit on each enemy.
+  function explode(W, x, y, r, big, shot = newShot(W)) {
     for (const e of W.enemies) {
       if (!e.alive || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
-      e.alive = false; dropAmmo(W, e);
-      burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
-      W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'boom', life: .8, c: '#FFB547' });
-      W.emit('zap', { type: e.type });
+      shootEnemy(W, e, Math.sign(e.x + e.w / 2 - x) || 1, shot, 'boom');
     }
     for (const q of W.projectiles) if (Math.hypot(q.x + q.w / 2 - x, q.y + q.h / 2 - y) < r) q.life = 0;
     burst(W, x, y, big ? 40 : 22, ['#FFF1CF', '#FFB547', '#FF6B3D', '#463C6B'], big ? 320 : 220, 300, big ? 4 : 3);
@@ -437,7 +436,7 @@
       if (inHorde()) { b.life = 0; return; }
       const hitWall = isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)));
       const hitEnemy = W.enemies.some(e => e.alive && overlap({ x: b.x - 5 * b.s, y: b.y - 3 * b.s, w: 10 * b.s, h: 6 * b.s }, e));
-      if (hitWall || hitEnemy || b.life <= 0) { b.life = 0; explode(W, b.x - Math.sign(b.vx) * (hitWall ? 6 : 0), b.y, TS * 3 * b.s, true); }
+      if (hitWall || hitEnemy || b.life <= 0) { b.life = 0; explode(W, b.x - Math.sign(b.vx) * (hitWall ? 6 : 0), b.y, TS * 3 * b.s, true, b.id); }
       return;
     }
     // Grenade: falls and bounces; every contact counts. The first two blast 2 blocks,
@@ -464,10 +463,10 @@
     if (inHorde()) { b.life = 0; return; }
     if (bounced) {
       b.bounces++;
-      if (b.bounces >= 3) { b.life = 0; return explode(W, b.x, b.y, TS * 3 * b.s, true); }
-      explode(W, b.x, b.y, TS * 2 * b.s, false);
+      if (b.bounces >= 3) { b.life = 0; return explode(W, b.x, b.y, TS * 3 * b.s, true, b.id); }
+      explode(W, b.x, b.y, TS * 2 * b.s, false, b.id);
     }
-    if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3 * b.s, true); }
+    if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3 * b.s, true, b.id); }
   }
 
   // Killing an enemy (shot, blown up or stomped) drops a crate worth its drop value, which
@@ -494,37 +493,46 @@
     }
   }
 
-  // One bullet hit on an enemy: armored ones lose a point of armor, the rest die.
-  function shootEnemy(W, e, dir) {
+  // Every shot (bullet, explosive round or grenade) gets an id, so it can only hit each
+  // enemy once however many times it splashes or blasts.
+  const newShot = W => (W.shots = (W.shots || 0) + 1);
+  // One hit on an enemy: armored ones (golems, TNT carts) lose a point, the rest die.
+  function shootEnemy(W, e, dir, shot, how = 'zap') {
+    if (shot) { if ((e.hitBy ||= new Set()).has(shot)) return; e.hitBy.add(shot); }
     if (e.hp > 1) {
-      e.hp--; e.hurt = .15; e.x += dir * 5;
+      e.hp--; e.hurt = .15; if (e.type !== '@') e.x += dir * 5;
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
       return;
     }
     e.alive = false; dropAmmo(W, e);
     burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
-    W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
+    W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: how, life: .8, c: how === 'boom' ? '#FFB547' : '#FFE2A8' });
     W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap', { type: e.type });
+    // A TNT cart goes up in a 10-block blast; any other carts it reaches take a hit too.
+    if (e.type === '@') {
+      explode(W, e.x + e.w / 2, e.y + e.h / 2, TS * 10, true);
+      W.shake = Math.max(W.shake, .6); W.freeze = Math.max(W.freeze, .1);
+    }
   }
   // Regular bullets splash: every other enemy within a block of where it hit takes a hit too
   // (two blocks for a big Shift shot).
-  function splash(W, x, y, dir, except, s = 1) {
+  function splash(W, x, y, dir, except, s = 1, shot) {
     ring(W, x, y, TS * s, '255,226,168', .2);
-    for (const e of W.enemies) if (e.alive && e !== except && circleHits(x, y, TS * s, e)) shootEnemy(W, e, dir);
+    for (const e of W.enemies) if (e.alive && e !== except && circleHits(x, y, TS * s, e)) shootEnemy(W, e, dir, shot);
   }
 
   function stepBullets(W, dt) {
     for (const b of W.bullets) {
       if (b.kind) { stepSpecial(W, b, dt); continue; }
       b.x += b.vx * dt; b.life -= dt;
-      if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s); continue; }
+      if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s, b.id); continue; }
       // Bullets just vanish into the horde.
       if (W.horde && along(W.horde, b.x, b.y) < W.horde.f) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
         if (!e.alive || !overlap({ x: b.x - 4 * b.s, y: b.y - 2 * b.s, w: 8 * b.s, h: 4 * b.s }, e)) continue;
         b.life = 0;
-        shootEnemy(W, e, Math.sign(b.vx));
-        splash(W, e.x + e.w / 2, e.y + e.h / 2, Math.sign(b.vx), e, b.s);
+        shootEnemy(W, e, Math.sign(b.vx), b.id);
+        splash(W, e.x + e.w / 2, e.y + e.h / 2, Math.sign(b.vx), e, b.s, b.id);
         break;
       }
       for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 * b.s && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 2 * b.s + 2) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
@@ -668,7 +676,7 @@
 
   // Ground enemies fall when there's nothing under them (placed in mid-air, or their floor
   // crumbled or blinked away), and die if they land in water or lava or leave the level.
-  const WALKERS = new Set(['B', 'K', 'R', 'I', 'S', 'A']);
+  const WALKERS = new Set(['B', 'K', 'R', 'I', 'S', 'A', '@']);
   function supported(W, e) {
     const ty = Math.floor((e.y + e.h + 1) / TS);
     for (let tx = Math.floor((e.x + 2) / TS); tx <= Math.floor((e.x + e.w - 2) / TS); tx++) if (isFloor(tile(W, tx, ty))) return true;
@@ -690,7 +698,8 @@
     const p = W.player;
     const px = p.x + p.w / 2, py = p.y + p.h / 2, ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     switch (e.type) {
-      case 'B': case 'K': {
+      case 'B': case 'K': case '@': {
+        e.hurt = Math.max(0, e.hurt - dt);
         const nx = e.x + e.vx * dt;
         const ahead = e.vx < 0 ? nx : nx + e.w;
         const tx = Math.floor(ahead / TS);
@@ -1034,7 +1043,7 @@
       if (p.ammo >= s) {
         p.ammo -= s; p.cool = .16; p.flash = .08;
         const g = LF.gunPos(p);
-        W.bullets.push({ x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1, s });
+        W.bullets.push({ id: newShot(W), x: g.x, y: g.y, vx: p.face * BULLET, life: 1.1, s });
         p.vx -= p.face * 40;
         W.emit('shoot');
       } else if (tapped) {
@@ -1058,8 +1067,8 @@
       }
       p.ammo -= cost; p.cool = .4; p.flash = .1;
       const g = LF.gunPos(p);
-      if (kind === 'rocket') W.bullets.push({ kind, x: g.x, y: g.y, vx: p.face * 430, vy: 0, life: 1.6, s });
-      else W.bullets.push({ kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0, s });
+      if (kind === 'rocket') W.bullets.push({ id: newShot(W), kind, x: g.x, y: g.y, vx: p.face * 430, vy: 0, life: 1.6, s });
+      else W.bullets.push({ id: newShot(W), kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0, s });
       p.vx -= p.face * 70;
       W.emit(kind === 'rocket' ? 'rocket' : 'lob');
     }

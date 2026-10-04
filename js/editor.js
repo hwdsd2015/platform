@@ -39,7 +39,7 @@
       { c, label: k.name, group: 'Keys & locks', chip: k.color, glyph: '⚷' },
       { c: k.gate, label: k.name.replace('key', 'lock'), group: 'Keys & locks', chip: k.dim, note: `solid until you touch it holding the ${k.name.toLowerCase()}` },
     ]),
-    ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560', '*': '#FF6B3D' }[c], note: e.note })),
+    ...Object.entries(LF.ENEMIES).map(([c, e]) => ({ c, label: e.name, group: 'Enemies', chip: { B: '#2A2348', K: '#3B2F57', F: '#3D3458', J: '#2F5260', S: '#7A3E1C', G: '#C9D2F0', X: '#4A3B2A', R: '#5A2C14', Z: '#FFB547', Y: '#2F5260', U: '#9FD8FF', N: '#A9B8C8', W: '#E0A526', A: '#5E4B3C', I: '#4A4560', '*': '#FF6B3D', '@': '#C0392B' }[c], note: e.note })),
     ...Object.entries(LF.HORDES).map(([c, h]) => ({ c, label: h.name, group: 'Enemies', chip: '#07060F', note: `${h.note}; can’t be shot` })),
   ];
 
