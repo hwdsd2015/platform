@@ -40,23 +40,24 @@
     b: { name: 'Banana', power: 'Double jump', color: '#FFE066', dur: 15, note: 'jump again in mid-air for 15s' },
   };
 
+  // drop: ammo an enemy leaves behind when you kill it — the harder it is to kill, the more.
   LF.ENEMIES = {
-    B: { name: 'Wick-beetle', w: 24, h: 16, stomp: true, note: 'walks, turns at edges' },
-    K: { name: 'Thornback', w: 26, h: 18, stomp: false, note: 'fast walker, spiky — jump over' },
-    F: { name: 'Soot bat', w: 24, h: 14, stomp: true, note: 'flies back and forth' },
-    J: { name: 'Puddle frog', w: 22, h: 18, stomp: true, note: 'hops toward you' },
-    S: { name: 'Ember pot', w: 24, h: 22, stomp: true, note: 'spits embers' },
-    G: { name: 'Wraith', w: 24, h: 28, stomp: false, note: 'drifts toward you, fears lit lanterns' },
-    X: { name: 'Wick spider', w: 20, h: 16, stomp: true, note: 'hangs from a ceiling, drops when you pass below' },
-    R: { name: 'Coal ram', w: 26, h: 20, stomp: true, note: 'walks, then charges when it sees you' },
-    Z: { name: 'Spark', w: 14, h: 14, stomp: false, note: 'circles its spot — time your way past' },
-    Y: { name: 'Lantern pike', w: 28, h: 12, stomp: false, note: 'place in water: swims back and forth' },
-    U: { name: 'Glow jelly', w: 20, h: 20, stomp: false, note: 'place in water: bobs slowly up and down' },
-    W: { name: 'Wasp', w: 22, h: 16, stomp: true, note: 'hovers, then dashes straight at you' },
-    A: { name: 'Ash archer', w: 22, h: 26, stomp: true, note: 'shoots aimed arrows' },
-    I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, note: 'slow, armored: takes 3 shots' },
-    '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, note: 'place in lava: hides, then shoots up out of it every few seconds' },
-    N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, note: 'place in water: leaps out at you' },
+    B: { name: 'Wick-beetle', w: 24, h: 16, stomp: true, drop: 1, note: 'walks, turns at edges' },
+    K: { name: 'Thornback', w: 26, h: 18, stomp: false, drop: 2, note: 'fast walker, spiky — jump over' },
+    F: { name: 'Soot bat', w: 24, h: 14, stomp: true, drop: 1, note: 'flies back and forth' },
+    J: { name: 'Puddle frog', w: 22, h: 18, stomp: true, drop: 1, note: 'hops toward you' },
+    S: { name: 'Ember pot', w: 24, h: 22, stomp: true, drop: 2, note: 'spits embers' },
+    G: { name: 'Wraith', w: 24, h: 28, stomp: false, drop: 3, note: 'drifts toward you, fears lit lanterns' },
+    X: { name: 'Wick spider', w: 20, h: 16, stomp: true, drop: 1, note: 'hangs from a ceiling, drops when you pass below' },
+    R: { name: 'Coal ram', w: 26, h: 20, stomp: true, drop: 2, note: 'walks, then charges when it sees you' },
+    Z: { name: 'Spark', w: 14, h: 14, stomp: false, drop: 3, note: 'circles its spot — time your way past' },
+    Y: { name: 'Lantern pike', w: 28, h: 12, stomp: false, drop: 2, note: 'place in water: swims back and forth' },
+    U: { name: 'Glow jelly', w: 20, h: 20, stomp: false, drop: 2, note: 'place in water: bobs slowly up and down' },
+    W: { name: 'Wasp', w: 22, h: 16, stomp: true, drop: 2, note: 'hovers, then dashes straight at you' },
+    A: { name: 'Ash archer', w: 22, h: 26, stomp: true, drop: 2, note: 'shoots aimed arrows' },
+    I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, drop: 5, note: 'slow, armored: takes 3 shots' },
+    '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
+    N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
   };
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
@@ -342,6 +343,7 @@
     stepProjectiles(W, dt, playing);
     stepBlinks(W, dt);
     stepBullets(W, dt);
+    stepDrops(W, dt);
     stepTraps(W, dt, playing);
     if (W.lavaTop.length && Math.random() < dt * Math.min(40, W.lavaTop.length * .6)) {
       const l = W.lavaTop[Math.floor(Math.random() * W.lavaTop.length)];
@@ -413,7 +415,7 @@
   function explode(W, x, y, r, big) {
     for (const e of W.enemies) {
       if (!e.alive || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
-      e.alive = false;
+      e.alive = false; dropAmmo(W, e);
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
       W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'boom', life: .8, c: '#FFB547' });
       W.emit('zap', { type: e.type });
@@ -468,6 +470,30 @@
     if (b.life <= 0 || b.y > W.h * TS + 40) { b.life = 0; if (b.y <= W.h * TS + 40) explode(W, b.x, b.y, TS * 3 * b.s, true); }
   }
 
+  // Killing an enemy (shot, blown up or stomped) drops a crate worth its drop value, which
+  // falls to the ground. Hardcore has no ammo, so nothing drops there.
+  function dropAmmo(W, e) {
+    const n = LF.ENEMIES[e.type].drop;
+    if (!n || W.def.noSpawnInv) return;
+    const x = e.x + e.w / 2, y = e.y + e.h / 2, toward = Math.sign(W.player.x + W.player.w / 2 - x) || 1;
+    W.ammo.push({ big: n >= 5, drop: true, n, tx: Math.floor(x / TS), ty: Math.floor(y / TS), x, y, vx: toward * 110, vy: -380, falling: true, taken: false });
+  }
+  // Dropped crates pop out toward the player and fall until they land; lava burns them up.
+  function stepDrops(W, dt) {
+    for (const a of W.ammo) {
+      if (!a.falling || a.taken) continue;
+      a.vy = Math.min(MAXFALL, a.vy + G * dt);
+      const nx = a.x + a.vx * dt;
+      if (isSolid(tile(W, Math.floor((nx + Math.sign(a.vx) * 8) / TS), Math.floor(a.y / TS)))) a.vx = 0; else a.x = nx;
+      const ny = a.y + a.vy * dt, tx = Math.floor(a.x / TS), row = Math.floor((ny + 12) / TS), c = tile(W, tx, row);
+      if (a.vy > 0 && (isSolid(c) || c === '^' || c === '=' || c === '~' || c === '!') && !isSolid(tile(W, tx, Math.floor((a.y + 12) / TS)))) {
+        if (c === '!') { a.taken = true; burst(W, a.x, a.y, 8, ['#FF6B3D', '#FFB547'], 80, 200, 2); continue; }
+        a.y = row * TS - 12; a.ty = Math.floor(a.y / TS); a.falling = false;
+      } else if (ny > W.h * TS + 40) a.taken = true;
+      else a.y = ny;
+    }
+  }
+
   // One bullet hit on an enemy: armored ones lose a point of armor, the rest die.
   function shootEnemy(W, e, dir) {
     if (e.hp > 1) {
@@ -475,7 +501,7 @@
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
       return;
     }
-    e.alive = false;
+    e.alive = false; dropAmmo(W, e);
     burst(W, e.x + e.w / 2, e.y + e.h / 2, 16, ['#FFE2A8', '#FF6B3D', '#463C6B'], 180, 400);
     W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'zap', life: .8, c: '#FFE2A8' });
     W.shake = Math.max(W.shake, .1); W.freeze = .04; ring(W, e.x + e.w / 2, e.y + e.h / 2, 30, '255,226,168'); W.emit('zap', { type: e.type });
@@ -1108,7 +1134,7 @@
       const spec = LF.ENEMIES[e.type];
       if (e.type === 'G' && e.fade > .85) continue;
       if (spec.stomp && p.vy > 0 && p.y + p.h - e.y < 14) {
-        e.alive = false; p.vy = (input.jump ? -620 : -460) * Math.sqrt(T.gravity); p.jumping = input.jump;
+        e.alive = false; dropAmmo(W, e); p.vy = (input.jump ? -620 : -460) * Math.sqrt(T.gravity); p.jumping = input.jump;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FF6B3D', '#463C6B'], 160, 500);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
         W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp', { type: e.type });
@@ -1153,7 +1179,7 @@
       a.taken = true; p.ammo += a.n;
       burst(W, a.x, a.y, a.huge ? 40 : a.big ? 24 : 12, ['#FFE2A8', '#FFB547'], a.huge ? 180 : 130, 150, 2.5);
       W.floaters.push({ x: a.x, y: a.y - 20, t: `+${a.n} ammo`, life: 1.1, c: '#FFE2A8' });
-      W.emit(a.big ? 'bigammo' : 'ammo');
+      W.emit(a.big && !a.drop ? 'bigammo' : 'ammo');
     }
 
     for (const f of W.fruits) {

@@ -491,7 +491,7 @@
 
     function drawAmmo(a) {
       if (a.taken) return;
-      const bob = reduced ? 0 : Math.sin(clock * 3 + a.tx) * 2;
+      const bob = reduced || a.falling ? 0 : Math.sin(clock * 3 + a.tx) * 2;
       const s = a.huge ? 1.75 : a.big ? 1.35 : 1;
       ctx.save(); ctx.translate(a.x, a.y + bob); ctx.scale(s, s);
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
@@ -501,7 +501,7 @@
       ctx.fillStyle = a.huge ? '#FFB547' : '#8F81AB'; ctx.fillRect(-7, -5, 14, 2);
       ctx.fillStyle = a.big ? '#FF6B3D' : '#FFB547';
       for (let k = -1; k <= 1; k++) { ctx.fillRect(k * 4 - 1, -9, 2, 5); ctx.fillStyle = '#FFE2A8'; ctx.fillRect(k * 4 - 1, -10, 2, 1.5); ctx.fillStyle = a.big ? '#FF6B3D' : '#FFB547'; }
-      if (a.big) { ctx.fillStyle = '#FFE2A8'; ctx.font = '700 7px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText(String(a.n), 0, 3.5); ctx.textAlign = 'left'; }
+      if (a.big || a.drop) { ctx.fillStyle = '#FFE2A8'; ctx.font = '700 7px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText(String(a.n), 0, 3.5); ctx.textAlign = 'left'; }
       ctx.restore();
     }
 
