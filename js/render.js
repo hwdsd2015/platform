@@ -688,7 +688,7 @@
       for (let k = 0; k < W.lavaTop.length; k += 3) { const l = W.lavaTop[k]; out.push({ x: l.tx * TS + 16, y: l.ty * TS + 10, r: 95 }); }
       for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: 40 });
       for (const k of W.keys) if (!k.taken) out.push({ x: k.x, y: k.y, r: 60 });
-      for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 });
+      for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 * (b.s || 1) });
       for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
@@ -855,22 +855,28 @@
       for (const fr of W.fruits) drawFruit(fr);
       for (const a of W.ammo) drawAmmo(a);
       for (const k of W.keys) drawKey(k);
-      for (const b of W.bullets) {
+      const drawBullet = b => {
         if (b.kind === 'rocket') {
           const d = Math.sign(b.vx) || 1;
           ctx.fillStyle = '#FF6B3D'; ctx.fillRect(b.x - d * 12, b.y - 2.5, d * 10, 5);
           ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.moveTo(b.x - d * 2, b.y - 3.5); ctx.lineTo(b.x + d * 5, b.y); ctx.lineTo(b.x - d * 2, b.y + 3.5); ctx.fill();
-          continue;
+          return;
         }
         if (b.kind === 'grenade') {
           ctx.fillStyle = '#3A2F55'; ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, TAU); ctx.fill();
           ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();
           const blink = reduced || Math.floor(b.life * (b.life < .8 ? 16 : 6)) % 2;
           ctx.fillStyle = blink ? '#FF6B3D' : '#7A2E1C'; ctx.beginPath(); ctx.arc(b.x + 1.5, b.y - 5, 1.8, 0, TAU); ctx.fill();
-          continue;
+          return;
         }
         ctx.fillStyle = '#FFB547'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);
         ctx.fillStyle = '#FFF1CF'; ctx.fillRect(b.x - 2, b.y - 1.5, 4, 3);
+      };
+      for (const b of W.bullets) {
+        // Big (Shift) shots are drawn at twice the size around their centre.
+        if (b.s > 1) { ctx.save(); ctx.translate(b.x, b.y); ctx.scale(b.s, b.s); ctx.translate(-b.x, -b.y); }
+        drawBullet(b);
+        if (b.s > 1) ctx.restore();
       }
       if (!W.player.dead && W.player.flash > 0) {
         const g = LF.gunPos(W.player);
