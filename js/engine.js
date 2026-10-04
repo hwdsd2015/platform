@@ -473,7 +473,7 @@
   }
 
   // Killing an enemy (shot, blown up or stomped) sprays out one bullet per point of its drop
-  // value, and they fly to the player: each one that arrives is +1 ammo. Hardcore has no
+  // value all at once, and they fly to the player together: each one that arrives is +1 ammo. Hardcore has no
   // ammo, so nothing drops there.
   function dropAmmo(W, e) {
     const n = LF.ENEMIES[e.type].drop;
@@ -481,7 +481,7 @@
     const x = e.x + e.w / 2, y = e.y + e.h / 2;
     for (let k = 0; k < n; k++) {
       const a = -Math.PI / 2 + (k - (n - 1) / 2) * .5 + (Math.random() - .5) * .3, sp = 260 + Math.random() * 80;
-      W.ammoFly.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: -k * .06 });
+      W.ammoFly.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
     }
   }
   // A flying bullet drifts out for a moment, then homes in on the player faster and faster.
@@ -489,7 +489,6 @@
     const p = W.player, px = p.x + p.w / 2, py = p.y + p.h / 2;
     for (const b of W.ammoFly) {
       b.t += dt;
-      if (b.t < 0) continue;
       if (b.t < .25) { b.vx *= 1 - 3 * dt; b.vy *= 1 - 3 * dt; }
       else {
         const dx = px - b.x, dy = py - b.y, d = Math.hypot(dx, dy) || 1, sp = 300 + (b.t - .25) * 1400;

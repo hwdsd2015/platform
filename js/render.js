@@ -707,7 +707,7 @@
       for (const a of W.ammo) if (!a.taken) out.push({ x: a.x, y: a.y, r: a.huge ? 70 : 40 });
       for (const k of W.keys) if (!k.taken) out.push({ x: k.x, y: k.y, r: 60 });
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 * (b.s || 1) });
-      for (const b of W.ammoFly) if (b.t >= 0) out.push({ x: b.x, y: b.y, r: 28 });
+      for (const b of W.ammoFly) out.push({ x: b.x, y: b.y, r: 28 });
       for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
@@ -875,7 +875,6 @@
       for (const a of W.ammo) drawAmmo(a);
       // Ammo dropped by enemies: little bullets streaking toward the player, nose first.
       for (const b of W.ammoFly) {
-        if (b.t < 0) continue;
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx));
         ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(-12, -1, 9, 2);
         ctx.fillStyle = '#C08A3E'; ctx.fillRect(-4, -2, 5, 4);
