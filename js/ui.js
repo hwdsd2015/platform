@@ -513,8 +513,9 @@
     const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${JSON.stringify(p.keys)}|${boss ? boss.type + boss.hp : ''}`;
     if (key === hudCache) return;
     hudCache = key;
-    $('hud-lamps-label').textContent = open ? 'Door' : 'Lanterns';
-    $('hud-lamps').textContent = open ? 'open' : `${lit}/${W.total}`;
+    // With no lanterns (a boss arena, or Hardcore) the door is all there is to show.
+    $('hud-lamps-label').textContent = open || !W.total ? 'Door' : 'Lanterns';
+    $('hud-lamps').textContent = open ? 'open' : W.total ? `${lit}/${W.total}` : 'shut';
     $('hud-lamps-wrap').className = open ? 'open' : 'lamps';
     $('hud-time').textContent = fmt(W.time);
     $('hud-falls').textContent = W.falls;
