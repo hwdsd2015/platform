@@ -59,45 +59,49 @@
     '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
     '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, note: 'rolls along; 5 hits of any kind and it blows up, killing everything within 10 blocks' },
-    // Bosses: big health, wake when you come near, take 1 per shot and 3 per stomp on the
-    // head, and keep the door shut until they fall.
-    5: { name: 'The Bellwether', boss: true, w: 60, h: 46, stomp: true, hp: 12, drop: 10, note: 'boss: charges across the arena and is dazed when it hits a wall' },
-    6: { name: 'The Soot Queen', boss: true, w: 64, h: 34, stomp: true, hp: 16, drop: 10, note: 'boss: flies, drops embers, swoops at you, then rests on the ground' },
-    7: { name: 'The Ash Marksman', boss: true, w: 36, h: 50, stomp: true, hp: 18, drop: 10, note: 'boss: leaps about firing fans of arrows' },
-    8: { name: 'The Iron Colossus', boss: true, w: 64, h: 76, stomp: true, hp: 24, drop: 10, note: 'boss: slow; its leaps send shockwaves along the floor' },
-    9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, hp: 30, drop: 10, note: 'boss: lobs bombs and sends TNT carts — blow one up beside him' },
+    // Bosses: wake when you come near, take exactly BOSS_HITS hits (shots or stomps on the
+    // head), and keep the door shut until they fall.
+    5: { name: 'The Bellwether', boss: true, w: 60, h: 46, stomp: true, drop: 10, note: 'boss: charges across the arena and is dazed when it hits a wall' },
+    6: { name: 'The Soot Queen', boss: true, w: 64, h: 34, stomp: true, drop: 10, note: 'boss: flies, drops embers, swoops at you, then rests on the ground' },
+    7: { name: 'The Ash Marksman', boss: true, w: 36, h: 50, stomp: true, drop: 10, note: 'boss: leaps about firing fans of arrows' },
+    8: { name: 'The Iron Colossus', boss: true, w: 64, h: 76, stomp: true, drop: 10, note: 'boss: slow; its leaps send shockwaves along the floor' },
+    9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, drop: 10, note: 'boss: lobs bombs and sends TNT carts' },
   };
   // Giant bosses: one for every enemy and hazard without a boss of its own. They only come
   // from boss arenas, whose map marks the spot with 0 and whose def.giant names the giant.
   // Creature giants are their own enemy drawn k times bigger; the rest are drawn specially.
   // Ones whose small cousin can't be stomped can only be stomped while dazed.
   const GIANTS = {
-    B: { name: 'The Wick Matriarch', k: 3, hp: 14 },
-    J: { name: 'The Bog King', k: 3, hp: 16 },
-    W: { name: 'The Hive Mother', k: 3, hp: 18, fly: true },
-    X: { name: 'The Widow', k: 3, hp: 20 },
-    S: { name: 'The Great Kiln', k: 3, hp: 20 },
-    K: { name: 'The Thorn Tyrant', k: 3, hp: 20 },
-    U: { name: 'The Moon Jelly', k: 3, hp: 20 },
-    Z: { name: 'The Living Spark', k: 3, hp: 22, fly: true },
-    G: { name: 'The Pale Wraith', k: 3, hp: 24, fly: true },
-    Y: { name: 'The Lantern Leviathan', k: 3, hp: 24 },
-    N: { name: 'The Gar Lord', k: 3, hp: 26 },
-    '*': { name: 'The Magma Heart', k: 3, hp: 26 },
-    E: { name: 'The Great Pendulum', w: 56, h: 56, stomp: true, hp: 24 },
-    e: { name: 'The Thorn Pendulum', w: 56, h: 56, stomp: true, hp: 28 },
-    f: { name: 'The Fire Wheel', w: 56, h: 56, stomp: true, hp: 28 },
-    k: { name: 'The Great Crusher', w: 96, h: 64, stomp: true, hp: 28 },
-    '&': { name: 'The Shadow Wall', w: 56, h: 56, stomp: true, hp: 30 },
-    '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true, hp: 30 },
+    B: { name: 'The Wick Matriarch', k: 3 },
+    J: { name: 'The Bog King', k: 3 },
+    W: { name: 'The Hive Mother', k: 3, fly: true },
+    X: { name: 'The Widow', k: 3 },
+    S: { name: 'The Great Kiln', k: 3 },
+    K: { name: 'The Thorn Tyrant', k: 3 },
+    U: { name: 'The Moon Jelly', k: 3 },
+    Z: { name: 'The Living Spark', k: 3, fly: true },
+    G: { name: 'The Pale Wraith', k: 3, fly: true },
+    Y: { name: 'The Lantern Leviathan', k: 3 },
+    N: { name: 'The Gar Lord', k: 3 },
+    '*': { name: 'The Magma Heart', k: 3 },
+    E: { name: 'The Great Pendulum', w: 56, h: 56, stomp: true },
+    e: { name: 'The Thorn Pendulum', w: 56, h: 56, stomp: true },
+    f: { name: 'The Fire Wheel', w: 56, h: 56, stomp: true },
+    k: { name: 'The Great Crusher', w: 96, h: 64, stomp: true },
+    '&': { name: 'The Shadow Wall', w: 56, h: 56, stomp: true },
+    '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true },
   };
   for (const [c, g] of Object.entries(GIANTS)) {
     const base = LF.ENEMIES[c];
     LF.ENEMIES[c + '+'] = base
-      ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, hp: g.hp, drop: 10, fly: g.fly }
-      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, hp: g.hp, drop: 10 };
+      ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, drop: 10, fly: g.fly }
+      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, drop: 10 };
   }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
+  // Every boss falls to exactly this many hits: a stomp, a bullet, an explosive round, a
+  // grenade or a TNT blast each count as one. And every dazed (or stunned, or resting)
+  // moment lasts DAZE times as long as it would otherwise.
+  const BOSS_HITS = 25, DAZE = 1.75;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
@@ -227,7 +231,8 @@
       W.shotDoors.push(d);
     }
     // Later boss arenas make their boss tougher.
-    if (def.bossHp) for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = Math.round(e.maxHp * def.bossHp);
+    // Every boss takes exactly BOSS_HITS hits, however it's hit (see shootEnemy).
+    for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = BOSS_HITS;
     W.total = W.lanterns.length;
     if (W.door && !W.total && !W.enemies.some(isBoss)) W.door.open = true;
     W.checkpoint = { ...W.start };
@@ -520,12 +525,12 @@
   // embers or arrows in range. `shot` is the shot it came from: a grenade's bounces all
   // share one, so a grenade hits each enemy at most twice.
   // A `lethal` blast (a TNT cart going up) kills outright instead: golems die and other
-  // carts explode too. Bosses just take 5.
+  // carts explode too. To a boss it's just one more hit.
   function explode(W, x, y, r, big, shot = newShot(W), lethal = false) {
     for (const e of W.enemies) {
       if (!e.alive || e.phased || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
       if (lethal && !isBoss(e)) e.hp = 1;
-      shootEnemy(W, e, Math.sign(e.x + e.w / 2 - x) || 1, shot, 'boom', lethal ? 5 : 1);
+      shootEnemy(W, e, Math.sign(e.x + e.w / 2 - x) || 1, shot, 'boom');
     }
     for (const q of W.projectiles) if (Math.hypot(q.x + q.w / 2 - x, q.y + q.h / 2 - y) < r) q.life = 0;
     for (const d of W.shotDoors) if (!d.open && d.tiles.some(([tx, ty]) => Math.hypot(tx * TS + 16 - x, ty * TS + 16 - y) < r + 16)) hitShotDoor(W, d, shot);
@@ -634,13 +639,14 @@
   const newShot = (W, max = 1) => { W.shots = (W.shots || 0) + 1; (W.shotMax ||= {})[W.shots] = max; return W.shots; };
   // One hit on an enemy: armored ones (golems, TNT carts, bosses) lose `dmg` points, the rest die.
   function shootEnemy(W, e, dir, shot, how = 'zap', dmg = 1) {
+    const boss = isBoss(e);
     if (shot) {
+      // (A grenade can hit an enemy twice, but a boss only once: every hit on a boss is one.)
       const hits = (e.hitBy ||= {})[shot] || 0;
-      if (hits >= (W.shotMax[shot] || 1)) return;
+      if (hits >= (boss ? 1 : W.shotMax[shot] || 1)) return;
       e.hitBy[shot] = hits + 1;
     }
-    const boss = isBoss(e);
-    if (boss) wakeBoss(W, e);
+    if (boss) { dmg = 1; wakeBoss(W, e); }
     if (e.armored) {
       W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'armored', life: .6, c: '#CFC6E8' });
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 6, ['#CFC6E8'], 100, 300, 2); W.emit('clank');
@@ -1211,7 +1217,7 @@
             W.projectiles.push({ kind: 'flame', x: ex - 7, y: e.y + e.h - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.2 });
           }
           if (moveX(W, e, e.face * (rage ? 520 : 420) * dt) || (e.wait -= dt) <= 0) {
-            e.state = 'stun'; e.wait = rage ? 1.4 : 1.8;
+            e.state = 'stun'; e.wait = (rage ? 1.4 : 1.8) * DAZE;
             W.shake = Math.max(W.shake, .35); W.emit('slam');
             burst(W, e.face > 0 ? e.x + e.w : e.x, ey, 18, ['#CFC6E8', '#FFB547', '#8F81AB'], 200, 300, 3);
             // The Bell Pit: the slam shakes beetles down from the ceiling.
@@ -1246,7 +1252,7 @@
           // She dives straight through planks and only stops at solid ground.
           const side = moveX(W, e, e.vx * dt), hit = moveY(W, e, e.vy * dt, true);
           if ((hit && hit.dir === 'down') || (e.wait -= dt) <= 0 || side) {
-            e.state = 'rest'; e.wait = rage ? 1.2 : 1.7; e.vx = e.vy = 0; e.ground = false;
+            e.state = 'rest'; e.wait = (rage ? 1.2 : 1.7) * DAZE; e.vx = e.vy = 0; e.ground = false;
             W.shake = Math.max(W.shake, .2); W.emit('slam');
           }
         } else if (e.state === 'rest') {
@@ -1374,7 +1380,7 @@
   // it is); most call in a few of their small cousins.
   function stepGiant(W, e, dt, live, px, py, rage, toward) {
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
-    const daze = (t, state = 'dazed') => { e.state = state; e.dazed = t; e.wait = t; };
+    const daze = (t, state = 'dazed') => { e.state = state; e.dazed = e.wait = t * DAZE; };
     // Keep inside the level.
     const clampIn = () => { e.x = Math.max(TS, Math.min((W.w - 1) * TS - e.w, e.x)); e.y = Math.max(TS, Math.min((W.h - 1) * TS - e.h, e.y)); };
     switch (e.type) {
@@ -1386,7 +1392,7 @@
             shock(W, e, rage ? [[-1, 300], [1, 300], [-1, 180], [1, 180]] : [[-1, 260], [1, 260]]);
             W.shake = Math.max(W.shake, .3); W.emit('slam');
             if ((e.moves = (e.moves || 0) + 1) % 2 === 0 && minions(W) < 4) for (const d of [-1, 1]) spawnMinion(W, 'B', ex + d * e.w * .6, e.y + e.h - 4);
-            e.dazed = rage ? .7 : 1; e.state = 'idle'; e.wait = rage ? 2 : 3;
+            e.dazed = (rage ? .7 : 1) * DAZE; e.state = 'idle'; e.wait = rage ? 2 : 3;
           }
           break;
         }
@@ -1693,7 +1699,11 @@
           if ((e.wait -= dt) <= 0 && live) { e.state = 'lunge'; e.wait = rage ? 1.6 : 1.2; W.emit('growl'); }
         }
         if (h.up) { e.y = -h.f - e.reach - e.h / 2; e.x += (px - e.w / 2 - e.x) * Math.min(1, dt * 2); }
-        else { e.x = h.f + e.reach - e.w / 2; e.y += (W.player.y + W.player.h - e.h - e.y) * Math.min(1, dt * 2); }   // level with your feet
+        else {
+          // Level with the ground you're standing on (it doesn't rise with your jumps).
+          if (W.player.onGround || e.restY == null) e.restY = W.player.y + W.player.h - e.h;
+          e.x = h.f + e.reach - e.w / 2; e.y += (e.restY - e.y) * Math.min(1, dt * 2);
+        }
         clampIn();
         break;
       }
@@ -1945,7 +1955,7 @@
             e.stompCool = .4; W.shake = .15;
             W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
             W.emit('stomp', { type: e.type });
-            shootEnemy(W, e, 0, null, 'stomp', spec.boss ? 3 : 1);
+            shootEnemy(W, e, 0, null, 'stomp');
           }
         } else if (e.stompCool <= 0) { hurt(W); if (p.dead) return; }
         continue;

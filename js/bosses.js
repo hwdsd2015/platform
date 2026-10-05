@@ -6,11 +6,45 @@
 
   // The five bosses come round four times. Every fight has its own twist (bossMode, read by
   // the boss code in engine.js) and its own crowd, and across them every kind of enemy turns
-  // up, both hordes included. Each round the boss also has more health (bossHp) and speed.
+  // up, both hordes included. Each round the boss is also a little faster. Every boss
+  // takes exactly 25 hits to bring down (see BOSS_HITS in engine.js).
   // Every arena has a boss gate (g) from floor to ceiling in front of the door, which falls
   // with the boss. There are no lanterns: the door opens when the boss is down. Fruit
   // (apple shield, orange boost, banana double jump) helps instead, and grows back.
-  const HP = [1, 1.5, 2, 2.5], SPEED = [1, 1.1, 1.2, 1.3];
+  const SPEED = [1, 1.1, 1.2, 1.3];
+
+  // Make every platform an easy jump: where a plank or ledge sits a full jump (3 rows) or
+  // more above the ground beside its end, put a short plank step 2 rows below it, beside
+  // it (1 below for one exactly 3 up). A few passes chain steps up to the higher ones. Platforms over water or lava are
+  // skipped (you swim there), as are tall climbs.
+  const STAND = c => '#=iCTH<>O'.includes(c);
+  function easeAccess(map) {
+    for (let pass = 0; pass < 3; pass++) map = stepPass(map);
+    return map;
+  }
+  function stepPass(map) {
+    const g = map.map(row => row.split('')), h = g.length, w = g[0].length;
+    const runs = [];
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      if (!STAND(g[y][x]) || STAND(g[y][x - 1]) || g[y - 1][x] !== '.') continue;
+      let x1 = x;
+      while (x1 + 1 < w - 1 && STAND(g[y][x1 + 1])) x1++;
+      if (g[y + 1][x] === '.' || g[y + 1][x1] === '.') runs.push({ x0: x, x1, y });
+    }
+    for (const { x0, x1, y } of runs) for (const [sx0, sx1] of [[x0 - 2, x0 - 1], [x1 + 1, x1 + 2]]) {
+      if (sx0 < 1 || sx1 > w - 2) continue;
+      let fy = y + 1;
+      while (fy < h && g[fy][sx0] === '.') fy++;
+      if (fy >= h || !STAND(g[fy][sx0]) || !STAND(g[fy][sx1])) continue;
+      const gap = fy - y;
+      if (gap < 3 || gap > 6) continue;
+      const sy = y + Math.min(2, gap - 2);   // 2 below it, or just 1 if it's only 3 up
+      let room = true;
+      for (let yy = sy - 2; yy <= sy; yy++) for (let xx = sx0; xx <= sx1; xx++) if (g[yy][xx] !== '.') room = false;
+      if (room) for (let xx = sx0; xx <= sx1; xx++) g[sy][xx] = '=';
+    }
+    return g.map(row => row.join(''));
+  }
 
   // Base arenas for each boss, reused with different dressing.
   const bellPit = extra => B(46, 16, ({ r, s, walls }) => {
@@ -72,7 +106,7 @@
       map: () => deck(({ s }) => { s(10, 11, 'A'); s(39, 11, 'A'); }) },
     { name: 'Colossus Yard', mode: 'guards', dark: .7, sign: 'THE IRON COLOSSUS · golems guard it · 3 stomps break a golem',
       map: () => yard(({ s }) => { s(14, 14, 'I'); s(40, 14, 'I'); }) },
-    { name: 'The Powder Throne', mode: 'throne', dark: .72, sign: 'THE POWDER KING · blow up his carts beside him',
+    { name: 'The Powder Throne', mode: 'throne', dark: .72, sign: 'THE POWDER KING · dodge his bombs · his carts blow up everything near',
       map: () => throne(none) },
     // ---- Round 2 ----
     { name: 'Ram’s Run', mode: 'stampede', dark: .62, hordeStop: 42, sign: 'RUN → the horde drives you to the Bellwether',
@@ -165,9 +199,9 @@
   // Where each arena's sign sits: just above head height on its starting floor.
   const signY = map => { const y = map.findIndex(row => row.includes('P')); return y - 1.6; };
   const arena = (k, round) => {
-    const f = FIGHTS[k], map = f.map(), type = map.join('').match(/[5-9]/)[0];
+    const f = FIGHTS[k], map = easeAccess(f.map()), type = map.join('').match(/[5-9]/)[0];
     return {
-      name: f.name, dark: f.dark, map, bossMode: f.mode, bossHp: HP[round],
+      name: f.name, dark: f.dark, map, bossMode: f.mode,
       signs: [{ x: 2, y: signY(map), t: f.sign }],
       ...(f.hordeStop != null ? { hordeStop: f.hordeStop } : {}),
       ...(SPEED[round] > 1 ? { tuning: { [type]: { speed: SPEED[round] } } } : {}),
@@ -260,9 +294,9 @@
       }) },
   ];
   const giantArena = k => {
-    const f = GIANT_FIGHTS[k], map = f.map();
+    const f = GIANT_FIGHTS[k], map = easeAccess(f.map());
     return {
-      name: f.name, dark: f.dark, map, giant: f.giant, giantFight: true, bossHp: 1 + k * .05,
+      name: f.name, dark: f.dark, map, giant: f.giant, giantFight: true,
       signs: [{ x: 2, y: signY(map), t: f.sign }],
       ...(f.hordeStop != null ? { hordeStop: f.hordeStop, tuning: { [f.giant]: { speed: f.hordeSpeed } } } : {}),
     };
