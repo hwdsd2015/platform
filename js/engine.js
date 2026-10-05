@@ -55,7 +55,7 @@
     U: { name: 'Glow jelly', w: 20, h: 20, stomp: false, drop: 2, note: 'place in water: bobs slowly up and down' },
     W: { name: 'Wasp', w: 22, h: 16, stomp: true, drop: 2, note: 'hovers, then dashes straight at you' },
     A: { name: 'Ash archer', w: 22, h: 26, stomp: true, drop: 2, note: 'shoots aimed arrows' },
-    I: { name: 'Iron golem', w: 30, h: 34, stomp: false, hp: 3, drop: 5, note: 'slow, armored: takes 3 shots' },
+    I: { name: 'Iron golem', w: 30, h: 34, stomp: true, hp: 3, drop: 5, note: 'slow, armored: takes 3 shots or 3 stomps' },
     '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
     '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, note: 'rolls along; 5 hits of any kind and it blows up, killing everything within 10 blocks' },
@@ -350,7 +350,8 @@
     // Bosses keep the damage you did but go back to their spot; the Powder King's carts go.
     W.enemies = W.enemies.filter(e => !e.summoned);
     for (const e of W.enemies) {
-      if (isBoss(e) && e.alive) { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; e.state = 'idle'; e.wait = 1.5; e.cool = 1; }
+      // (A boss that had called its guards calls them again.)
+      if (isBoss(e) && e.alive) { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; e.state = 'idle'; e.wait = 1.5; e.cool = 1; e.armorCalled = false; e.phased = false; }
       if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
       if (e.type === 'X') { e.y = e.oy; e.state = 'idle'; }
       if (e.type === 'R' && e.state !== 'idle') { e.state = 'idle'; e.vx = 40 * (e.face || -1); }
@@ -359,7 +360,10 @@
     }
     burst(W, W.player.x + 9, W.player.y + 26, 12, ['#D9D0F0', '#FFB547'], 90, -60, 2);
     // After a death the horde falls back so the respawn is fair.
-    if (W.horde) { W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK; W.horde.wait = HORDE_WAIT; }
+    if (W.horde) {
+      W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK; W.horde.wait = HORDE_WAIT;
+      if (W.def.hordeStop != null) W.horde.f = Math.min(W.horde.f, hordeLimit(W, W.horde));
+    }
     W.emit('respawn');
   }
 
@@ -452,7 +456,7 @@
   // carts explode too. Bosses just take 5.
   function explode(W, x, y, r, big, shot = newShot(W), lethal = false) {
     for (const e of W.enemies) {
-      if (!e.alive || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
+      if (!e.alive || e.phased || Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + Math.max(e.w, e.h) / 2) continue;
       if (lethal && !isBoss(e)) e.hp = 1;
       shootEnemy(W, e, Math.sign(e.x + e.w / 2 - x) || 1, shot, 'boom', lethal ? 5 : 1);
     }
@@ -473,7 +477,7 @@
       if (Math.random() < .6) W.particles.push({ x: b.x - Math.sign(b.vx) * 6, y: b.y, vx: -b.vx * .15, vy: (Math.random() - .5) * 30, life: .3, max: .3, c: LF.WARM[Math.floor(Math.random() * 3)], size: 2.5, g: 0 });
       if (inHorde()) { b.life = 0; return; }
       const hitWall = isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)));
-      const hitEnemy = W.enemies.some(e => e.alive && overlap({ x: b.x - 5 * b.s, y: b.y - 3 * b.s, w: 10 * b.s, h: 6 * b.s }, e));
+      const hitEnemy = W.enemies.some(e => e.alive && !e.phased && overlap({ x: b.x - 5 * b.s, y: b.y - 3 * b.s, w: 10 * b.s, h: 6 * b.s }, e));
       if (hitWall || hitEnemy || b.life <= 0) { b.life = 0; explode(W, b.x - Math.sign(b.vx) * (hitWall ? 6 : 0), b.y, TS * 3 * b.s, true, b.id); }
       return;
     }
@@ -495,7 +499,7 @@
     if ((b.vy < 0 && wall(c)) || (b.vy > 0 && wall(c)) || topHit || onPlat) {
       b.vy *= -.55; b.vx *= .8; bounced = true;
     } else b.y = ny;
-    const foe = W.enemies.find(e => e.alive && overlap({ x: b.x - 5 * b.s, y: b.y - 5 * b.s, w: 10 * b.s, h: 10 * b.s }, e));
+    const foe = W.enemies.find(e => e.alive && !e.phased && overlap({ x: b.x - 5 * b.s, y: b.y - 5 * b.s, w: 10 * b.s, h: 10 * b.s }, e));
     if (foe && !b.lastFoe) { b.vx = -b.vx * .7; b.vy = -Math.max(220, Math.abs(b.vy) * .6); bounced = true; }
     b.lastFoe = foe;
     if (inHorde()) { b.life = 0; return; }
@@ -570,6 +574,11 @@
     }
     const boss = isBoss(e);
     if (boss) wakeBoss(W, e);
+    if (e.armored) {
+      W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'armored', life: .6, c: '#CFC6E8' });
+      burst(W, e.x + e.w / 2, e.y + e.h / 2, 6, ['#CFC6E8'], 100, 300, 2); W.emit('clank');
+      return;
+    }
     if (e.hp > dmg) {
       e.hp -= dmg; e.hurt = .15; if (!boss && e.type !== '@') e.x += dir * 5;
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
@@ -591,7 +600,7 @@
   // (two blocks for a big Shift shot).
   function splash(W, x, y, dir, except, s = 1, shot) {
     ring(W, x, y, TS * s, '255,226,168', .2);
-    for (const e of W.enemies) if (e.alive && e !== except && circleHits(x, y, TS * s, e)) shootEnemy(W, e, dir, shot);
+    for (const e of W.enemies) if (e.alive && !e.phased && e !== except && circleHits(x, y, TS * s, e)) shootEnemy(W, e, dir, shot);
   }
 
   function stepBullets(W, dt) {
@@ -606,13 +615,14 @@
       // Bullets just vanish into the horde.
       if (W.horde && along(W.horde, b.x, b.y) < W.horde.f) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
-        if (!e.alive || !overlap({ x: b.x - 4 * b.s, y: b.y - 2 * b.s, w: 8 * b.s, h: 4 * b.s }, e)) continue;
+        if (!e.alive || e.phased || !overlap({ x: b.x - 4 * b.s, y: b.y - 2 * b.s, w: 8 * b.s, h: 4 * b.s }, e)) continue;
         b.life = 0;
         shootEnemy(W, e, Math.sign(b.vx), b.id);
         splash(W, e.x + e.w / 2, e.y + e.h / 2, Math.sign(b.vx), e, b.s, b.id);
         break;
       }
-      for (const q of W.projectiles) if (b.life > 0 && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 * b.s && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 2 * b.s + 2) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
+      // Bullets knock embers, arrows, bombs and shockwaves out of the air, but fly through fire.
+      for (const q of W.projectiles) if (b.life > 0 && q.kind !== 'flame' && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 * b.s && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 2 * b.s + 2) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
     }
     W.bullets = W.bullets.filter(b => b.life > 0);
   }
@@ -687,12 +697,16 @@
   const HORDE_BACK = TS * 4, HORDE_WAIT = .5;
   const along = LF.hordeAlong = (h, x, y) => h.up ? -y : x;
   const playerAlong = (h, p) => along(h, p.x + p.w / 2, p.y + p.h / 2);
+  const hordeLimit = (W, h) => (h.up ? -1 : 1) * W.def.hordeStop * TS;
   function stepHorde(W, dt, playing) {
     const h = W.horde, p = W.player;
     if (!h || !playing || W.cleared || p.dead) return;
     if ((h.wait -= dt) > 0) return;
     h.f += LF.HORDES[h.c].speed * tune(W.def.tuning, h.c).speed * dt;
-    for (const e of W.enemies) if (e.alive && along(h, e.x + e.w, e.y) < h.f - 10) e.alive = false;
+    // In a boss level the horde stops at hordeStop (a column, or a row for a rising horde),
+    // so it hems you into the arena, and it never takes the boss.
+    if (W.def.hordeStop != null) h.f = Math.min(h.f, hordeLimit(W, h));
+    for (const e of W.enemies) if (e.alive && !isBoss(e) && along(h, e.x + e.w, e.y) < h.f - 10) e.alive = false;
     const gap = playerAlong(h, p) - h.f;
     if (gap < TS * 5 && (h.growl -= dt) <= 0) { h.growl = .9 + gap / TS * .2; W.emit('growl'); W.shake = Math.max(W.shake, .05); }
   }
@@ -861,7 +875,7 @@
         break;
       }
       case 'I': {
-        e.hurt = Math.max(0, e.hurt - dt);
+        e.hurt = Math.max(0, e.hurt - dt); e.stompCool = Math.max(0, e.stompCool - dt);
         const nx = e.x + e.vx * dt;
         const tx = Math.floor((e.vx < 0 ? nx : nx + e.w) / TS);
         const tyBody = Math.floor((e.y + e.h - 1) / TS), below = tile(W, tx, Math.floor((e.y + e.h + 2) / TS));
@@ -1043,9 +1057,24 @@
     e.ground = false;
     return 0;
   }
+  // Minions a boss calls in. They vanish when the boss falls or you respawn.
+  function spawnMinion(W, type, x, y) {
+    const m = makeEnemy(type, Math.floor(x / TS), Math.floor(y / TS), W.def.tuning);
+    m.summoned = true; W.enemies.push(m);
+    burst(W, m.x + m.w / 2, m.y + m.h / 2, 10, ['#8F81AB', '#463C6B'], 100, 0, 2);
+    return m;
+  }
+  const minions = W => W.enemies.filter(m => m.alive && m.summoned).length;
+  // Is there floor just ahead of a walking boss's front foot?
+  const groundAhead = (W, e, dir) => isFloor(tile(W, Math.floor((dir > 0 ? e.x + e.w + 2 : e.x - 2) / TS), Math.floor((e.y + e.h + 2) / TS)));
+  // The Last Keg's minion waves draw from every kind of enemy.
+  const WAVE = ['B', 'K', 'F', 'J', 'S', 'G', 'R', 'Z', 'W', 'A', 'I', 'X'];
+
+  // Each arena's def.bossMode gives its fight a twist (see bosses.js).
   function stepBoss(W, e, dt, playing) {
     const p = W.player, px = p.x + p.w / 2, py = p.y + p.h / 2, ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     const live = playing && !p.dead, rage = e.hp <= e.maxHp / 2, toward = Math.sign(px - ex) || e.face;
+    const mode = W.def.bossMode;
     e.hurt = Math.max(0, e.hurt - dt); e.stompCool = Math.max(0, e.stompCool - dt);
     if (e.y > W.h * TS + 40) { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
     if (!e.awake) {
@@ -1053,23 +1082,40 @@
       if (!live || Math.abs(px - ex) > TS * 12 || Math.abs(py - ey) > TS * 14) return;
       wakeBoss(W, e);
     }
+    // Colossus Reborn: at half health it calls two golems and is armored until they fall.
+    if (mode === 'armor' && rage && !e.armorCalled) {
+      e.armorCalled = true;
+      for (const d of [-1, 1]) spawnMinion(W, 'I', e.ox + d * TS * 8, e.y + e.h - 4).guard = true;
+      W.floaters.push({ x: ex, y: e.y - 16, t: 'armored! break its golems', life: 2, c: '#CFC6E8' }); W.emit('clank');
+    }
+    e.armored = mode === 'armor' && W.enemies.some(m => m.alive && m.guard);
     switch (e.type) {
       case '5': {
         // The Bellwether: plod toward you, wind up, charge until it hits a wall, then reel.
         bossFall(W, e, dt);
         if (e.state === 'idle') {
           e.face = toward;
-          if (e.ground) moveX(W, e, e.face * 55 * dt);
+          if (e.ground && groundAhead(W, e, e.face)) moveX(W, e, e.face * 55 * dt);
           if ((e.wait -= dt) <= 0 && live && e.ground) { e.state = 'wind'; e.wait = rage ? .45 : .7; W.emit('snort'); }
         } else if (e.state === 'wind') {
-          e.face = toward;
+          if (!e.rebound) e.face = toward;
           if ((e.wait -= dt) <= 0) { e.state = 'charge'; e.wait = 3; }
         } else if (e.state === 'charge') {
           if (Math.random() < .5) W.particles.push({ x: ex - e.face * e.w / 2, y: e.y + e.h - 2, vx: -e.face * 60, vy: -40, life: .4, max: .4, c: '#8F81AB', size: 3, g: 100 });
+          // The Last Charge: it leaves a trail of fire.
+          if (mode === 'fire' && (e.trail = (e.trail || 0) - dt) <= 0) {
+            e.trail = .1;
+            W.projectiles.push({ kind: 'flame', x: ex - 7, y: e.y + e.h - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.2 });
+          }
           if (moveX(W, e, e.face * (rage ? 520 : 420) * dt) || (e.wait -= dt) <= 0) {
             e.state = 'stun'; e.wait = rage ? 1.4 : 1.8;
             W.shake = Math.max(W.shake, .35); W.emit('slam');
             burst(W, e.face > 0 ? e.x + e.w : e.x, ey, 18, ['#CFC6E8', '#FFB547', '#8F81AB'], 200, 300, 3);
+            // The Bell Pit: the slam shakes beetles down from the ceiling.
+            if (mode === 'beetles' && minions(W) < 4) for (let k = 0; k < 2; k++) spawnMinion(W, 'B', ex - e.face * TS * (2 + k * 3), TS * 2);
+            // The Thunder Fold: on the ice it bounces off and charges straight back once.
+            if (mode === 'ice' && !e.rebound) { e.rebound = true; e.state = 'wind'; e.wait = .35; e.face = -e.face; }
+            else e.rebound = false;
           }
         } else if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? .8 : 1.3; }
         break;
@@ -1081,7 +1127,11 @@
         if (e.state === 'idle' || e.state === 'fly') {
           e.state = 'fly'; e.face = toward;
           e.x += (hx - e.x) * Math.min(1, dt * 2); e.y += (hy - e.y) * Math.min(1, dt * 2);
-          if ((e.cool -= dt) <= 0 && live) { e.cool = rage ? .55 : .9; W.projectiles.push({ x: ex - 5, y: e.y + e.h - 4, w: 10, h: 10, vx: 0, vy: 230, life: 4 }); W.emit('spit'); }
+          if ((e.cool -= dt) <= 0 && live) {
+            e.cool = rage ? .55 : .9; W.emit('spit');
+            // The Blackened Sky: embers fall three at a time, fanning out.
+            for (const vx of mode === 'storm' ? [-90, 0, 90] : [0]) W.projectiles.push({ x: ex - 5, y: e.y + e.h - 4, w: 10, h: 10, vx, vy: 230, life: 4 });
+          }
           if ((e.wait -= dt) <= 0 && live) { e.state = 'aim'; e.wait = .6; W.emit('buzz'); }
         } else if (e.state === 'aim') {
           e.face = toward; e.y -= 30 * dt;
@@ -1098,7 +1148,11 @@
           }
         } else if (e.state === 'rest') {
           bossFall(W, e, dt);
-          if ((e.wait -= dt) <= 0) e.state = 'rise';
+          if ((e.wait -= dt) <= 0) {
+            e.state = 'rise';
+            // The Soot Nest: she calls a soot bat as she takes off.
+            if (mode === 'bats' && minions(W) < 3) spawnMinion(W, 'F', ex, e.oy + TS * 2);
+          }
         } else {
           e.y -= 170 * dt; e.x += (hx - e.x) * Math.min(1, dt);
           if (e.y <= hy) { e.state = 'fly'; e.wait = rage ? 3.5 : 5; }
@@ -1108,17 +1162,29 @@
       case '7': {
         // The Ash Marksman: fire a fan of arrows, again, then leap somewhere new.
         const land = bossFall(W, e, dt);
+        // Hollow Range: he fades out (and can't be hit) while he leaps and just after.
+        e.phased = mode === 'fade' && (e.state === 'leap' || e.state === 'vanish');
         if (e.state === 'leap') {
           moveX(W, e, e.vx * dt);
-          if (land) { e.state = 'idle'; e.wait = .6; e.vx = 0; W.shake = Math.max(W.shake, .12); }
+          if (land) { e.state = mode === 'fade' ? 'vanish' : 'idle'; e.wait = mode === 'fade' ? .9 : .6; e.vx = 0; W.shake = Math.max(W.shake, .12); }
           break;
         }
+        if (e.state === 'vanish') { if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = .5; } break; }
         e.face = toward;
         if ((e.wait -= dt) > 0 || !live || !e.ground) break;
         e.moves = (e.moves || 0) + 1;
         if (e.moves % 3 === 0) {
-          const tx = e.ox + (Math.random() * 2 - 1) * TS * 10;
+          // The Archery Loft: he keeps to his own bank of the pool.
+          const spread = mode === 'lifts' ? 5 : 10;
+          const tx = e.ox + (Math.random() * 2 - 1) * TS * spread;
           e.vx = Math.max(-420, Math.min(420, (tx - e.x) / .9)); e.vy = -760; e.ground = false; e.state = 'leap'; W.emit('hop');
+        } else if (mode === 'rain' && e.moves % 3 === 2) {
+          // The Final Volley: arrows loosed high that come down around you.
+          for (let k = 0; k < (rage ? 7 : 5); k++) {
+            const t = 1.1 + Math.random() * .3, g = 700, tx = px + (k - 2) * 40;
+            W.projectiles.push({ kind: 'arrow', x: ex - 5, y: e.y - 6, w: 10, h: 6, vx: (tx - ex) / t, vy: (py - e.y) / t - g * t / 2, g, life: 5 });
+          }
+          e.wait = 1.4; W.emit('bow');
         } else {
           const n = rage ? 5 : 3, ax = ex + e.face * 14, ay = e.y + 14, base = Math.atan2(py - ay, px - ax);
           for (let k = 0; k < n; k++) {
@@ -1133,17 +1199,28 @@
         // The Iron Colossus: lumber toward you, crouch, leap at you, and land with shockwaves
         // that run along the floor both ways (two pairs once it's angry).
         const land = bossFall(W, e, dt);
+        const waves = (list, y) => { for (const [d, sp] of list) W.projectiles.push({ kind: 'shock', x: ex - 11 + d * e.w / 2, y, w: 22, h: 16, vx: d * sp, vy: 0, life: 3 }); };
         if (land > 300) {
           W.shake = Math.max(W.shake, .45); W.emit('slam');
           burst(W, ex, e.y + e.h, 20, ['#8F81AB', '#CFC6E8'], 220, 300, 3);
-          const fy = e.y + e.h - 16, waves = rage ? [[-1, 300], [1, 300], [-1, 190], [1, 190]] : [[-1, 300], [1, 300]];
-          for (const [d, sp] of waves) W.projectiles.push({ kind: 'shock', x: ex - 11 + d * e.w / 2, y: fy, w: 22, h: 16, vx: d * sp, vy: 0, life: 3 });
+          waves(rage ? [[-1, 300], [1, 300], [-1, 190], [1, 190]] : [[-1, 300], [1, 300]], e.y + e.h - 16);
+          // The Iron Quarry: the landing shakes rocks down from the ceiling around you.
+          if (mode === 'quarry') for (let k = 0; k < 4; k++) W.projectiles.push({ kind: 'rock', x: px + (Math.random() * 2 - 1) * TS * 6 - 7, y: TS + 4, w: 14, h: 14, vx: 0, vy: 0, g: 700 + Math.random() * 300, life: 4 });
           e.state = 'idle'; e.wait = rage ? 2.2 : 3.2;
+          // Landed in lava? It heaves itself straight back out toward its spot.
+          if (tile(W, Math.floor(ex / TS), Math.floor((e.y + e.h - 4) / TS)) === '!') {
+            e.state = 'leap'; e.vy = -820; e.ground = false; e.vx = Math.max(-220, Math.min(220, (e.ox - e.x) * 1.1));
+          }
         }
         if (e.state === 'leap') { moveX(W, e, e.vx * dt); break; }
         e.face = toward;
         if (e.state === 'idle') {
-          if (e.ground) moveX(W, e, e.face * 45 * dt);
+          if (e.ground && groundAhead(W, e, e.face)) moveX(W, e, e.face * 45 * dt);
+          // The Anvil Floor: it pounds the ground as it walks, sending small waves.
+          if (mode === 'anvil' && e.ground && (e.cool -= dt) <= 0) {
+            e.cool = rage ? 1.2 : 1.8; W.shake = Math.max(W.shake, .15); W.emit('slam');
+            waves([[-1, 220], [1, 220]], e.y + e.h - 16);
+          }
           if ((e.wait -= dt) <= 0 && live && e.ground) { e.state = 'crouch'; e.wait = .5; }
         } else if (e.state === 'crouch' && (e.wait -= dt) <= 0) {
           e.state = 'leap'; e.vy = -820; e.ground = false; e.vx = Math.max(-220, Math.min(220, (px - ex) * 1.1)); W.emit('hop');
@@ -1157,21 +1234,31 @@
         e.face = toward;
         if (e.ground) {
           const dir = e.dir || -1;
-          if (moveX(W, e, dir * 50 * dt) || Math.abs(e.x - e.ox) > TS * 5) e.dir = -dir;
+          if (!groundAhead(W, e, dir) || moveX(W, e, dir * 50 * dt) || Math.abs(e.x - e.ox) > TS * 5) e.dir = -dir;
+        }
+        // The Last Keg: every few seconds he calls in another kind of enemy.
+        if (mode === 'waves' && live && (e.cool -= dt) <= 0) {
+          e.cool = rage ? 5 : 7;
+          if (minions(W) < 4) {
+            const type = WAVE[(e.wave = ((e.wave ?? -1) + 1) % WAVE.length)];
+            const fly = 'FGWZ'.includes(type), x = e.ox + (Math.random() < .5 ? -1 : 1) * TS * (4 + Math.random() * 6);
+            spawnMinion(W, type, x, fly ? e.y - TS * 3 : type === 'X' ? TS * 2 : e.y + e.h - 4);
+            W.floaters.push({ x: ex, y: e.y - 10, t: 'to me!', life: 1, c: '#FF6B3D' });
+          }
         }
         if ((e.wait -= dt) > 0 || !live) break;
         e.moves = (e.moves || 0) + 1;
-        const carts = W.enemies.filter(c => c.alive && c.summoned).length;
+        const carts = W.enemies.filter(c => c.alive && c.summoned && c.type === '@').length;
         if (e.moves % 3 === 0 && carts < 2) {
-          const c = makeEnemy('@', Math.floor(ex / TS), Math.floor((e.y + e.h - 1) / TS), W.def.tuning);
-          c.hp = c.maxHp = 3; c.vx = toward * 70; c.summoned = true;
-          W.enemies.push(c);
+          const c = spawnMinion(W, '@', ex, e.y + e.h - 4);
+          c.hp = c.maxHp = 3; c.vx = toward * 70;
           W.floaters.push({ x: ex, y: e.y - 10, t: 'TNT!', life: 1, c: '#FF6B3D' });
           e.wait = 1.6; W.emit('snort');
         } else {
           for (let k = 0; k < (rage ? 2 : 1); k++) {
             const t = .9 + k * .3, g = 900, tx = px - k * toward * 48;
-            W.projectiles.push({ kind: 'bomb', x: ex - 6, y: e.y - 6, w: 12, h: 12, vx: (tx - ex) / t, vy: (py - e.y) / t - g * t / 2, g, life: 4 });
+            // The Fuse Hall: bombs leave fire. The Blasting Court: bombs split in three.
+            W.projectiles.push({ kind: 'bomb', x: ex - 6, y: e.y - 6, w: 12, h: 12, vx: (tx - ex) / t, vy: (py - e.y) / t - g * t / 2, g, life: 4, burn: mode === 'fuse', cluster: mode === 'cluster' });
           }
           e.wait = rage ? 1.1 : 1.5; W.emit('lob');
         }
@@ -1186,6 +1273,15 @@
       if (b.g) b.vy += b.g * dt;
       b.x += b.vx * dt; b.y += (b.vy || 0) * dt; b.life -= dt;
       const bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      // A shockwave runs out where the floor under it ends.
+      if (b.kind === 'shock' && !isFloor(tile(W, Math.floor(bx / TS), Math.floor((b.y + b.h + 2) / TS)))) {
+        b.life = 0; burst(W, bx, b.y + b.h, 6, ['#FF6B3D', '#FFE2A8'], 80, 200, 2); continue;
+      }
+      // A cluster bomb splits in three at the top of its arc.
+      if (b.kind === 'bomb' && b.cluster && b.vy > 0) {
+        b.cluster = false;
+        for (const d of [-1, 1]) W.projectiles.push({ ...b, x: b.x + d * 4, vx: b.vx + d * 130 });
+      }
       if (isSolid(tile(W, Math.floor(bx / TS), Math.floor(by / TS)))) {
         b.life = 0; burst(W, bx, by, 6, WARM, 90, 200, 2);
         // The Powder King's bombs burst where they land and hurt anyone close by.
@@ -1193,6 +1289,8 @@
           burst(W, bx, by - 6, 22, ['#FFF1CF', '#FFB547', '#FF6B3D', '#463C6B'], 220, 300, 3);
           ring(W, bx, by - 6, 52, '255,181,71', .35); W.shake = Math.max(W.shake, .15); W.emit('pop');
           if (playing && !p.dead && Math.hypot(p.x + p.w / 2 - bx, p.y + p.h / 2 - by) < 52) hurt(W);
+          // In the Fuse Hall the bombs leave a patch of fire behind.
+          if (b.burn) W.projectiles.push({ kind: 'flame', x: bx - 7, y: Math.floor(by / TS) * TS - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.5 });
         }
       } else if (playing && !p.dead && overlap(p, b)) { b.life = 0; hurt(W); }
       if (Math.random() < .4) W.particles.push({ x: bx, y: by, vx: -b.vx * .1, vy: -20, life: .3, max: .3, c: '#FF6B3D', size: 2, g: 0 });
@@ -1402,18 +1500,19 @@
     if (hordeCaught(W, p)) return;
 
     for (const e of W.enemies) {
-      if (!e.alive || !overlap(p, e)) continue;
+      if (!e.alive || e.phased || !overlap(p, e)) continue;
       const spec = LF.ENEMIES[e.type];
       if (e.type === 'G' && e.fade > .85) continue;
-      // A boss's head can be stomped again and again (with a short pause between).
-      if (spec.boss) {
+      // Armored heads (bosses, and golems until their last hit) can be stomped again and
+      // again, with a short pause between: 3 damage to a boss, 1 to a golem.
+      if (spec.stomp && (spec.boss || e.hp > 1)) {
         if (p.vy > 0 && p.y + p.h - e.y < 18) {
           p.vy = (input.jump ? -680 : -520) * Math.sqrt(T.gravity); p.jumping = input.jump;
           if (e.stompCool <= 0) {
             e.stompCool = .4; W.shake = .15;
             W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
             W.emit('stomp', { type: e.type });
-            shootEnemy(W, e, 0, null, 'stomp', 3);
+            shootEnemy(W, e, 0, null, 'stomp', spec.boss ? 3 : 1);
           }
         } else if (e.stompCool <= 0) { hurt(W); if (p.dead) return; }
         continue;
@@ -1422,7 +1521,7 @@
         e.alive = false; dropAmmo(W, e); p.vy = (input.jump ? -620 : -460) * Math.sqrt(T.gravity); p.jumping = input.jump;
         burst(W, e.x + e.w / 2, e.y + e.h / 2, 14, ['#FF6B3D', '#463C6B'], 160, 500);
         W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'stomp', life: .8, c: '#FF6B3D' });
-        W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp', { type: e.type });
+        W.shake = .12; W.freeze = .05; ring(W, e.x + e.w / 2, e.y + e.h / 2, 28, '255,107,61'); W.emit('stomp', { type: e.type, kill: true });
       } else { hurt(W); if (p.dead) return; }
     }
 

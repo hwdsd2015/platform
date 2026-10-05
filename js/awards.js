@@ -70,7 +70,7 @@
     // Game events from the play loop.
     event(ev) {
       const d = ev.data || {};
-      if (ev.type === 'stomp') bump('stomp');
+      if (ev.type === 'stomp') { bump('stomp'); if (d.type === 'I' && d.kill) earn('golem'); }
       else if (ev.type === 'zap') { bump('zap'); if (d.type === 'I') earn('golem'); if (d.type === '*') earn('bubble'); }
       else if (ev.type === 'walljump') bump('walljump');
       else if (ev.type === 'djump') bump('djump');

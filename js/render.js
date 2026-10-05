@@ -500,7 +500,8 @@
           break;
         }
         case '7': {
-          // The Ash Marksman: a tall hooded archer with a longbow.
+          // The Ash Marksman: a tall hooded archer with a longbow. Faded out, he's a ghost.
+          if (e.phased) ctx.globalAlpha = .18;
           const hurt = e.hurt > 0, step = reduced || !e.ground ? 0 : Math.sin(clock * 6 + e.ox) * 2;
           ctx.fillStyle = '#1A1530'; ctx.fillRect(cx - 8, by - 12 + Math.max(0, step), 6, 12); ctx.fillRect(cx + 2, by - 12 + Math.max(0, -step), 6, 12);
           ctx.fillStyle = '#7A2E1C'; ctx.fillRect(cx - f * 12 - 3, by - 44, 6, 18);
@@ -514,6 +515,7 @@
           ctx.strokeStyle = '#C08A5C'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(6, 0, 16, -1.15, 1.15); ctx.stroke();
           ctx.strokeStyle = 'rgba(217,208,240,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6 + 16 * Math.cos(1.15), -16 * Math.sin(1.15)); ctx.lineTo(6 + 16 * Math.cos(1.15), 16 * Math.sin(1.15)); ctx.stroke();
           ctx.restore();
+          ctx.globalAlpha = 1;
           break;
         }
         case '8': {
@@ -530,6 +532,11 @@
           ctx.fillStyle = '#6E6186'; for (let k = 0; k < 4; k++) ctx.fillRect(cx - 22 + k * 13, by - 30 + crouch, 5, 5);
           ctx.globalAlpha = .9; ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(cx, by - 46 + crouch, 6 * flick(e.ox, .25), 0, TAU); ctx.fill();
           ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(cx, by - 46 + crouch, 2.5, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+          if (e.armored) {
+            // Armored: a pale shell of light until its golems are broken.
+            ctx.strokeStyle = `rgba(207,198,232,${reduced ? .6 : .45 + Math.sin(clock * 6) * .2})`; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.ellipse(cx, by - 40, 46, 44, 0, 0, TAU); ctx.stroke();
+          }
           break;
         }
         case '9': {
@@ -974,6 +981,18 @@
           ctx.beginPath(); ctx.moveTo(x - d * 14, y); ctx.quadraticCurveTo(x - d * 2, y - b.h * 1.4, x + d * 11, y); ctx.fill();
           ctx.fillStyle = 'rgba(255,226,168,.9)';
           ctx.beginPath(); ctx.moveTo(x - d * 6, y); ctx.quadraticCurveTo(x + d * 2, y - b.h * .8, x + d * 9, y); ctx.fill();
+          continue;
+        }
+        if (b.kind === 'flame') {
+          // A patch of fire left on the floor; it dies down as it burns out.
+          const x = b.x + b.w / 2, y = b.y + b.h, k = Math.min(1, b.life / .6) * flick(x, .3);
+          ctx.fillStyle = 'rgba(255,107,61,.85)'; ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.quadraticCurveTo(x - 6, y - 10 * k, x, y - 18 * k); ctx.quadraticCurveTo(x + 6, y - 10 * k, x + 7, y); ctx.fill();
+          ctx.fillStyle = 'rgba(255,226,168,.9)'; ctx.beginPath(); ctx.moveTo(x - 3, y); ctx.quadraticCurveTo(x, y - 9 * k, x + 3, y); ctx.fill();
+          continue;
+        }
+        if (b.kind === 'rock') {
+          ctx.fillStyle = '#5E5173'; ctx.beginPath(); ctx.moveTo(b.x + 3, b.y); ctx.lineTo(b.x + b.w, b.y + 4); ctx.lineTo(b.x + b.w - 2, b.y + b.h); ctx.lineTo(b.x, b.y + b.h - 3); ctx.fill();
+          ctx.fillStyle = '#8F81AB'; ctx.fillRect(b.x + 3, b.y + 2, 5, 3);
           continue;
         }
         if (b.kind === 'bomb') {
