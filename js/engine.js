@@ -99,7 +99,7 @@
   }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
   // Every boss falls to exactly this many hits: a stomp, a bullet, an explosive round, a
-  // grenade blast or a TNT blast each count as one (a grenade can land two). And every dazed (or stunned, or resting)
+  // grenade blast or a TNT blast each count as one (a grenade's three blasts can land three). And every dazed (or stunned, or resting)
   // moment lasts DAZE times as long as it would otherwise.
   const BOSS_HITS = 25, DAZE = 1.75;
   // Enemies that live in water: their map cell stays water.
@@ -523,7 +523,7 @@
 
   // An explosion hits every enemy within `r` once (the horde is immune) and destroys any
   // embers or arrows in range. `shot` is the shot it came from: a grenade's bounces all
-  // share one, so a grenade hits each enemy at most twice.
+  // share one, so a grenade hits each enemy at most three times, once per blast.
   // A `lethal` blast (a TNT cart going up) kills outright instead: golems die and other
   // carts explode too. To a boss it's just one more hit.
   function explode(W, x, y, r, big, shot = newShot(W), lethal = false) {
@@ -614,7 +614,7 @@
     W.ammoFly = W.ammoFly.filter(b => !b.done);
   }
 
-  // A shot door takes one hit per shot (a grenade up to two) and opens on its last one.
+  // A shot door takes one hit per shot (a grenade up to three) and opens on its last one.
   function hitShotDoor(W, d, shot) {
     if (shot) {
       const n = d.hitBy[shot] || 0;
@@ -634,14 +634,14 @@
   }
 
   // Every shot (bullet, explosive round or grenade) gets an id and a limit on how many
-  // times it can hit the same enemy however often it splashes or blasts: once, or twice
-  // for a grenade.
+  // times it can hit the same enemy however often it splashes or blasts: once, or three
+  // times for a grenade (once per blast).
   const newShot = (W, max = 1) => { W.shots = (W.shots || 0) + 1; (W.shotMax ||= {})[W.shots] = max; return W.shots; };
   // One hit on an enemy: armored ones (golems, TNT carts, bosses) lose `dmg` points, the rest die.
   function shootEnemy(W, e, dir, shot, how = 'zap', dmg = 1) {
     const boss = isBoss(e);
     if (shot) {
-      // (A grenade can hit an enemy twice, on separate bounces, bosses included.)
+      // (A grenade's three blasts can each land a hit, bosses included.)
       const hits = (e.hitBy ||= {})[shot] || 0;
       if (hits >= (W.shotMax[shot] || 1)) return;
       e.hitBy[shot] = hits + 1;
@@ -1872,7 +1872,7 @@
       p.ammo -= cost; p.cool = .4; p.flash = .1;
       const g = LF.gunPos(p);
       if (kind === 'rocket') W.bullets.push({ id: newShot(W), kind, x: g.x, y: g.y, vx: p.face * 430, vy: 0, life: 1.6, s });
-      else W.bullets.push({ id: newShot(W, 2), kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0, s });
+      else W.bullets.push({ id: newShot(W, 3), kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0, s });
       p.vx -= p.face * 70;
       W.emit(kind === 'rocket' ? 'rocket' : 'lob');
     }
