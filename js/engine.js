@@ -347,11 +347,10 @@
     Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
     if (W.def.noSpawnInv) W.player.inv = 0;
     W.projectiles = [];
-    // Bosses keep the damage you did but go back to their spot; the Powder King's carts go.
-    W.enemies = W.enemies.filter(e => !e.summoned);
+    // A boss fight carries on where it was: the boss, its damage, its guards, carts and other
+    // minions all stay as they are. (Only the horde falls back, below.)
     for (const e of W.enemies) {
-      // (A boss that had called its guards calls them again.)
-      if (isBoss(e) && e.alive) { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; e.state = 'idle'; e.wait = 1.5; e.cool = 1; e.armorCalled = false; e.phased = false; }
+      if (isBoss(e) || e.summoned) continue;
       if (e.type === 'G') { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
       if (e.type === 'X') { e.y = e.oy; e.state = 'idle'; }
       if (e.type === 'R' && e.state !== 'idle') { e.state = 'idle'; e.vx = 40 * (e.face || -1); }
