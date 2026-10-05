@@ -99,7 +99,7 @@
   }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
   // Every boss falls to exactly this many hits: a stomp, a bullet, an explosive round, a
-  // grenade or a TNT blast each count as one. And every dazed (or stunned, or resting)
+  // grenade blast or a TNT blast each count as one (a grenade can land two). And every dazed (or stunned, or resting)
   // moment lasts DAZE times as long as it would otherwise.
   const BOSS_HITS = 25, DAZE = 1.75;
   // Enemies that live in water: their map cell stays water.
@@ -641,9 +641,9 @@
   function shootEnemy(W, e, dir, shot, how = 'zap', dmg = 1) {
     const boss = isBoss(e);
     if (shot) {
-      // (A grenade can hit an enemy twice, but a boss only once: every hit on a boss is one.)
+      // (A grenade can hit an enemy twice, on separate bounces, bosses included.)
       const hits = (e.hitBy ||= {})[shot] || 0;
-      if (hits >= (boss ? 1 : W.shotMax[shot] || 1)) return;
+      if (hits >= (W.shotMax[shot] || 1)) return;
       e.hitBy[shot] = hits + 1;
     }
     if (boss) { dmg = 1; wakeBoss(W, e); }
