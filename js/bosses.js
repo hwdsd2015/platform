@@ -174,10 +174,107 @@
     };
   };
 
-  // Insert from the back so the earlier positions don't shift.
-  const L = LF.LEVELS;
-  for (let k = Math.min(FIGHTS.length, Math.floor(L.length / 10)) - 1; k >= 0; k--) {
-    const at = (k + 1) * 10;
-    L.splice(at, 0, { ...arena(k, Math.floor(k / 5)), chapter: L[at - 1].chapter, boss: true });
-  }
+  // ---- Giant fights ----
+  // A boss for every enemy and hazard that hasn't got one of its own, each level named
+  // after it ("Wick-beetle Bossfight"), halfway between the
+  // fights above (after levels 5, 15, 25 ...). The giant's spot is marked 0; def.giant says
+  // which giant it is (see GIANTS in engine.js). No lanterns here either; fruit instead.
+  // A walled arena with a ceiling and a floor: start on the left, boss gate and door on the right.
+  const hall = (w, h, extra) => B(w, h, ({ r, s, walls }) => {
+    walls(); r(0, 0, w - 1, 0); r(1, h - 3, w - 2, h - 2);
+    s(2, h - 4, 'P'); s(4, h - 4, 'Q'); s(6, h - 4, '$');
+    r(w - 4, 1, w - 4, h - 4, 'g'); s(w - 3, h - 4, 'D');
+    extra({ r, s });
+  });
+  const GIANT_FIGHTS = [
+    { giant: 'B', name: 'Wick-beetle Bossfight', dark: .55, sign: 'THE WICK MATRIARCH · she rears and slams · stomp her',
+      map: () => hall(46, 16, ({ r, s }) => { r(10, 10, 15, 10, '='); s(12, 9, 'a'); r(20, 7, 25, 7, '='); s(22, 6, 'q'); r(30, 10, 35, 10, '='); s(32, 9, 'o'); s(28, 12, '0'); }) },
+    { giant: 'J', name: 'Puddle Frog Bossfight', dark: .6, sign: 'THE BOG KING · jump his shockwaves · stomp him when he croaks',
+      map: () => hall(48, 16, ({ r, s }) => { r(20, 13, 27, 13, '~'); r(9, 10, 14, 10, '='); s(11, 9, 'b'); r(33, 10, 38, 10, '='); s(35, 9, 'a'); r(21, 7, 26, 7, '='); s(23, 6, 'q'); s(32, 12, '0'); }) },
+    { giant: 'W', name: 'Wasp Bossfight', dark: .6, sign: 'THE HIVE MOTHER · she dashes, then drops dazed',
+      map: () => hall(48, 18, ({ r, s }) => { r(8, 12, 13, 12, '='); s(10, 11, 'o'); r(34, 12, 39, 12, '='); s(36, 11, 'a'); r(19, 9, 28, 9, '='); s(23, 8, 'Q'); s(24, 5, '0'); }) },
+    { giant: 'X', name: 'Wick Spider Bossfight', dark: .66, sign: 'THE WIDOW · she drops from the ceiling · stomp her before she climbs',
+      map: () => hall(46, 16, ({ r, s }) => { r(9, 10, 13, 10, '='); s(11, 9, 'b'); r(32, 10, 36, 10, '='); s(34, 9, 'a'); s(23, 12, 'q'); s(23, 1, '0'); }) },
+    { giant: 'S', name: 'Ember Pot Bossfight', dark: .62, sign: 'THE GREAT KILN · stomp its lid while it cools',
+      map: () => hall(46, 16, ({ r, s }) => { r(7, 10, 12, 10, '='); s(9, 9, 'a'); r(33, 10, 38, 10, '='); s(35, 9, 'o'); r(18, 6, 28, 6, '='); s(20, 5, 'q'); s(23, 12, '0'); }) },
+    { giant: 'K', name: 'Thornback Bossfight', dark: .62, sign: 'THE THORN TYRANT · only stompable on its back · make it charge the wall',
+      map: () => hall(48, 16, ({ r, s }) => { r(10, 10, 15, 10, '='); s(12, 9, 'a'); r(32, 10, 37, 10, '='); s(34, 9, 'b'); r(21, 7, 27, 7, '='); s(24, 6, 'q'); s(30, 12, '0'); }) },
+    { giant: 'U', name: 'Glow Jelly Bossfight', dark: .7, sign: 'THE MOON JELLY · stomp it when it surfaces',
+      map: () => B(48, 20, ({ r, s, walls }) => {
+        walls(); r(0, 0, 47, 0); r(1, 15, 12, 18); r(35, 15, 46, 18); r(13, 15, 34, 18, '~');
+        s(2, 14, 'P'); s(4, 14, 'Q'); s(6, 14, '$'); s(9, 14, 'a');
+        r(16, 12, 21, 12, '='); s(18, 11, 'o'); r(26, 12, 31, 12, '='); s(28, 11, 'b');
+        s(24, 17, '0'); r(44, 1, 44, 14, 'g'); s(45, 14, 'D');
+      }) },
+    { giant: 'Z', name: 'Spark Bossfight', dark: .7, sign: 'THE LIVING SPARK · it dashes, then drops dazed',
+      map: () => hall(48, 18, ({ r, s }) => { r(8, 12, 13, 12, '='); s(10, 11, 'b'); r(34, 12, 39, 12, '='); s(36, 11, 'o'); r(19, 9, 28, 9, '='); s(23, 8, 'q'); s(24, 8, '0'); }) },
+    { giant: 'E', name: 'Pendulum Bossfight', dark: .62, sign: 'THE GREAT PENDULUM · hide at the sides · strike when it stops',
+      map: () => hall(46, 16, ({ r, s }) => { r(3, 9, 8, 9, '='); s(5, 8, 'a'); r(36, 9, 41, 9, '='); s(38, 8, 'o'); s(23, 1, '0'); }) },
+    { giant: 'G', name: 'Wraith Bossfight', dark: .88, sign: 'THE PALE WRAITH · it vanishes · strike when it shrieks',
+      map: () => hall(48, 18, ({ r, s }) => { r(8, 12, 13, 12, '='); s(10, 11, 'a'); r(34, 12, 39, 12, '='); s(36, 11, 'a'); r(19, 9, 28, 9, '='); s(23, 8, 'Q'); s(24, 7, '0'); }) },
+    { giant: 'Y', name: 'Lantern Pike Bossfight', dark: .68, sign: 'THE LANTERN LEVIATHAN · stomp it when it lands',
+      map: () => B(56, 20, ({ r, s, walls }) => {
+        walls(); r(0, 0, 55, 0); r(1, 14, 10, 18); r(45, 14, 54, 18); r(11, 14, 44, 18, '~');
+        s(2, 13, 'P'); s(4, 13, 'Q'); s(6, 13, '$'); s(8, 13, 'a');
+        r(18, 11, 22, 11, '='); s(20, 10, 'o'); r(33, 11, 37, 11, '='); s(35, 10, 'b'); r(26, 8, 29, 8, '='); s(27, 7, 'q');
+        s(28, 16, '0'); r(52, 1, 52, 13, 'g'); s(53, 13, 'D');
+      }) },
+    { giant: 'k', name: 'Crusher Bossfight', dark: .64, sign: 'THE GREAT CRUSHER · stomp it while it’s stuck',
+      map: () => hall(46, 16, ({ r, s }) => { r(10, 12, 11, 12); r(34, 12, 35, 12); s(16, 12, 'a'); s(30, 12, 'o'); s(23, 12, 'q'); s(23, 1, '0'); }) },
+    { giant: 'N', name: 'Leaping Gar Bossfight', dark: .66, sign: 'THE GAR LORD · it leaps between the lakes · stomp it on land',
+      map: () => B(56, 18, ({ r, s, walls }) => {
+        walls(); r(0, 0, 55, 0); r(1, 13, 54, 16); r(8, 13, 23, 16, '~'); r(32, 13, 47, 16, '~');
+        s(2, 12, 'P'); s(4, 12, 'Q'); s(6, 12, '$');
+        r(12, 9, 18, 9, '='); s(15, 8, 'a'); r(36, 9, 42, 9, '='); s(39, 8, 'o'); s(27, 12, 'b');
+        s(15, 15, '0'); r(52, 1, 52, 12, 'g'); s(53, 12, 'D');
+      }) },
+    { giant: 'f', name: 'Fire Bar Bossfight', dark: .7, sign: 'THE FIRE WHEEL · stomp or shoot its core when the fire dies',
+      map: () => hall(46, 18, ({ r, s }) => { r(8, 9, 13, 9, '='); s(10, 8, 'a'); r(33, 9, 38, 9, '='); s(35, 8, 'b'); s(16, 14, 'q'); s(23, 9, '0'); }) },
+    { giant: '*', name: 'Lava Bubble Bossfight', dark: .66, sign: 'THE MAGMA HEART · it hides in the lava · stomp it when it crusts',
+      map: () => B(52, 18, ({ r, s, walls }) => {
+        walls(); r(0, 0, 51, 0); r(1, 13, 50, 16, '!');
+        r(1, 12, 6, 12); s(2, 11, 'P'); s(4, 11, '$');
+        r(10, 10, 15, 10); s(12, 9, 'a'); r(19, 8, 24, 8); s(21, 7, 'Q'); r(29, 10, 34, 10); s(31, 9, 'o'); r(39, 12, 49, 12); s(42, 11, 'b');
+        s(25, 14, '0'); r(47, 1, 47, 11, 'g'); s(48, 11, 'D');
+      }) },
+    { giant: 'e', name: 'Spiked Pendulum Bossfight', dark: .66, sign: 'THE THORN PENDULUM · its chain cuts · strike when it stops',
+      map: () => hall(46, 16, ({ r, s }) => { r(3, 9, 8, 9, '='); s(5, 8, 'b'); r(36, 9, 41, 9, '='); s(38, 8, 'a'); s(23, 1, '0'); }) },
+    { giant: '&', name: 'Horde Bossfight', dark: .7, hordeStop: 112, hordeSpeed: .5, sign: 'THE SHADOW WALL · strike its heart when it lunges out',
+      map: () => B(130, 16, ({ r, s, walls }) => {
+        walls(); r(0, 0, 129, 0); r(1, 13, 128, 14);
+        s(1, 12, '&'); s(3, 12, '0'); s(8, 12, 'P'); s(10, 12, 'Q'); s(12, 12, '$');
+        for (let x = 20; x < 110; x += 15) { r(x, 10, x + 4, 10, '='); s(x + 2, 9, 'aob'[(x / 15) % 3 | 0]); s(x + 9, 12, 'q'); }
+        r(126, 1, 126, 12, 'g'); s(127, 12, 'D');
+      }) },
+    { giant: '%', name: 'Rising Horde Bossfight', dark: .74, hordeStop: 12, hordeSpeed: .55, sign: 'CLIMB ↑ and strike the heart when it surges',
+      map: () => B(28, 70, ({ r, s, walls }) => {
+        walls(); r(0, 0, 27, 0); r(1, 67, 26, 68);
+        s(0, 69, '%'); s(14, 66, '0'); s(4, 66, 'P'); s(6, 66, 'Q'); s(8, 66, '$');
+        const A = [4, 9], M = [11, 16], C = [18, 23], cycle = [C, M, A, M];
+        for (let k = 0, y = 65; y >= 14; k++, y -= 3) {
+          const [x0, x1] = cycle[k % 4]; r(x0, y, x1, y);
+          if (k % 3 === 1) s(x0 + 2, y - 1, 'aob'[(k / 3 | 0) % 3]); else if (k % 3 === 2) s(x0 + 2, y - 1, 'q');
+        }
+        r(1, 11, 10, 11); r(11, 11, 16, 11, '='); r(17, 11, 24, 11); r(25, 11, 26, 11);
+        r(25, 1, 25, 10, 'g'); s(26, 10, 'D');
+      }) },
+  ];
+  const giantArena = k => {
+    const f = GIANT_FIGHTS[k], map = f.map();
+    return {
+      name: f.name, dark: f.dark, map, giant: f.giant, giantFight: true, bossHp: 1 + k * .05,
+      signs: [{ x: 2, y: signY(map), t: f.sign }],
+      ...(f.hordeStop != null ? { hordeStop: f.hordeStop, tuning: { [f.giant]: { speed: f.hordeSpeed } } } : {}),
+    };
+  };
+
+  // Lay the fights in: a boss fight after every 10th level and a giant halfway between.
+  const L = LF.LEVELS, regular = L.slice(), out = [];
+  regular.forEach((lv, i) => {
+    out.push(lv);
+    const n = i + 1, chapter = lv.chapter;
+    if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), chapter, boss: true });
+    else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...giantArena((n - 5) / 10), chapter, boss: true });
+  });
+  L.length = 0; L.push(...out);
 })();

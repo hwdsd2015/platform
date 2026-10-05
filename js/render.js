@@ -318,6 +318,78 @@
       ctx.restore();
     }
 
+    // Giant bosses. Creature giants are their small cousin's drawing, scaled up; the rest are
+    // drawn here. Dazed giants get stars over their heads.
+    function drawGiant(e) {
+      if (!e.alive) return;
+      const s = LF.ENEMIES[e.type], cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+      if (s.giant) {
+        const proxy = { ...e, type: s.giant };
+        if (e.phased && s.giant !== 'G') ctx.globalAlpha = .3;
+        if (e.state === 'flip') {
+          ctx.save(); ctx.translate(0, cy); ctx.scale(1, -1); ctx.translate(0, -cy); scaled(proxy, drawEnemy); ctx.restore();
+        } else scaled(proxy, drawEnemy);
+        ctx.globalAlpha = 1;
+        if (e.hurt > 0) { ctx.fillStyle = 'rgba(255,241,207,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy, e.w * .45, e.h * .45, 0, 0, TAU); ctx.fill(); }
+      } else if (e.type === 'E+' || e.type === 'e+') {
+        // A pendulum: the chain (thorny for the Thorn Pendulum), then a huge spiked ball.
+        const bx = e.bx ?? cx, by = e.by ?? cy, ax = e.ax ?? cx, ay = e.ay ?? e.y - 100;
+        ctx.fillStyle = '#2A2348'; ctx.fillRect(ax - 9, ay - 4, 18, 8);
+        if (e.type === 'e+') {
+          const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+          ctx.strokeStyle = '#7A2E1C'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+          ctx.fillStyle = '#CFC6E8';
+          for (let k = 1; k < 20; k++) {
+            const f = k / 20, px = ax + dx * f, py = ay + dy * f, side = k % 2 ? 1 : -1;
+            ctx.beginPath(); ctx.moveTo(px - ux * 4, py - uy * 4); ctx.lineTo(px - uy * side * 9, py + ux * side * 9); ctx.lineTo(px + ux * 4, py + uy * 4); ctx.fill();
+          }
+        } else {
+          ctx.strokeStyle = '#6E6186'; ctx.lineWidth = 3; ctx.setLineDash([6, 3]);
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+        }
+        ctx.save(); ctx.translate(bx, by); ctx.scale(2.5, 2.5);
+        ctx.fillStyle = e.hurt > 0 ? '#FFF1CF' : '#CFC6E8';
+        for (let k = 0; k < 8; k++) {
+          const a = k / 8 * TAU + (e.phase || 0) * .3;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a - .25) * 10, Math.sin(a - .25) * 10); ctx.lineTo(Math.cos(a) * 17, Math.sin(a) * 17); ctx.lineTo(Math.cos(a + .25) * 10, Math.sin(a + .25) * 10); ctx.fill();
+        }
+        ctx.fillStyle = e.hurt > 0 ? '#CFC6E8' : '#4C4062'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#6E6186'; ctx.beginPath(); ctx.arc(-3, -3, 4, 0, TAU); ctx.fill();
+        ctx.fillStyle = e.state === 'rest' ? '#9A8FBF' : '#FF6B3D'; ctx.fillRect(-4, 1, 8, 2.5);
+        ctx.restore();
+      } else if (e.type === 'f+') {
+        // The Fire Wheel's core: an iron block with a furnace eye (its arms are drawn with the fire).
+        ctx.fillStyle = e.hurt > 0 ? '#CFC6E8' : '#3A3350'; ctx.fillRect(e.x, e.y, e.w, e.h);
+        ctx.fillStyle = '#2A2348'; ctx.fillRect(e.x, e.y, e.w, 5); ctx.fillRect(e.x, e.y + e.h - 5, e.w, 5); ctx.fillRect(e.x, e.y, 5, e.h); ctx.fillRect(e.x + e.w - 5, e.y, 5, e.h);
+        ctx.fillStyle = e.armsOn ? '#FF6B3D' : '#7A2E1C'; ctx.beginPath(); ctx.arc(cx, cy, 14 * (e.armsOn ? flick(e.ox, .2) : 1), 0, TAU); ctx.fill();
+        ctx.fillStyle = e.armsOn ? '#FFE2A8' : '#463C6B'; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, TAU); ctx.fill();
+      } else if (e.type === 'k+') {
+        // The Great Crusher: a crusher block, three times the size.
+        const j = e.state === 'shake' && !reduced ? (Math.random() - .5) * 4 : 0;
+        ctx.save(); ctx.translate(e.x + j, e.y); ctx.scale(e.w / 30, e.h / 30);
+        ctx.fillStyle = '#CFC6E8';
+        for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(1 + k * 7, 27); ctx.lineTo(4.5 + k * 7, 33); ctx.lineTo(8 + k * 7, 27); ctx.fill(); }
+        ctx.fillStyle = e.hurt > 0 ? '#CFC6E8' : '#4C4062'; ctx.fillRect(0, 0, 30, 28);
+        ctx.fillStyle = '#6E6186'; ctx.fillRect(0, 0, 30, 3); ctx.fillRect(0, 0, 3, 28);
+        ctx.fillStyle = '#2A2348'; ctx.fillRect(27, 0, 3, 28);
+        ctx.fillStyle = e.state === 'stuck' ? '#9A8FBF' : '#FF6B3D'; ctx.fillRect(6, 9, 7, 3); ctx.fillRect(17, 9, 7, 3);
+        ctx.fillStyle = '#211C3F'; ctx.fillRect(9, 19, 12, 3);
+        ctx.restore();
+      } else {
+        // A horde's heart: a knot of shadow with a red eye that opens when it lunges.
+        const pulse = reduced ? 1 : 1 + Math.sin(clock * 6) * .06, open = e.state === 'lunge';
+        ctx.fillStyle = e.hurt > 0 ? '#CFC6E8' : '#07060F';
+        for (let k = 0; k < 7; k++) { const a = k / 7 * TAU + clock; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 14, cy + Math.sin(a) * 14, 16 * pulse, 0, TAU); ctx.fill(); }
+        ctx.beginPath(); ctx.arc(cx, cy, 24 * pulse, 0, TAU); ctx.fill();
+        ctx.fillStyle = open ? '#FF6B3D' : '#7A2E1C'; ctx.beginPath(); ctx.ellipse(cx, cy, 11, open ? 9 : 3, 0, 0, TAU); ctx.fill();
+        if (open) { ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, TAU); ctx.fill(); }
+      }
+      if (e.dazed > 0) {
+        ctx.fillStyle = '#FFE2A8';
+        for (let k = 0; k < 3; k++) { const a = clock * 5 + k * 2.1; ctx.fillRect(cx + Math.cos(a) * e.w * .35 - 2.5, e.y - 10 + Math.sin(a) * 5 - 2.5, 5, 5); }
+      }
+    }
+
     function drawEnemy(e) {
       const cx = e.x + e.w / 2, by = e.y + e.h, f = e.face || -1;
       if (!e.alive) {
@@ -824,6 +896,7 @@
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 * (b.s || 1) });
       for (const b of W.ammoFly) out.push({ x: b.x, y: b.y, r: 28 });
       for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }
+      for (const e of W.enemies) if (e.alive && e.type === 'f+') { out.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, r: 200 }); for (const b of LF.wheelBalls(e).filter((_, k) => k % 3 === 2)) out.push({ x: b.x, y: b.y, r: 70 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
       for (const b of W.projectiles) out.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, r: 60 * Math.max(1, b.w / 10) });
@@ -899,7 +972,8 @@
 
       for (const e0 of W.enemies) {
         if (!e0.alive) continue;
-        scaled(e0, e => {
+        const g0 = LF.ENEMIES[e0.type].giant;
+        scaled(g0 ? { ...e0, type: g0 } : e0, e => {
         const cx = e.x + e.w / 2, by = e.y + e.h, f = e.face || -1;
         ctx.fillStyle = '#FF6B3D';
         if (e.type === 'B') { ctx.fillRect(cx + f * 8 - 1.5, by - 9, 3, 3); ctx.fillRect(cx + f * 4 - 1.5, by - 10, 3, 3); }
@@ -983,6 +1057,14 @@
           ctx.beginPath(); ctx.moveTo(x - d * 6, y); ctx.quadraticCurveTo(x + d * 2, y - b.h * .8, x + d * 9, y); ctx.fill();
           continue;
         }
+        if (b.kind === 'web') {
+          // A blob of web from the Widow.
+          const x = b.x + b.w / 2, y = b.y + b.h / 2;
+          ctx.strokeStyle = 'rgba(217,208,240,.85)'; ctx.lineWidth = 1.2;
+          ctx.beginPath(); for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI; ctx.moveTo(x - Math.cos(a) * 8, y - Math.sin(a) * 8); ctx.lineTo(x + Math.cos(a) * 8, y + Math.sin(a) * 8); } ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, 4.5, 0, TAU); ctx.stroke();
+          continue;
+        }
         if (b.kind === 'flame') {
           // A patch of fire left on the floor; it dies down as it burns out.
           const x = b.x + b.w / 2, y = b.y + b.h, k = Math.min(1, b.life / .6) * flick(x, .3);
@@ -1063,6 +1145,11 @@
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 3.4 * k, 4.8 * k, 0, 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 1, 1.6, 2.4, 0, 0, TAU); ctx.fill();
       }
+      // The Fire Wheel's arms glow like fire bars.
+      for (const e of W.enemies) if (e.alive && e.type === 'f+') for (const b of LF.wheelBalls(e)) {
+        ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x, b.y, 8 * flick(b.x, .15), 0, TAU); ctx.fill();
+        ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(b.x, b.y, 3.6, 0, TAU); ctx.fill();
+      }
       for (const t of W.traps) if (t.type === 'bar') for (const b of LF.barBalls(t)) {
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x, b.y, 6 * flick(b.x, .15), 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(b.x, b.y, 2.8, 0, TAU); ctx.fill();
@@ -1117,7 +1204,7 @@
       drawPlats(W);
       drawDoor(W.door);
       for (const l of W.lanterns) drawLantern(l);
-      for (const e of W.enemies) scaled(e, drawEnemy);
+      for (const e of W.enemies) LF.ENEMIES[e.type].special ? drawGiant(e) : scaled(e, drawEnemy);
       drawTraps(W);
       drawGhosts(W);
       if (!opts.hidePlayer) drawPlayer(W.player);

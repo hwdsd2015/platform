@@ -67,6 +67,36 @@
     8: { name: 'The Iron Colossus', boss: true, w: 64, h: 76, stomp: true, hp: 24, drop: 10, note: 'boss: slow; its leaps send shockwaves along the floor' },
     9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, hp: 30, drop: 10, note: 'boss: lobs bombs and sends TNT carts — blow one up beside him' },
   };
+  // Giant bosses: one for every enemy and hazard without a boss of its own. They only come
+  // from boss arenas, whose map marks the spot with 0 and whose def.giant names the giant.
+  // Creature giants are their own enemy drawn k times bigger; the rest are drawn specially.
+  // Ones whose small cousin can't be stomped can only be stomped while dazed.
+  const GIANTS = {
+    B: { name: 'The Wick Matriarch', k: 3, hp: 14 },
+    J: { name: 'The Bog King', k: 3, hp: 16 },
+    W: { name: 'The Hive Mother', k: 3, hp: 18, fly: true },
+    X: { name: 'The Widow', k: 3, hp: 20 },
+    S: { name: 'The Great Kiln', k: 3, hp: 20 },
+    K: { name: 'The Thorn Tyrant', k: 3, hp: 20 },
+    U: { name: 'The Moon Jelly', k: 3, hp: 20 },
+    Z: { name: 'The Living Spark', k: 3, hp: 22, fly: true },
+    G: { name: 'The Pale Wraith', k: 3, hp: 24, fly: true },
+    Y: { name: 'The Lantern Leviathan', k: 3, hp: 24 },
+    N: { name: 'The Gar Lord', k: 3, hp: 26 },
+    '*': { name: 'The Magma Heart', k: 3, hp: 26 },
+    E: { name: 'The Great Pendulum', w: 56, h: 56, stomp: true, hp: 24 },
+    e: { name: 'The Thorn Pendulum', w: 56, h: 56, stomp: true, hp: 28 },
+    f: { name: 'The Fire Wheel', w: 56, h: 56, stomp: true, hp: 28 },
+    k: { name: 'The Great Crusher', w: 96, h: 64, stomp: true, hp: 28 },
+    '&': { name: 'The Shadow Wall', w: 56, h: 56, stomp: true, hp: 30 },
+    '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true, hp: 30 },
+  };
+  for (const [c, g] of Object.entries(GIANTS)) {
+    const base = LF.ENEMIES[c];
+    LF.ENEMIES[c + '+'] = base
+      ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, hp: g.hp, drop: 10, fly: g.fly }
+      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, hp: g.hp, drop: 10 };
+  }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
@@ -138,6 +168,10 @@
         // Falling shingle: shakes when stood on, drops, then grows back.
         W.plats.push({ kind: 'fall', state: 'idle', t: 0, vy: 0, x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS, h: 12, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
+      } else if (c === '0' && def.giant) {
+        const liquid = ['~', '!'].find(l => rows[y - 1]?.[x] === l || rows[y + 1]?.[x] === l || rows[y][x - 1] === l || rows[y][x + 1] === l);
+        tiles[y][x] = liquid || ' ';
+        W.giantAt = { x, y };
       } else if (LF.ENEMIES[c]) { W.enemies.push(makeEnemy(c, x, y, def.tuning)); tiles[y][x] = LF.SWIMMERS[c] ? '~' : c === '*' ? '!' : ' '; }
     }
     // Markers placed underwater (start, lanterns, fruit…) leave water behind, not an air pocket.
@@ -174,6 +208,7 @@
       while (bot < h - 1 && tiles[bot + 1][tx] === '~') bot++;
       e.minY = top * TS + 10; e.maxY = Math.max(e.minY, (bot + 1) * TS - e.h);
     }
+    if (W.giantAt) W.enemies.push(makeGiant(W, def.giant, W.giantAt.x, W.giantAt.y));
     // Shot doors: each patch of touching blocks of the same kind is one door with one counter.
     W.shotDoors = []; W.shotDoorAt = {};
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -210,6 +245,39 @@
   // A level can resize and speed up or slow down each enemy type (set in the editor):
   // def.tuning = { B: { size: 1.5, speed: 2 }, ... }.
   const tune = LF.tune = (tuning, type) => ({ size: 1, speed: 1, ...(tuning || {})[type] });
+
+  // The pool (of water or lava) around tile (tx, ty): its surface, bottom and sides.
+  function measurePool(W, e, tx, ty) {
+    const liq = W.tiles[ty][tx];
+    let top = ty, l = tx, r = tx, bot = ty;
+    while (top > 0 && W.tiles[top - 1][tx] === liq) top--;
+    while (bot < W.h - 1 && W.tiles[bot + 1][tx] === liq) bot++;
+    while (l > 0 && W.tiles[top][l - 1] === liq) l--;
+    while (r < W.w - 1 && W.tiles[top][r + 1] === liq) r++;
+    e.surface = top * TS; e.bottom = (bot + 1) * TS; e.left = l * TS; e.right = Math.max(l * TS, (r + 1) * TS - e.w);
+  }
+  // A giant boss at tile (tx, ty), set up for where it lives.
+  function makeGiant(W, c, tx, ty) {
+    const key = c + '+', s = LF.ENEMIES[key];
+    const e = makeEnemy(key, tx, ty);
+    e.scale = s.k || 1; e.reach = -TS;
+    const cx = tx * TS + TS / 2, cy = ty * TS + TS / 2;
+    if (s.fly || c === 'f') { e.x = cx - e.w / 2; e.y = cy - e.h / 2; }
+    // Swimmers and the Magma Heart: find their pool's surface and sides.
+    if (c === 'U' || c === 'Y' || c === 'N' || c === '*') {
+      measurePool(W, e, tx, ty);
+      e.x = cx - e.w / 2; e.y = Math.min(e.bottom - e.h, e.surface + (c === 'U' ? TS * 1.5 : 6));
+    }
+    // Pendulums hang from the spot, swinging just above the floor below.
+    if (c === 'E' || c === 'e') {
+      let fy = ty + 1;
+      while (fy < W.h && !isFloor(W.tiles[fy][tx])) fy++;
+      e.ax = cx; e.ay = ty * TS; e.len = fy * TS - 40 - e.ay; e.phase = 0;
+      e.x = e.ax - e.w / 2; e.y = e.ay + e.len - e.h / 2;
+    }
+    e.ox = e.x; e.oy = e.y;
+    return e;
+  }
 
   function makeEnemy(type, tx, ty, tuning) {
     const s = LF.ENEMIES[type];
@@ -1031,6 +1099,11 @@
     W.floaters.push({ x, y: e.y - 18, t: `${LF.ENEMIES[e.type].name} falls!`, life: 2.2, c: '#FFB547' });
     W.projectiles = [];
     for (const c of W.enemies) if (c.summoned && c.alive) { c.alive = false; burst(W, c.x + c.w / 2, c.y + c.h / 2, 10, ['#8F81AB', '#463C6B'], 100, 300, 2); }
+    // The heart of a horde takes the horde with it.
+    if ((e.type === '&+' || e.type === '%+') && W.horde) {
+      for (let k = 0; k < 6; k++) burst(W, x + (Math.random() - .5) * TS * 6, y + (Math.random() - .5) * TS * 6, 20, ['#463C6B', '#2A2348', '#FF6B3D'], 260, 100, 4);
+      W.horde = null;
+    }
     W.emit('bossdown', { type: e.type });
     // With the last boss down, the boss gates (g) crumble.
     if (!W.enemies.some(b => b.alive && isBoss(b))) {
@@ -1069,16 +1142,46 @@
   // The Last Keg's minion waves draw from every kind of enemy.
   const WAVE = ['B', 'K', 'F', 'J', 'S', 'G', 'R', 'Z', 'W', 'A', 'I', 'X'];
 
+  // Shockwaves from a boss's feet: list of [direction, speed].
+  function shock(W, e, list) {
+    for (const [d, sp] of list) W.projectiles.push({ kind: 'shock', x: e.x + e.w / 2 - 11 + d * e.w / 2, y: e.y + e.h - 16, w: 22, h: 16, vx: d * sp, vy: 0, life: 3 });
+  }
+  // A ring of embers flying out from a point.
+  function ring8(W, x, y, n, sp) {
+    for (let k = 0; k < n; k++) { const a = k / n * TAU; W.projectiles.push({ x: x - 6, y: y - 6, w: 12, h: 12, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 4 }); }
+  }
+  // The Fire Wheel's arms: rings of fireballs around its core.
+  LF.wheelBalls = e => {
+    if (!e.armsOn) return [];
+    const out = [], arms = e.arms || 4, len = e.armLen || 6;
+    for (let a = 0; a < arms; a++) for (let k = 0; k < len; k++) {
+      const ang = e.ang + a / arms * TAU, r = 40 + k * 20;
+      out.push({ x: e.x + e.w / 2 + Math.cos(ang) * r, y: e.y + e.h / 2 + Math.sin(ang) * r });
+    }
+    return out;
+  };
+  // Distance from point (x, y) to the segment a-b.
+  const segDist = (x, y, ax, ay, bx, by) => {
+    const dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(x - ax - dx * t, y - ay - dy * t);
+  };
+
   // Each arena's def.bossMode gives its fight a twist (see bosses.js).
   function stepBoss(W, e, dt, playing) {
     const p = W.player, px = p.x + p.w / 2, py = p.y + p.h / 2, ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     const live = playing && !p.dead, rage = e.hp <= e.maxHp / 2, toward = Math.sign(px - ex) || e.face;
     const mode = W.def.bossMode;
-    e.hurt = Math.max(0, e.hurt - dt); e.stompCool = Math.max(0, e.stompCool - dt);
+    e.hurt = Math.max(0, e.hurt - dt); e.stompCool = Math.max(0, e.stompCool - dt); e.dazed = Math.max(0, (e.dazed || 0) - dt);
     if (e.y > W.h * TS + 40) { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; }
+    // Flyers, swimmers, hazards and hearts don't fall while they wait.
+    const spec = LF.ENEMIES[e.type], grounded = !(e.type === '6' || spec.fly || (spec.special && !spec.giant) || 'UYN*'.includes(spec.giant || '-'));
     if (!e.awake) {
-      if (e.type !== '6') bossFall(W, e, dt);
-      if (!live || Math.abs(px - ex) > TS * 12 || Math.abs(py - ey) > TS * 14) return;
+      if (grounded) bossFall(W, e, dt);
+      // The pendulums swing and the wheel turns even before the fight starts.
+      if (e.type === 'E+' || e.type === 'e+' || e.type === 'f+') stepGiant(W, e, dt, false, px, py, false, 1);
+      // (Giants' arenas are wider, so they notice you from further off.)
+      const range = spec.special ? 20 : 12;
+      if (!live || Math.abs(px - ex) > TS * range || Math.abs(py - ey) > TS * 14) return;
       wakeBoss(W, e);
     }
     // Colossus Reborn: at half health it calls two golems and is armored until they fall.
@@ -1088,6 +1191,7 @@
       W.floaters.push({ x: ex, y: e.y - 16, t: 'armored! break its golems', life: 2, c: '#CFC6E8' }); W.emit('clank');
     }
     e.armored = mode === 'armor' && W.enemies.some(m => m.alive && m.guard);
+    if (spec.special) return stepGiant(W, e, dt, live, px, py, rage, toward);
     switch (e.type) {
       case '5': {
         // The Bellwether: plod toward you, wind up, charge until it hits a wall, then reel.
@@ -1198,11 +1302,11 @@
         // The Iron Colossus: lumber toward you, crouch, leap at you, and land with shockwaves
         // that run along the floor both ways (two pairs once it's angry).
         const land = bossFall(W, e, dt);
-        const waves = (list, y) => { for (const [d, sp] of list) W.projectiles.push({ kind: 'shock', x: ex - 11 + d * e.w / 2, y, w: 22, h: 16, vx: d * sp, vy: 0, life: 3 }); };
+        const waves = list => shock(W, e, list);
         if (land > 300) {
           W.shake = Math.max(W.shake, .45); W.emit('slam');
           burst(W, ex, e.y + e.h, 20, ['#8F81AB', '#CFC6E8'], 220, 300, 3);
-          waves(rage ? [[-1, 300], [1, 300], [-1, 190], [1, 190]] : [[-1, 300], [1, 300]], e.y + e.h - 16);
+          waves(rage ? [[-1, 300], [1, 300], [-1, 190], [1, 190]] : [[-1, 300], [1, 300]]);
           // The Iron Quarry: the landing shakes rocks down from the ceiling around you.
           if (mode === 'quarry') for (let k = 0; k < 4; k++) W.projectiles.push({ kind: 'rock', x: px + (Math.random() * 2 - 1) * TS * 6 - 7, y: TS + 4, w: 14, h: 14, vx: 0, vy: 0, g: 700 + Math.random() * 300, life: 4 });
           e.state = 'idle'; e.wait = rage ? 2.2 : 3.2;
@@ -1218,7 +1322,7 @@
           // The Anvil Floor: it pounds the ground as it walks, sending small waves.
           if (mode === 'anvil' && e.ground && (e.cool -= dt) <= 0) {
             e.cool = rage ? 1.2 : 1.8; W.shake = Math.max(W.shake, .15); W.emit('slam');
-            waves([[-1, 220], [1, 220]], e.y + e.h - 16);
+            waves([[-1, 220], [1, 220]]);
           }
           if ((e.wait -= dt) <= 0 && live && e.ground) { e.state = 'crouch'; e.wait = .5; }
         } else if (e.state === 'crouch' && (e.wait -= dt) <= 0) {
@@ -1261,6 +1365,336 @@
           }
           e.wait = rage ? 1.1 : 1.5; W.emit('lob');
         }
+        break;
+      }
+    }
+  }
+
+  // The giants. Each has an attack or two and a moment where it's dazed (stompable whatever
+  // it is); most call in a few of their small cousins.
+  function stepGiant(W, e, dt, live, px, py, rage, toward) {
+    const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+    const daze = (t, state = 'dazed') => { e.state = state; e.dazed = t; e.wait = t; };
+    // Keep inside the level.
+    const clampIn = () => { e.x = Math.max(TS, Math.min((W.w - 1) * TS - e.w, e.x)); e.y = Math.max(TS, Math.min((W.h - 1) * TS - e.h, e.y)); };
+    switch (e.type) {
+      case 'B+': {
+        // The Wick Matriarch: plods after you, rears up and slams, and hatches beetles.
+        bossFall(W, e, dt);
+        if (e.state === 'rear') {
+          if ((e.wait -= dt) <= 0) {
+            shock(W, e, rage ? [[-1, 300], [1, 300], [-1, 180], [1, 180]] : [[-1, 260], [1, 260]]);
+            W.shake = Math.max(W.shake, .3); W.emit('slam');
+            if ((e.moves = (e.moves || 0) + 1) % 2 === 0 && minions(W) < 4) for (const d of [-1, 1]) spawnMinion(W, 'B', ex + d * e.w * .6, e.y + e.h - 4);
+            e.dazed = rage ? .7 : 1; e.state = 'idle'; e.wait = rage ? 2 : 3;
+          }
+          break;
+        }
+        e.face = toward;
+        if (e.ground && groundAhead(W, e, e.face)) moveX(W, e, e.face * (rage ? 80 : 60) * dt);
+        if ((e.wait -= dt) <= 0 && live && e.ground) { e.state = 'rear'; e.wait = .6; W.emit('snort'); }
+        break;
+      }
+      case 'J+': {
+        // The Bog King: big hops at you that land with shockwaves; croaks (dazed) every third.
+        const land = bossFall(W, e, dt);
+        if (e.state === 'hop') {
+          moveX(W, e, e.vx * dt);
+          if (land) {
+            shock(W, e, [[-1, 260], [1, 260]]); W.shake = Math.max(W.shake, .3); W.emit('slam');
+            e.hops = (e.hops || 0) + 1;
+            if (e.hops % 2 === 0 && minions(W) < 3) spawnMinion(W, 'J', ex, e.y + e.h - 4);
+            if (e.hops % 3 === 0) daze(rage ? 1.2 : 1.8, 'croak'); else { e.state = 'idle'; e.wait = rage ? .4 : .7; }
+          }
+          break;
+        }
+        if (e.state === 'croak') { if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = .5; } break; }
+        e.face = toward;
+        if ((e.wait -= dt) <= 0 && live && e.ground) { e.state = 'hop'; e.vy = -900; e.ground = false; e.vx = Math.max(-280, Math.min(280, (px - ex) * 1.2)); W.emit('hop'); }
+        break;
+      }
+      case 'W+': case 'Z+': {
+        // The Hive Mother hovers at home; the Living Spark circles the arena. Both lock on and
+        // dash at you, and a dash that hits something (or runs out) leaves them dazed on the ground.
+        if (e.state === 'idle') {
+          let tx = e.ox, ty = e.oy + Math.sin(e.t * 3) * 10;
+          if (e.type === 'Z+') { e.orb = (e.orb || 0) + dt * (rage ? 1.4 : 1); tx = e.ox + Math.cos(e.orb) * TS * 7; ty = e.oy + Math.sin(e.orb) * TS * 2.5; }
+          e.x += (tx - e.x) * Math.min(1, dt * 2); e.y += (ty - e.y) * Math.min(1, dt * 2);
+          e.face = toward;
+          if ((e.cool -= dt) <= 0 && live) { e.cool = rage ? 4 : 6; if (minions(W) < 3) spawnMinion(W, e.type[0], ex, ey); }
+          if ((e.wait -= dt) <= 0 && live) { e.state = 'aim'; e.wait = .6; W.emit('buzz'); }
+        } else if (e.state === 'aim') {
+          e.face = toward;
+          if ((e.wait -= dt) <= 0) { const d = Math.hypot(px - ex, py - ey) || 1; e.vx = (px - ex) / d * 480; e.vy = (py - ey) / d * 480; e.state = 'dash'; e.wait = 1.4; }
+        } else if (e.state === 'dash') {
+          const side = moveX(W, e, e.vx * dt), hit = moveY(W, e, e.vy * dt, true);
+          e.face = Math.sign(e.vx) || e.face;
+          if (side || hit || (e.wait -= dt) <= 0) {
+            if (side || hit) { W.shake = Math.max(W.shake, .25); W.emit('slam'); }
+            daze(rage ? 1.2 : 1.7); e.vy = 0; e.ground = false;
+          }
+        } else {
+          bossFall(W, e, dt);
+          if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 2 : 3; }
+        }
+        break;
+      }
+      case 'X+': {
+        // The Widow: creeps along the ceiling spitting webs, drops on you, waits (dazed), climbs back.
+        if (e.state === 'idle') {
+          e.y += (e.oy - e.y) * Math.min(1, dt * 4);
+          const dx = px - ex;
+          // (It clings to the ceiling, so it slides along rather than bumping into it.)
+          e.x += Math.sign(dx) * Math.min(Math.abs(dx), (rage ? 130 : 90) * dt); clampIn();
+          if ((e.cool -= dt) <= 0 && live) { e.cool = rage ? 1 : 1.5; W.projectiles.push({ kind: 'web', x: ex - 7, y: e.y + e.h, w: 14, h: 14, vx: dx * .35, vy: 190, life: 4 }); W.emit('spit'); }
+          if ((e.wait -= dt) <= 0 && live && Math.abs(dx) < TS * 1.5) { e.state = 'drop'; e.vy = 0; e.ground = false; W.emit('drop'); }
+        } else if (e.state === 'drop') {
+          if (bossFall(W, e, dt)) {
+            shock(W, e, [[-1, 240], [1, 240]]); W.shake = Math.max(W.shake, .3); W.emit('slam');
+            if (minions(W) < 3) spawnMinion(W, 'X', ex + (Math.random() < .5 ? -1 : 1) * TS * 4, TS * 1.5);
+            daze(rage ? 1.3 : 1.8, 'ground');
+          }
+        } else if (e.state === 'ground') { if ((e.wait -= dt) <= 0) e.state = 'climb'; }
+        else { e.y -= 200 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = rage ? 2 : 3; } }
+        break;
+      }
+      case 'S+': {
+        // The Great Kiln: a fan of fireballs, a lob of three, a fountain, then it cools (dazed).
+        bossFall(W, e, dt); e.face = toward;
+        if (e.state === 'cool') { if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = .8; } break; }
+        if ((e.wait -= dt) > 0 || !live) break;
+        const v = (e.moves = (e.moves || 0) + 1) % 4, mx = ex + e.face * e.w * .4, my = e.y + e.h * .35;
+        if (v === 0) { daze(rage ? 1.6 : 2.2, 'cool'); W.floaters.push({ x: ex, y: e.y - 10, t: 'cooling', life: 1, c: '#9FD8FF' }); break; }
+        if (v === 1) for (const vy of [-60, 0, 60]) W.projectiles.push({ x: mx - 8, y: my - 8, w: 16, h: 16, vx: e.face * 230, vy, life: 5 });
+        else if (v === 2) for (let k = 0; k < 3; k++) { const t = 1 + k * .2, g = 800, tx = px + (k - 1) * 60; W.projectiles.push({ x: ex - 7, y: e.y - 8, w: 14, h: 14, vx: (tx - ex) / t, vy: (py - e.y) / t - g * t / 2, g, life: 5 }); }
+        else for (let k = 0; k < (rage ? 9 : 6); k++) W.projectiles.push({ x: ex - 6, y: e.y - 6, w: 12, h: 12, vx: (Math.random() * 2 - 1) * 220, vy: -500 - Math.random() * 250, g: 900, life: 5 });
+        e.wait = 1.15; W.emit('spit');
+        break;
+      }
+      case 'K+': {
+        // The Thorn Tyrant: can't be stomped... until it charges into a wall, sprays thorns
+        // and lands on its back.
+        bossFall(W, e, dt);
+        if (e.state === 'idle') {
+          e.face = toward;
+          if (e.ground && groundAhead(W, e, e.face)) moveX(W, e, e.face * 70 * dt);
+          if ((e.wait -= dt) <= 0 && live && e.ground) { e.state = 'wind'; e.wait = rage ? .4 : .6; W.emit('snort'); }
+        } else if (e.state === 'wind') {
+          e.face = toward;
+          if ((e.wait -= dt) <= 0) { e.state = 'charge'; e.wait = 3; }
+        } else if (e.state === 'charge') {
+          if (moveX(W, e, e.face * (rage ? 560 : 460) * dt) || !groundAhead(W, e, e.face) || (e.wait -= dt) <= 0) {
+            W.shake = Math.max(W.shake, .35); W.emit('slam');
+            const n = rage ? 7 : 5;
+            for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + (k - (n - 1) / 2) * .35; W.projectiles.push({ kind: 'arrow', x: ex - 5, y: e.y - 4, w: 10, h: 6, vx: Math.cos(a) * 300, vy: Math.sin(a) * 420, g: 700, life: 5 }); }
+            daze(rage ? 1.4 : 2, 'flip');
+          }
+        } else if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? .8 : 1.4; }
+        break;
+      }
+      case 'U+': {
+        // The Moon Jelly: drifts under the water after you, pulses rings of sparks, calls
+        // small jellies, and floats up to the surface now and then (dazed: stomp it there).
+        e.face = toward;
+        if (e.state === 'surface') {
+          e.y += (e.surface - e.h * .5 - e.y) * Math.min(1, dt * 3);
+          if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 3.5 : 5; }
+          break;
+        }
+        const tx = Math.max(e.left, Math.min(e.right, px - e.w / 2));
+        e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), 50 * dt);
+        e.y += (Math.min(e.bottom - e.h, e.oy + Math.sin(e.t * 1.5) * 20) - e.y) * Math.min(1, dt * 2);
+        if ((e.cool -= dt) <= 0 && live) { e.cool = rage ? 1.8 : 2.6; ring8(W, ex, ey, rage ? 10 : 8, 160); W.emit('buzz'); }
+        if ((e.calls = (e.calls ?? 4) - dt) <= 0 && live) {
+          e.calls = 7;
+          if (minions(W) < 3) { const m = spawnMinion(W, 'U', ex, ey); m.minY = e.surface + 10; m.maxY = e.bottom - m.h; m.oy = ey; }
+        }
+        if ((e.wait -= dt) <= 0 && live) daze(rage ? 1.6 : 2.2, 'surface');
+        break;
+      }
+      case 'G+': {
+        // The Pale Wraith: drifts after you, vanishes (can't be touched), and reappears beside
+        // you with a shriek of embers, dazed for a moment.
+        e.phased = e.state === 'gone';
+        if (e.state === 'idle') {
+          const d = Math.hypot(px - ex, py - ey) || 1, sp = rage ? 75 : 55;
+          e.vx += ((px - ex) / d * sp - e.vx) * Math.min(1, dt * 2); e.vy += ((py - ey) / d * sp - e.vy) * Math.min(1, dt * 2);
+          e.x += e.vx * dt; e.y += e.vy * dt; e.face = Math.sign(e.vx) || e.face;
+          e.fade = Math.max(0, e.fade - dt * 3);
+          if ((e.wait -= dt) <= 0 && live) { e.state = 'gone'; e.wait = 1.4; W.emit('buzz'); }
+        } else if (e.state === 'gone') {
+          e.fade = Math.min(1, e.fade + dt * 3);
+          if ((e.wait -= dt) <= 0) {
+            e.x = px + (Math.random() < .5 ? -1 : 1) * TS * 5 - e.w / 2; e.y = py - e.h / 2 - TS; e.vx = e.vy = 0; clampIn();
+            e.fade = 0; daze(rage ? 1 : 1.5, 'shriek');
+            ring8(W, e.x + e.w / 2, e.y + e.h / 2, rage ? 12 : 8, 170); W.emit('roar');
+            if (minions(W) < 2) spawnMinion(W, 'G', e.x + e.w / 2, e.y);
+          }
+        } else if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 3 : 4.5; }
+        clampIn();
+        break;
+      }
+      case 'Y+': case 'N+': {
+        // The Lantern Leviathan swims after you and fires from its lure; the Gar Lord lurks.
+        // Both leap out at you; landing on dry ground leaves them flopping (dazed) until they
+        // throw themselves back into the water.
+        if (e.state === 'idle' || e.state === 'swim') {
+          e.state = 'swim'; e.face = toward;
+          e.y += (e.oy + Math.sin(e.t * 2.5) * 4 - e.y) * Math.min(1, dt * 4);
+          const tx = Math.max(e.left, Math.min(e.right, px - e.w / 2));
+          e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), (e.type === 'Y+' ? 110 : 60) * dt);
+          if (e.type === 'Y+' && (e.cool -= dt) <= 0 && live) {
+            e.cool = rage ? 1.6 : 2.2;
+            const lx = ex + e.face * e.w / 2, ly = e.y - 10, d = Math.hypot(px - lx, py - ly) || 1;
+            for (const k of [-1, 0, 1]) W.projectiles.push({ x: lx - 6, y: ly - 6, w: 12, h: 12, vx: (px - lx) / d * 220 + k * 40, vy: (py - ly) / d * 220 + k * 40, life: 4 });
+            W.emit('spit');
+          }
+          if ((e.wait -= dt) <= 0 && live) {
+            e.state = 'leap'; e.vy = e.type === 'N+' ? -1050 : -950; e.vx = Math.max(-480, Math.min(480, (px - ex) * 1.3)); W.emit('hop');
+            burst(W, ex, e.surface, 14, ['#7FB0E0', '#D9D0F0'], 140, 300, 2.5);
+          }
+          break;
+        }
+        if (e.state === 'leap' || e.state === 'throw') {
+          e.vy = Math.min(MAXFALL, e.vy + G * dt);
+          moveX(W, e, e.vx * dt);
+          const hit = moveY(W, e, e.vy * dt, false);
+          e.face = Math.sign(e.vx) || e.face;
+          // The Gar Lord sprays drops from the top of its leap.
+          if (e.type === 'N+' && e.vy > 0 && !e.sprayed) { e.sprayed = true; ring8(W, ex, ey, rage ? 8 : 6, 150); }
+          const wet = tile(W, Math.floor(ex / TS), Math.floor(ey / TS)) === '~';
+          if (e.vy > 0 && wet) {
+            // Splashed down, maybe in another pool: that's home now.
+            measurePool(W, e, Math.floor(ex / TS), Math.floor(ey / TS)); e.oy = Math.min(e.bottom - e.h, e.surface + 6);
+            e.state = 'swim'; e.sprayed = false; e.wait = rage ? 3.5 : 5;
+            burst(W, ex, e.surface, 14, ['#7FB0E0', '#D9D0F0'], 140, 300, 2.5);
+          } else if (hit && hit.dir === 'down') { e.vy = 0; e.sprayed = false; daze(rage ? 1.5 : 2.2, 'flop'); W.shake = Math.max(W.shake, .25); W.emit('slam'); }
+          break;
+        }
+        // Flopping on dry land; then a throw back toward its pool.
+        if ((e.wait -= dt) <= 0) {
+          const home = (e.left + e.right) / 2;
+          e.state = 'throw'; e.vy = -700; e.vx = Math.max(-300, Math.min(300, (home - e.x) * 1.4));
+        }
+        break;
+      }
+      case '*+': {
+        // The Magma Heart: hides in the lava under you (can't be hit), erupts in a high arc
+        // raining lava, and sometimes lands on a ledge and crusts over (dazed).
+        e.phased = e.state === 'idle' || e.state === 'hide';
+        if (e.state === 'idle' || e.state === 'hide') {
+          e.state = 'hide'; e.y += (e.surface + 10 - e.y) * Math.min(1, dt * 4);
+          // Lurk a little to one side of you, under open sky, so it can arc up onto your ledge.
+          const open = x => x > e.left && x < e.right + e.w && [1, 2, 3, 4].every(k => !isSolid(tile(W, Math.floor(x / TS), Math.floor(e.surface / TS) - k)));
+          let spot = px;
+          for (let d = 3; d <= 12; d++) {
+            if (open(px + d * TS)) { spot = px + d * TS; break; }
+            if (open(px - d * TS)) { spot = px - d * TS; break; }
+          }
+          const tx = Math.max(e.left, Math.min(e.right, spot - e.w / 2));
+          e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), 140 * dt);
+          // Every other eruption arcs at you, so it lands (and crusts) on your ledge.
+          if ((e.wait -= dt) <= 0 && live) {
+            e.state = 'erupt'; e.vy = -1050;
+            e.vx = (e.erupts = (e.erupts || 0) + 1) % 2 === 0 ? Math.max(-320, Math.min(320, (px - ex) * 1.1)) : (Math.random() * 2 - 1) * 160;
+            W.emit('boom'); burst(W, ex, e.surface, 20, LF.WARM, 220, 300, 3);
+          }
+          break;
+        }
+        if (e.state === 'erupt') {
+          e.vy = Math.min(MAXFALL, e.vy + G * dt);
+          moveX(W, e, e.vx * dt);
+          const hit = moveY(W, e, e.vy * dt, false);
+          if (e.vy > 0 && !e.rained) {
+            e.rained = true;
+            for (let k = 0; k < (rage ? 9 : 6); k++) W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: (Math.random() * 2 - 1) * 260, vy: -200 - Math.random() * 200, g: 900, life: 5 });
+          }
+          if (hit && hit.dir === 'down') { e.rained = false; daze(rage ? 1.6 : 2.2, 'crust'); W.shake = Math.max(W.shake, .25); W.emit('slam'); }
+          else if (e.vy > 0 && e.y + e.h / 2 > e.surface) { e.rained = false; e.state = 'hide'; e.wait = rage ? 1.6 : 2.4; burst(W, ex, e.surface, 16, LF.WARM, 180, 300, 3); }
+          break;
+        }
+        if ((e.wait -= dt) <= 0) { e.state = 'erupt'; e.vy = -700; e.vx = Math.max(-260, Math.min(260, ((e.left + e.right) / 2 - e.x) * 1.4)); }
+        break;
+      }
+      case 'E+': case 'e+': {
+        // The pendulums: a huge ball swinging from its pivot, wider and faster once hurt,
+        // shedding shards at each end of its swing. Every third time through the bottom it
+        // stops dead for a moment (dazed). The Thorn Pendulum's chain cuts too, and the chain
+        // stretches and shrinks so the ball sweeps different heights.
+        if (e.state === 'rest') { if ((e.wait -= dt) <= 0) e.state = 'idle'; }
+        else {
+          const before = e.phase;
+          e.phase += dt * TAU / (rage ? 2.2 : 3);
+          const crossed = Math.floor(before / Math.PI) !== Math.floor(e.phase / Math.PI);
+          const turned = Math.floor((before - Math.PI / 2) / Math.PI) !== Math.floor((e.phase - Math.PI / 2) / Math.PI);
+          if (live && turned) {
+            const n = rage ? 5 : 3;
+            for (let k = 0; k < n; k++) W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: (k - (n - 1) / 2) * 70, vy: -150, g: 800, life: 4 });
+          }
+          if (live && crossed && (e.swings = (e.swings || 0) + 1) % 3 === 0) { e.phase = Math.round(e.phase / Math.PI) * Math.PI; daze(rage ? 1.1 : 1.6, 'rest'); W.emit('clank'); }
+        }
+        const a = (rage ? 1.25 : .95) * Math.sin(e.phase);
+        const len = e.type === 'e+' ? e.len * (.78 + .22 * Math.cos(e.t * .7)) : e.len;
+        e.bx = e.ax + Math.sin(a) * len; e.by = e.ay + Math.cos(a) * len;
+        e.x = e.bx - e.w / 2; e.y = e.by - e.h / 2;
+        if (e.type === 'e+' && live && segDist(px, py, e.ax, e.ay, e.bx, e.by) < 12 && Math.hypot(px - e.bx, py - e.by) > e.w / 2) hurt(W);
+        break;
+      }
+      case 'f+': {
+        // The Fire Wheel: arms of fire turn around its core, flip direction now and then,
+        // flare out longer, then go dark for a moment (dazed: the safe time to stomp the core).
+        e.ang = (e.ang || 0) + dt * (rage ? 1.6 : 1.1) * (e.dir || 1);
+        e.arms = rage ? 5 : 4;
+        if (e.state === 'idle') {
+          e.armsOn = true; e.armLen = 6;
+          if ((e.cool -= dt) <= 0) { e.cool = 6; e.dir = -(e.dir || 1); }
+          if ((e.wait -= dt) <= 0 && live) { e.state = 'flare'; e.wait = 2; W.emit('boom'); }
+        } else if (e.state === 'flare') {
+          e.armLen = 9;
+          if ((e.wait -= dt) <= 0) { e.armsOn = false; daze(rage ? 1.2 : 1.8, 'dark'); }
+        } else if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 4 : 6; }
+        if (live) for (const b of LF.wheelBalls(e)) if (Math.hypot(px - b.x, py - b.y) < 15) { hurt(W); break; }
+        break;
+      }
+      case 'k+': {
+        // The Great Crusher: tracks you along the ceiling, shakes, slams down, sticks (dazed),
+        // and grinds back up.
+        if (e.state === 'idle') {
+          e.y += (e.oy - e.y) * Math.min(1, dt * 3);
+          const tx = px - e.w / 2;
+          e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), (rage ? 170 : 120) * dt);
+          if (Math.abs(tx - e.x) < 10 && (e.wait -= dt) <= 0 && live) { e.state = 'shake'; e.wait = rage ? .35 : .55; W.emit('snort'); }
+        } else if (e.state === 'shake') {
+          if ((e.wait -= dt) <= 0) { e.state = 'slam'; e.vy = 0; }
+        } else if (e.state === 'slam') {
+          e.vy = Math.min(1100, e.vy + G * 1.5 * dt);
+          const hit = moveY(W, e, e.vy * dt, false);
+          if (hit && hit.dir === 'down') {
+            W.shake = Math.max(W.shake, .5); W.emit('slam');
+            shock(W, e, rage ? [[-1, 300], [1, 300], [-1, 180], [1, 180]] : [[-1, 260], [1, 260]]);
+            if (rage) for (let k = 0; k < 4; k++) W.projectiles.push({ kind: 'rock', x: px + (Math.random() * 2 - 1) * TS * 5 - 7, y: TS + 4, w: 14, h: 14, vx: 0, vy: 0, g: 700 + Math.random() * 300, life: 4 });
+            daze(rage ? 1.4 : 1.9, 'stuck');
+          }
+        } else if (e.state === 'stuck') { if ((e.wait -= dt) <= 0) e.state = 'rise'; }
+        else { e.y -= 150 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = rage ? .6 : 1; } }
+        e.x = Math.max(TS, Math.min((W.w - 1) * TS - e.w, e.x));
+        break;
+      }
+      case '&+': case '%+': {
+        // The horde's heart rides its front, deep in the dark, and every few seconds lunges
+        // out at you: the only time it can be hit. Kill it and the whole horde goes.
+        const h = W.horde;
+        if (!h) break;
+        if (e.state === 'lunge') {
+          e.reach = Math.min(TS * (rage ? 6 : 5), e.reach + dt * TS * 12);
+          if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 2.2 : 3.2; }
+        } else {
+          e.reach = Math.max(-TS * 1.5, e.reach - dt * TS * 4);
+          if ((e.wait -= dt) <= 0 && live) { e.state = 'lunge'; e.wait = rage ? 1.6 : 1.2; W.emit('growl'); }
+        }
+        if (h.up) { e.y = -h.f - e.reach - e.h / 2; e.x += (px - e.w / 2 - e.x) * Math.min(1, dt * 2); }
+        else { e.x = h.f + e.reach - e.w / 2; e.y += (W.player.y + W.player.h - e.h - e.y) * Math.min(1, dt * 2); }   // level with your feet
+        clampIn();
         break;
       }
     }
@@ -1504,7 +1938,7 @@
       if (e.type === 'G' && e.fade > .85) continue;
       // Armored heads (bosses, and golems until their last hit) can be stomped again and
       // again, with a short pause between: 3 damage to a boss, 1 to a golem.
-      if (spec.stomp && (spec.boss || e.hp > 1)) {
+      if ((spec.stomp || e.dazed > 0) && (spec.boss || e.hp > 1)) {
         if (p.vy > 0 && p.y + p.h - e.y < 18) {
           p.vy = (input.jump ? -680 : -520) * Math.sqrt(T.gravity); p.jumping = input.jump;
           if (e.stompCool <= 0) {

@@ -23,13 +23,15 @@
   // and water turns to lava wherever the level can be finished without swimming.
   let hardcore = store.get('hardcore', false);
   let progressHC = store.get('progressHC', {});
-  // Boss levels were slotted in after every 10th level. Older saves number the levels
-  // without them, so move each saved level to its new place (once).
-  if (store.get('levelsV', 1) < 2) {
-    const regular = LF.LEVELS.map((lv, i) => i).filter(i => !LF.LEVELS[i].boss);
-    const move = book => Object.fromEntries(Object.entries(book).map(([k, v]) => [regular[k] ?? k, v]));
+  // Saves number the levels by position, and boss fights have been slotted in since: first
+  // after every 10th level (save version 2), then giants halfway between (version 3). Move
+  // each saved level from where it was in its save's numbering to where it is now (once).
+  const levelsV = store.get('levelsV', 1);
+  if (levelsV < 3) {
+    const was = LF.LEVELS.map((lv, i) => i).filter(i => levelsV < 2 ? !LF.LEVELS[i].boss : !LF.LEVELS[i].giantFight);
+    const move = book => Object.fromEntries(Object.entries(book).map(([k, v]) => [was[k] ?? k, v]));
     progress = move(progress); progressHC = move(progressHC);
-    store.set('progress', progress); store.set('progressHC', progressHC); store.set('levelsV', 2);
+    store.set('progress', progress); store.set('progressHC', progressHC); store.set('levelsV', 3);
   }
 
   // ---------- audio ----------
