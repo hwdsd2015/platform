@@ -1337,13 +1337,23 @@
         break;
       }
       case '9': {
-        // The Powder King: pace near his throne, lob bombs at you, and every third move send
-        // out a TNT cart (at most two at once). A cart blown up beside him hurts him badly.
-        bossFall(W, e, dt);
+        // The Powder King: paces near his spot, lobs bombs (two, or three once angry) aimed
+        // where you're heading, sends out TNT carts every other move (up to three at once),
+        // and every fourth move leaps to land near you with shockwaves, making that his new spot.
+        const land = bossFall(W, e, dt);
         e.face = toward;
+        if (e.state === 'leap') {
+          moveX(W, e, e.vx * dt);
+          if (land) {
+            shock(W, e, rage ? [[-1, 300], [1, 300], [-1, 190], [1, 190]] : [[-1, 280], [1, 280]]);
+            W.shake = Math.max(W.shake, .35); W.emit('slam');
+            e.state = 'idle'; e.ox = e.x; e.wait = .6;
+          }
+          break;
+        }
         if (e.ground) {
           const dir = e.dir || -1;
-          if (!groundAhead(W, e, dir) || moveX(W, e, dir * 50 * dt) || Math.abs(e.x - e.ox) > TS * 5) e.dir = -dir;
+          if (!groundAhead(W, e, dir) || moveX(W, e, dir * 60 * dt) || Math.abs(e.x - e.ox) > TS * 5) e.dir = -dir;
         }
         // The Last Keg: every few seconds he calls in another kind of enemy.
         if (mode === 'waves' && live && (e.cool -= dt) <= 0) {
@@ -1355,21 +1365,26 @@
             W.floaters.push({ x: ex, y: e.y - 10, t: 'to me!', life: 1, c: '#FF6B3D' });
           }
         }
-        if ((e.wait -= dt) > 0 || !live) break;
+        if ((e.wait -= dt) > 0 || !live || !e.ground) break;
         e.moves = (e.moves || 0) + 1;
         const carts = W.enemies.filter(c => c.alive && c.summoned && c.type === '@').length;
-        if (e.moves % 3 === 0 && carts < 2) {
+        if (e.moves % 4 === 0) {
+          const tx = px + (Math.random() < .5 ? -1 : 1) * TS * 3;
+          e.state = 'leap'; e.vy = -850; e.ground = false; e.vx = Math.max(-420, Math.min(420, (tx - ex) / .9));
+          W.emit('hop');
+        } else if (e.moves % 2 === 1 && carts < 3) {
           const c = spawnMinion(W, '@', ex, e.y + e.h - 4);
-          c.hp = c.maxHp = 3; c.vx = toward * 70;
+          c.hp = c.maxHp = 3; c.vx = toward * 110;
           W.floaters.push({ x: ex, y: e.y - 10, t: 'TNT!', life: 1, c: '#FF6B3D' });
-          e.wait = 1.6; W.emit('snort');
+          e.wait = 1.1; W.emit('snort');
         } else {
-          for (let k = 0; k < (rage ? 2 : 1); k++) {
-            const t = .9 + k * .3, g = 900, tx = px - k * toward * 48;
+          const n = rage ? 3 : 2, pvx = W.player.vx;
+          for (let k = 0; k < n; k++) {
+            const t = .85 + k * .2, g = 900, tx = px + pvx * t * .8 + (k - (n - 1) / 2) * 44;
             // The Fuse Hall: bombs leave fire. The Blasting Court: bombs split in three.
             W.projectiles.push({ kind: 'bomb', x: ex - 6, y: e.y - 6, w: 12, h: 12, vx: (tx - ex) / t, vy: (py - e.y) / t - g * t / 2, g, life: 4, burn: mode === 'fuse', cluster: mode === 'cluster' });
           }
-          e.wait = rage ? 1.1 : 1.5; W.emit('lob');
+          e.wait = rage ? .8 : 1.1; W.emit('lob');
         }
         break;
       }
