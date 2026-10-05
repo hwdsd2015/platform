@@ -413,7 +413,7 @@
 
   // An explosion hits every enemy within `r` once (the horde is immune) and destroys any
   // embers or arrows in range. `shot` is the shot it came from: a grenade's bounces all
-  // share one, so a grenade still only counts as one hit on each enemy.
+  // share one, so a grenade hits each enemy at most twice.
   // A `lethal` blast (a TNT cart going up) kills outright instead: golems die and other
   // carts explode too.
   function explode(W, x, y, r, big, shot = newShot(W), lethal = false) {
@@ -503,12 +503,17 @@
     W.ammoFly = W.ammoFly.filter(b => !b.done);
   }
 
-  // Every shot (bullet, explosive round or grenade) gets an id, so it can only hit each
-  // enemy once however many times it splashes or blasts.
-  const newShot = W => (W.shots = (W.shots || 0) + 1);
+  // Every shot (bullet, explosive round or grenade) gets an id and a limit on how many
+  // times it can hit the same enemy however often it splashes or blasts: once, or twice
+  // for a grenade.
+  const newShot = (W, max = 1) => { W.shots = (W.shots || 0) + 1; (W.shotMax ||= {})[W.shots] = max; return W.shots; };
   // One hit on an enemy: armored ones (golems, TNT carts) lose a point, the rest die.
   function shootEnemy(W, e, dir, shot, how = 'zap') {
-    if (shot) { if ((e.hitBy ||= new Set()).has(shot)) return; e.hitBy.add(shot); }
+    if (shot) {
+      const hits = (e.hitBy ||= {})[shot] || 0;
+      if (hits >= (W.shotMax[shot] || 1)) return;
+      e.hitBy[shot] = hits + 1;
+    }
     if (e.hp > 1) {
       e.hp--; e.hurt = .15; if (e.type !== '@') e.x += dir * 5;
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
@@ -1079,7 +1084,7 @@
       p.ammo -= cost; p.cool = .4; p.flash = .1;
       const g = LF.gunPos(p);
       if (kind === 'rocket') W.bullets.push({ id: newShot(W), kind, x: g.x, y: g.y, vx: p.face * 430, vy: 0, life: 1.6, s });
-      else W.bullets.push({ id: newShot(W), kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0, s });
+      else W.bullets.push({ id: newShot(W, 2), kind, x: g.x, y: g.y - 4, vx: p.face * 270 + p.vx * .3, vy: -420, life: 2.2, bounces: 0, s });
       p.vx -= p.face * 70;
       W.emit(kind === 'rocket' ? 'rocket' : 'lob');
     }

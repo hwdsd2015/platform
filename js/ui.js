@@ -170,7 +170,7 @@
       <ul class="keys">
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit, so golems take 3 of any kind and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
+        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade up to two), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
