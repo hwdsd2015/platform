@@ -1096,6 +1096,15 @@
           ctx.fillStyle = '#8F81AB'; ctx.fillRect(b.x + 3, b.y + 2, 5, 3);
           continue;
         }
+        if (b.kind === 'kgrenade') {
+          // The Powder King's grenade, drawn just like yours.
+          const x = b.x + b.w / 2, y = b.y + b.h / 2;
+          ctx.fillStyle = '#3A2F55'; ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+          ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();
+          const blink = reduced || Math.floor(b.life * (b.bounces >= 2 ? 16 : 6)) % 2;
+          ctx.fillStyle = blink ? '#FF6B3D' : '#7A2E1C'; ctx.beginPath(); ctx.arc(x + 1.5, y - 5, 1.8, 0, TAU); ctx.fill();
+          continue;
+        }
         if (b.kind === 'bomb') {
           const x = b.x + b.w / 2, y = b.y + b.h / 2;
           ctx.fillStyle = '#1A1530'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();

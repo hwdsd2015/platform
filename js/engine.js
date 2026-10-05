@@ -1342,6 +1342,7 @@
         // The Powder King: paces near his spot, lobs bombs (two, or three once angry) aimed
         // where you're heading, sends out TNT carts every other move (up to three at once),
         // and every fourth move leaps to land near you with shockwaves, making that his new spot.
+        // In his last third of health the bombs become bouncing grenades.
         const land = bossFall(W, e, dt);
         e.face = toward;
         if (e.state === 'leap') {
@@ -1379,6 +1380,13 @@
           c.hp = c.maxHp = 3; c.vx = toward * 110;
           W.floaters.push({ x: ex, y: e.y - 10, t: 'TNT!', life: 1, c: '#FF6B3D' });
           e.wait = 1.1; W.emit('snort');
+        } else if (e.hp <= e.maxHp / 3) {
+          // Down to his last third: bouncing grenades instead of bombs.
+          for (let k = 0; k < 2; k++) {
+            const t = .9 + k * .25, g = 900, tx = px + W.player.vx * t * .6 + (k ? toward * 60 : 0);
+            W.projectiles.push({ kind: 'kgrenade', x: ex - 5, y: e.y - 10, w: 10, h: 10, vx: (tx - ex) / t, vy: (py - e.y) / t - g * t / 2, g, life: 5, bounces: 0 });
+          }
+          e.wait = .9; W.emit('lob');
         } else {
           const n = rage ? 3 : 2, pvx = W.player.vx;
           for (let k = 0; k < n; k++) {
@@ -1786,9 +1794,38 @@
     }
   }
 
+  // A blast from a boss's weapon: hurts you if you're within r.
+  function enemyBlast(W, x, y, r, big, playing) {
+    const p = W.player;
+    burst(W, x, y, big ? 34 : 22, ['#FFF1CF', '#FFB547', '#FF6B3D', '#463C6B'], big ? 280 : 220, 300, big ? 4 : 3);
+    ring(W, x, y, r, '255,107,61', big ? .5 : .35);
+    W.shake = Math.max(W.shake, big ? .3 : .15); W.emit(big ? 'boom' : 'pop');
+    if (playing && !p.dead && Math.hypot(p.x + p.w / 2 - x, p.y + p.h / 2 - y) < r) hurt(W);
+  }
+  // The Powder King's grenade: just like yours, it bounces, blasting 2 blocks on its first
+  // two bounces and 3 on the third, when it's spent.
+  function stepKingGrenade(W, b, dt, playing) {
+    b.vy = Math.min(MAXFALL, b.vy + b.g * dt); b.life -= dt;
+    let bounced = false;
+    const nx = b.x + b.vx * dt;
+    if (isSolid(tile(W, Math.floor((nx + b.w / 2 + Math.sign(b.vx) * b.w / 2) / TS), Math.floor((b.y + b.h / 2) / TS)))) { b.vx *= -.6; bounced = true; }
+    else b.x = nx;
+    const ny = b.y + b.vy * dt, c = tile(W, Math.floor((b.x + b.w / 2) / TS), Math.floor((b.vy > 0 ? ny + b.h : ny) / TS));
+    if (isSolid(c) || (b.vy > 0 && (c === '=' || c === '~' || c === '!'))) { b.vy *= -.55; b.vx *= .8; bounced = true; }
+    else b.y = ny;
+    const x = b.x + b.w / 2, y = b.y + b.h / 2;
+    if (bounced && (b.bounce = (b.bounce || 0) - dt) <= 0) {
+      b.bounce = .15;
+      if (++b.bounces >= 3) { b.life = 0; return enemyBlast(W, x, y, TS * 3, true, playing); }
+      enemyBlast(W, x, y, TS * 2, false, playing);
+    }
+    if (b.life <= 0) enemyBlast(W, x, y, TS * 3, true, playing);
+  }
+
   function stepProjectiles(W, dt, playing) {
     const p = W.player;
     for (const b of W.projectiles) {
+      if (b.kind === 'kgrenade') { stepKingGrenade(W, b, dt, playing); continue; }
       if (b.g) b.vy += b.g * dt;
       b.x += b.vx * dt; b.y += (b.vy || 0) * dt; b.life -= dt;
       const bx = b.x + b.w / 2, by = b.y + b.h / 2;
