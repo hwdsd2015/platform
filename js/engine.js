@@ -80,7 +80,9 @@
 
   // T and H are blink blocks (lowercase while switched off); < and > are conveyor belts.
   // i is ice: solid but slippery. 1, 2, 3 are locked doors opened by keys r, u, y.
-  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === '1' || c === '2' || c === '3';
+  // v, w, z are shot doors (open after 3, 10, 25 hits); g is a boss gate (opens when the bosses fall).
+  const isSolid = LF.isSolid = c => c === '#' || c === 'C' || c === 'O' || c === 'T' || c === 'H' || c === '<' || c === '>' || c === 'i' || c === '1' || c === '2' || c === '3' || c === 'v' || c === 'w' || c === 'z' || c === 'g';
+  LF.SHOT_DOORS = { v: 3, w: 10, z: 25 };
   LF.KEYS = {
     r: { name: 'Red key', gate: '1', color: '#FF6B3D', dim: '#7A2E1C' },
     u: { name: 'Blue key', gate: '2', color: '#7FB0E0', dim: '#2E4E82' },
@@ -172,6 +174,25 @@
       while (bot < h - 1 && tiles[bot + 1][tx] === '~') bot++;
       e.minY = top * TS + 10; e.maxY = Math.max(e.minY, (bot + 1) * TS - e.h);
     }
+    // Shot doors: each patch of touching blocks of the same kind is one door with one counter.
+    W.shotDoors = []; W.shotDoorAt = {};
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = tiles[y][x];
+      if (!LF.SHOT_DOORS[c] || W.shotDoorAt[y * w + x]) continue;
+      const d = { c, need: LF.SHOT_DOORS[c], hits: 0, tiles: [], hitBy: {}, flash: 0, open: false };
+      const stack = [[x, y]]; W.shotDoorAt[y * w + x] = d;
+      while (stack.length) {
+        const [cx, cy] = stack.pop(); d.tiles.push([cx, cy]);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h || tiles[ny][nx] !== c || W.shotDoorAt[ny * w + nx]) continue;
+          W.shotDoorAt[ny * w + nx] = d; stack.push([nx, ny]);
+        }
+      }
+      W.shotDoors.push(d);
+    }
+    // Later boss arenas make their boss tougher.
+    if (def.bossHp) for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = Math.round(e.maxHp * def.bossHp);
     W.total = W.lanterns.length;
     if (W.door && !W.total && !W.enemies.some(isBoss)) W.door.open = true;
     W.checkpoint = { ...W.start };
@@ -364,6 +385,7 @@
     }
     stepUnlocking(W, dt);
     stepHorde(W, dt, playing);
+    for (const d of W.shotDoors) d.flash = Math.max(0, d.flash - dt);
     for (const r of W.rings) { r.life -= dt; r.r += (r.max - r.r) * Math.min(1, dt * 10); }
     W.rings = W.rings.filter(r => r.life > 0);
     for (const g of W.ghosts) g.life -= dt;
@@ -435,6 +457,7 @@
       shootEnemy(W, e, Math.sign(e.x + e.w / 2 - x) || 1, shot, 'boom', lethal ? 5 : 1);
     }
     for (const q of W.projectiles) if (Math.hypot(q.x + q.w / 2 - x, q.y + q.h / 2 - y) < r) q.life = 0;
+    for (const d of W.shotDoors) if (!d.open && d.tiles.some(([tx, ty]) => Math.hypot(tx * TS + 16 - x, ty * TS + 16 - y) < r + 16)) hitShotDoor(W, d, shot);
     burst(W, x, y, big ? 40 : 22, ['#FFF1CF', '#FFB547', '#FF6B3D', '#463C6B'], big ? 320 : 220, 300, big ? 4 : 3);
     ring(W, x, y, r, '255,181,71', big ? .5 : .35);
     ring(W, x, y, r * .55, '255,241,207', .25);
@@ -515,6 +538,25 @@
     W.ammoFly = W.ammoFly.filter(b => !b.done);
   }
 
+  // A shot door takes one hit per shot (a grenade up to two) and opens on its last one.
+  function hitShotDoor(W, d, shot) {
+    if (shot) {
+      const n = d.hitBy[shot] || 0;
+      if (n >= (W.shotMax[shot] || 1)) return;
+      d.hitBy[shot] = n + 1;
+    }
+    d.hits++; d.flash = .15;
+    const [mx, my] = d.tiles[Math.floor(d.tiles.length / 2)];
+    if (d.hits < d.need) { W.emit('clank'); return; }
+    d.open = true;
+    for (const [tx, ty] of d.tiles) {
+      W.tiles[ty][tx] = ' ';
+      burst(W, tx * TS + 16, ty * TS + 16, 8, ['#CFC6E8', '#8F81AB', '#FFB547'], 140, 300, 2.5);
+    }
+    W.floaters.push({ x: mx * TS + 16, y: my * TS - 4, t: 'door open', life: 1.2, c: '#FFE2A8' });
+    W.shake = Math.max(W.shake, .2); W.emit('unlock');
+  }
+
   // Every shot (bullet, explosive round or grenade) gets an id and a limit on how many
   // times it can hit the same enemy however often it splashes or blasts: once, or twice
   // for a grenade.
@@ -556,7 +598,11 @@
     for (const b of W.bullets) {
       if (b.kind) { stepSpecial(W, b, dt); continue; }
       b.x += b.vx * dt; b.life -= dt;
-      if (isSolid(tile(W, Math.floor(b.x / TS), Math.floor(b.y / TS)))) { b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s, b.id); continue; }
+      const btx = Math.floor(b.x / TS), bty = Math.floor(b.y / TS);
+      if (isSolid(tile(W, btx, bty))) {
+        const d = W.shotDoorAt[bty * W.w + btx];
+        if (d && !d.open) hitShotDoor(W, d, b.id);
+        b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s, b.id); continue; }
       // Bullets just vanish into the horde.
       if (W.horde && along(W.horde, b.x, b.y) < W.horde.f) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
@@ -973,6 +1019,14 @@
     W.projectiles = [];
     for (const c of W.enemies) if (c.summoned && c.alive) { c.alive = false; burst(W, c.x + c.w / 2, c.y + c.h / 2, 10, ['#8F81AB', '#463C6B'], 100, 300, 2); }
     W.emit('bossdown', { type: e.type });
+    // With the last boss down, the boss gates (g) crumble.
+    if (!W.enemies.some(b => b.alive && isBoss(b))) {
+      for (let ty = 0; ty < W.h; ty++) for (let tx = 0; tx < W.w; tx++) {
+        if (W.tiles[ty][tx] !== 'g') continue;
+        W.tiles[ty][tx] = ' ';
+        burst(W, tx * TS + 16, ty * TS + 16, 8, ['#FF6B3D', '#7A2E1C', '#463C6B'], 150, 300, 2.5);
+      }
+    }
     openDoorIfDone(W);
   }
   // The door opens once every lantern is lit and no boss is left standing.

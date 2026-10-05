@@ -196,6 +196,20 @@
             ctx.strokeStyle = amber ? 'rgba(255,181,71,.4)' : 'rgba(127,176,224,.4)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
             ctx.strokeRect(x + 2.5, y + 2.5, TS - 5, TS - 5); ctx.setLineDash([]);
           }
+        } else if (LF.SHOT_DOORS[c]) {
+          // Shot door: an iron panel showing how many hits it still needs.
+          const d = W.shotDoorAt && W.shotDoorAt[ty * W.w + tx], left = d ? d.need - d.hits : LF.SHOT_DOORS[c];
+          const col = { v: '#7FB0E0', w: '#FFB547', z: '#FF6B3D' }[c];
+          ctx.fillStyle = d && d.flash > 0 ? '#CFC6E8' : '#3A3350'; ctx.fillRect(x + 1, y, TS - 2, TS);
+          ctx.fillStyle = '#2A2348'; ctx.fillRect(x + 1, y, 3, TS); ctx.fillRect(x + TS - 4, y, 3, TS);
+          ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(x + 5, y + 3, TS - 10, TS - 6);
+          ctx.fillStyle = col; ctx.font = '700 11px ui-monospace, monospace'; ctx.textAlign = 'center';
+          ctx.fillText(String(left), x + 16, y + 20); ctx.textAlign = 'left';
+        } else if (c === 'g') {
+          // Boss gate: dark bars with a red glow, gone once the boss is down.
+          ctx.fillStyle = 'rgba(42,35,72,.85)'; ctx.fillRect(x, y, TS, TS);
+          ctx.fillStyle = '#7A2E1C'; for (let k = 0; k < 3; k++) ctx.fillRect(x + 4 + k * 10, y, 4, TS);
+          ctx.fillStyle = `rgba(255,107,61,${reduced ? .5 : .35 + Math.sin(clock * 3 + ty) * .15})`; ctx.fillRect(x, y + 14, TS, 3);
         } else if (LF.GATES[c[0]]) {
           // Locked door: colored iron bars with a keyhole. "1*" etc. are doors mid-opening.
           const k = LF.KEYS[LF.GATES[c[0]]], opening = c.length > 1;

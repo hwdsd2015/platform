@@ -5,7 +5,8 @@
   const STEP = 1 / 120;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
-  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'];
+  // Chapter numbers in Roman numerals: roman(0) is "I".
+  const roman = k => { let n = k + 1, out = ''; for (const [v, r] of [[50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]) while (n >= v) { out += r; n -= v; } return out; };
 
   const cvs = $('game');
   const R = LF.createRenderer(cvs);
@@ -126,7 +127,8 @@
   // Remove every lantern, ammo crate and piece of fruit (each becomes empty space, or water if
   // it was underwater) and any starting ammo, then turn the water and anything swimming in it
   // into lava, unless the level needs swimming.
-  const HARDCORE_GONE = new Set(['L', 'q', 'Q', '$', 'a', 'o', 'b']);
+  // Shot doors (v, w, z) go too: with no ammo they could never open.
+  const HARDCORE_GONE = new Set(['L', 'q', 'Q', '$', 'a', 'o', 'b', 'v', 'w', 'z']);
   function hardcoreDef(def) {
     const rows = LF.normalize(def.map).map(r => r.split(''));
     rows.forEach((r, y) => r.forEach((c, x) => { if (HARDCORE_GONE.has(c)) r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
@@ -199,7 +201,7 @@
     });
     let html = chapters.map((ch, k) => `
       <section class="chapter">
-        <h3><span>Chapter ${ROMAN[k]}</span>${esc(ch.name)}</h3>
+        <h3><span>Chapter ${roman(k)}</span>${esc(ch.name)}</h3>
         <div class="tiles">${ch.items.map(({ lv, i }) => {
           const p = progress[i], hc = progressHC[i];
           return `<div class="lvl-wrap"><button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
@@ -221,7 +223,7 @@
     return hudLabelBase() + (hardcore && playCtx.kind !== 'test' ? ' · Hardcore' : '');
   }
   function hudLabelBase() {
-    if (playCtx.kind === 'story') return `Chapter ${ROMAN[chapterIndex(playCtx.index)]} · Level ${playCtx.index + 1} of ${LF.LEVELS.length} · key ${levelKey(LF.LEVELS[playCtx.index].name)}`;
+    if (playCtx.kind === 'story') return `Chapter ${roman(chapterIndex(playCtx.index))} · Level ${playCtx.index + 1} of ${LF.LEVELS.length} · key ${levelKey(LF.LEVELS[playCtx.index].name)}`;
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
     if (playCtx.kind === 'shared') return 'Shared level';
