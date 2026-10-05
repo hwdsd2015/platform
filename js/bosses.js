@@ -6,8 +6,8 @@
 
   // The five bosses come round four times. Every fight has its own twist (bossMode, read by
   // the boss code in engine.js) and its own crowd, and across them every kind of enemy turns
-  // up, both hordes included. Each round the boss is also a little faster. Every boss
-  // takes exactly 25 hits to bring down (see BOSS_HITS in engine.js).
+  // up, both hordes included. Each round the boss is also a little faster. Each boss takes
+  // its own number of hits (see BOSS_HITS in engine.js); the trickiest fights set fewer.
   // Every arena has a boss gate (g) from floor to ceiling in front of the door, which falls
   // with the boss. There are no lanterns: the door opens when the boss is down. Fruit
   // (apple shield, orange boost, banana double jump) helps instead, and grows back.
@@ -120,7 +120,7 @@
         r(52, 10, 57, 10, '='); r(61, 7, 66, 7, '='); s(63, 6, '$'); r(72, 10, 77, 10, '='); s(75, 9, 'b');
         s(68, 12, '5'); r(89, 1, 89, 12, 'g'); s(90, 12, 'D');
       }) },
-    { name: 'The Ember Roost', mode: 'rising', dark: .72, hordeStop: 19, sign: 'CLIMB ↑ the dark rises · the Soot Queen waits at the top',
+    { name: 'The Ember Roost', mode: 'rising', bossHits: 14, dark: .72, hordeStop: 19, sign: 'CLIMB ↑ the dark rises · the Soot Queen waits at the top',
       map: () => B(28, 48, ({ r, s, walls }) => {
         walls(); r(0, 0, 27, 0); r(1, 45, 26, 46);
         s(0, 47, '%'); s(3, 44, 'P'); s(5, 44, 'q');
@@ -132,7 +132,7 @@
         r(3, 15, 8, 15, '='); s(5, 14, 'b'); r(19, 15, 24, 15, '='); s(22, 14, 'a');
         s(14, 7, '6'); r(25, 1, 25, 17, 'g'); s(26, 17, 'D');
       }) },
-    { name: 'Hollow Range', mode: 'fade', dark: .85, sign: 'THE ASH MARKSMAN · he fades as he leaps · strike when he shows',
+    { name: 'Hollow Range', mode: 'fade', bossHits: 12, dark: .85, sign: 'THE ASH MARKSMAN · he fades as he leaps · strike when he shows',
       map: () => deck(({ s }) => { s(8, 5, 'G'); s(42, 5, 'G'); s(22, 10, 'X'); s(27, 10, 'X'); }) },
     { name: 'The Iron Quarry', mode: 'quarry', dark: .7, sign: 'THE IRON COLOSSUS · its landings bring the roof down',
       map: () => yard(({ s }) => { s(12, 1, 'k'); s(38, 1, 'k'); s(20, 14, 'K'); s(34, 14, 'B'); }) },
@@ -146,7 +146,7 @@
         r(8, 14, 13, 14, 'T'); r(34, 14, 39, 14, 'H'); r(15, 11, 23, 11, 'H'); r(24, 11, 32, 11, 'T');
         s(6, 6, 'G'); s(40, 6, 'G');
       }) },
-    { name: 'The Archery Loft', mode: 'lifts', dark: .66, sign: 'THE ASH MARKSMAN · ride the lifts across his pool',
+    { name: 'The Archery Loft', mode: 'lifts', bossHits: 14, dark: .66, sign: 'THE ASH MARKSMAN · ride the lifts across his pool',
       map: () => B(56, 18, ({ r, s, walls }) => {
         walls(); r(0, 0, 55, 0); r(1, 15, 14, 16); r(41, 15, 54, 16); r(15, 15, 40, 16, '~');
         s(2, 14, 'P'); s(4, 14, '$'); s(8, 14, 'o'); s(11, 14, 'q');
@@ -202,6 +202,7 @@
     const f = FIGHTS[k], map = easeAccess(f.map()), type = map.join('').match(/[5-9]/)[0];
     return {
       name: f.name, dark: f.dark, map, bossMode: f.mode,
+      ...(f.bossHits ? { bossHits: f.bossHits } : {}),
       signs: [{ x: 2, y: signY(map), t: f.sign }],
       ...(f.hordeStop != null ? { hordeStop: f.hordeStop } : {}),
       ...(SPEED[round] > 1 ? { tuning: { [type]: { speed: SPEED[round] } } } : {}),

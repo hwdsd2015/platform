@@ -59,51 +59,53 @@
     '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
     '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, note: 'rolls along; 5 hits of any kind and it blows up, killing everything within 10 blocks' },
-    // Bosses: wake when you come near, take exactly BOSS_HITS hits (shots or stomps on the
-    // head), and keep the door shut until they fall.
-    5: { name: 'The Bellwether', boss: true, w: 60, h: 46, stomp: true, drop: 10, note: 'boss: charges across the arena and is dazed when it hits a wall' },
-    6: { name: 'The Soot Queen', boss: true, w: 64, h: 34, stomp: true, drop: 10, note: 'boss: flies, drops embers, swoops at you, then rests on the ground' },
-    7: { name: 'The Ash Marksman', boss: true, w: 36, h: 50, stomp: true, drop: 10, note: 'boss: leaps about firing fans of arrows' },
-    8: { name: 'The Iron Colossus', boss: true, w: 64, h: 76, stomp: true, drop: 10, note: 'boss: slow; its leaps send shockwaves along the floor' },
-    9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, drop: 10, note: 'boss: lobs bombs and sends TNT carts' },
+    // Bosses: wake when you come near, take an exact number of hits (shots or stomps on the
+    // head; see BOSS_HITS), and keep the door shut until they fall.
+    5: { name: 'The Bellwether', boss: true, w: 60, h: 46, stomp: true, drop: 10, hits: 20, note: 'boss: charges across the arena and is dazed when it hits a wall' },
+    6: { name: 'The Soot Queen', boss: true, w: 64, h: 34, stomp: true, drop: 10, hits: 15, note: 'boss: flies, drops embers, swoops at you, then rests on the ground' },
+    7: { name: 'The Ash Marksman', boss: true, w: 36, h: 50, stomp: true, drop: 10, hits: 16, note: 'boss: leaps about firing fans of arrows' },
+    8: { name: 'The Iron Colossus', boss: true, w: 64, h: 76, stomp: true, drop: 10, hits: 22, note: 'boss: slow; its leaps send shockwaves along the floor' },
+    9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, drop: 10, hits: 18, note: 'boss: lobs bombs and sends TNT carts' },
   };
   // Giant bosses: one for every enemy and hazard without a boss of its own. They only come
   // from boss arenas, whose map marks the spot with 0 and whose def.giant names the giant.
   // Creature giants are their own enemy drawn k times bigger; the rest are drawn specially.
   // Ones whose small cousin can't be stomped can only be stomped while dazed.
   const GIANTS = {
-    B: { name: 'The Wick Matriarch', k: 3 },
-    J: { name: 'The Bog King', k: 3 },
-    W: { name: 'The Hive Mother', k: 3, fly: true },
-    X: { name: 'The Widow', k: 3 },
-    S: { name: 'The Great Kiln', k: 3 },
-    K: { name: 'The Thorn Tyrant', k: 3 },
-    U: { name: 'The Moon Jelly', k: 3 },
-    Z: { name: 'The Living Spark', k: 3, fly: true },
-    G: { name: 'The Pale Wraith', k: 3, fly: true },
-    Y: { name: 'The Lantern Leviathan', k: 3 },
-    N: { name: 'The Gar Lord', k: 3 },
-    '*': { name: 'The Magma Heart', k: 3 },
-    E: { name: 'The Great Pendulum', w: 56, h: 56, stomp: true },
-    e: { name: 'The Thorn Pendulum', w: 56, h: 56, stomp: true },
-    f: { name: 'The Fire Wheel', w: 56, h: 56, stomp: true },
-    k: { name: 'The Great Crusher', w: 96, h: 64, stomp: true },
-    '&': { name: 'The Shadow Wall', w: 56, h: 56, stomp: true },
-    '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true },
+    B: { name: 'The Wick Matriarch', k: 3, hits: 20 },
+    J: { name: 'The Bog King', k: 3, hits: 18 },
+    W: { name: 'The Hive Mother', k: 3, fly: true, hits: 15 },
+    X: { name: 'The Widow', k: 3, hits: 15 },
+    S: { name: 'The Great Kiln', k: 3, hits: 22 },
+    K: { name: 'The Thorn Tyrant', k: 3, hits: 14 },
+    U: { name: 'The Moon Jelly', k: 3, hits: 12 },
+    Z: { name: 'The Living Spark', k: 3, fly: true, hits: 12 },
+    G: { name: 'The Pale Wraith', k: 3, fly: true, hits: 12 },
+    Y: { name: 'The Lantern Leviathan', k: 3, hits: 14 },
+    N: { name: 'The Gar Lord', k: 3, hits: 14 },
+    '*': { name: 'The Magma Heart', k: 3, hits: 12 },
+    E: { name: 'The Great Pendulum', w: 56, h: 56, stomp: true, hits: 15 },
+    e: { name: 'The Thorn Pendulum', w: 56, h: 56, stomp: true, hits: 15 },
+    f: { name: 'The Fire Wheel', w: 56, h: 56, stomp: true, hits: 15 },
+    k: { name: 'The Great Crusher', w: 96, h: 64, stomp: true, hits: 18 },
+    '&': { name: 'The Shadow Wall', w: 56, h: 56, stomp: true, hits: 12 },
+    '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true, hits: 12 },
     // The final boss: the darkness itself, and it takes twice the hits.
     'Ω': { name: 'The Last Dark', w: 72, h: 96, stomp: true, hits: 50 },
   };
   for (const [c, g] of Object.entries(GIANTS)) {
     const base = LF.ENEMIES[c];
     LF.ENEMIES[c + '+'] = base
-      ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, drop: 10, fly: g.fly }
+      ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, drop: 10, fly: g.fly, hits: g.hits }
       : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, drop: 10, hits: g.hits };
   }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
-  // Every boss falls to exactly this many hits: a stomp, a bullet, an explosive round, a
-  // grenade blast or a TNT blast each count as one (a grenade's three blasts can land three). And every dazed (or stunned, or resting)
+  // Each boss falls to an exact number of hits, its `hits` (an arena can set its own with
+  // def.bossHits): fewer for the ones that are hard to hit, 50 for the final boss. A stomp,
+  // a bullet, an explosive round, a grenade blast or a TNT blast each count as one (a
+  // grenade's three blasts can land three). And every dazed (or stunned, or resting)
   // moment lasts DAZE times as long as it would otherwise.
-  const BOSS_HITS = 25, DAZE = 1.75;
+  const BOSS_HITS = 20, DAZE = 1.75;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
@@ -233,8 +235,8 @@
       W.shotDoors.push(d);
     }
     // Later boss arenas make their boss tougher.
-    // Every boss takes exactly BOSS_HITS hits, however it's hit (see shootEnemy).
-    for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = LF.ENEMIES[e.type].hits || BOSS_HITS;
+    // Every boss takes an exact number of hits, however it's hit (see BOSS_HITS).
+    for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = def.bossHits || LF.ENEMIES[e.type].hits || BOSS_HITS;
     W.total = W.lanterns.length;
     if (W.door && !W.total && !W.enemies.some(isBoss)) W.door.open = true;
     W.checkpoint = { ...W.start };
