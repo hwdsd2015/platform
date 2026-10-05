@@ -90,12 +90,14 @@
     k: { name: 'The Great Crusher', w: 96, h: 64, stomp: true },
     '&': { name: 'The Shadow Wall', w: 56, h: 56, stomp: true },
     '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true },
+    // The final boss: the darkness itself, and it takes twice the hits.
+    'Ω': { name: 'The Last Dark', w: 72, h: 96, stomp: true, hits: 50 },
   };
   for (const [c, g] of Object.entries(GIANTS)) {
     const base = LF.ENEMIES[c];
     LF.ENEMIES[c + '+'] = base
       ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, drop: 10, fly: g.fly }
-      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, drop: 10 };
+      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, drop: 10, hits: g.hits };
   }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
   // Every boss falls to exactly this many hits: a stomp, a bullet, an explosive round, a
@@ -232,7 +234,7 @@
     }
     // Later boss arenas make their boss tougher.
     // Every boss takes exactly BOSS_HITS hits, however it's hit (see shootEnemy).
-    for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = BOSS_HITS;
+    for (const e of W.enemies) if (isBoss(e)) e.hp = e.maxHp = LF.ENEMIES[e.type].hits || BOSS_HITS;
     W.total = W.lanterns.length;
     if (W.door && !W.total && !W.enemies.some(isBoss)) W.door.open = true;
     W.checkpoint = { ...W.start };
@@ -267,7 +269,7 @@
     const e = makeEnemy(key, tx, ty);
     e.scale = s.k || 1; e.reach = -TS;
     const cx = tx * TS + TS / 2, cy = ty * TS + TS / 2;
-    if (s.fly || c === 'f') { e.x = cx - e.w / 2; e.y = cy - e.h / 2; }
+    if (s.fly || c === 'f' || c === 'Ω') { e.x = cx - e.w / 2; e.y = cy - e.h / 2; }
     // Swimmers and the Magma Heart: find their pool's surface and sides.
     if (c === 'U' || c === 'Y' || c === 'N' || c === '*') {
       measurePool(W, e, tx, ty);
@@ -1699,6 +1701,65 @@
         } else if (e.state === 'stuck') { if ((e.wait -= dt) <= 0) e.state = 'rise'; }
         else { e.y -= 150 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = rage ? .6 : 1; } }
         e.x = Math.max(TS, Math.min((W.w - 1) * TS - e.w, e.x));
+        break;
+      }
+      case 'Ω+': {
+        // The Last Dark: the final boss. It hovers over you, and grows wilder as it weakens:
+        // three phases, each faster and with more attacks. Its dives slam the floor and leave
+        // it dazed there, the best moment to stomp it.
+        const phase = e.hp > 33 ? 1 : e.hp > 16 ? 2 : 3, fast = [1, 1.25, 1.55][phase - 1];
+        if (phase !== e.phase) {
+          if (e.phase) {
+            W.floaters.push({ x: ex, y: e.y - 20, t: phase === 2 ? 'the dark gathers…' : 'the dark rages!', life: 2, c: '#FF6B3D' });
+            W.shake = Math.max(W.shake, .6); W.emit('roar'); ring8(W, ex, ey, 16, 200);
+          }
+          e.phase = phase;
+        }
+        if (e.state === 'dive') {
+          e.vy = Math.min(1100, e.vy + G * 1.4 * dt);
+          const hit = moveY(W, e, e.vy * dt, true);
+          if (hit && hit.dir === 'down') {
+            shock(W, e, phase === 3 ? [[-1, 320], [1, 320], [-1, 200], [1, 200]] : [[-1, 300], [1, 300]]);
+            W.shake = Math.max(W.shake, .5); W.emit('slam');
+            daze(phase === 3 ? 1.1 : 1.4, 'floor');
+          }
+          break;
+        }
+        if (e.state === 'floor') { if ((e.wait -= dt) <= 0) e.state = 'rise'; break; }
+        if (e.state === 'rise') { e.y -= 220 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = 1 / fast; } break; }
+        // Hover over you.
+        const tx = Math.max(TS * 2, Math.min((W.w - 3) * TS - e.w, px - e.w / 2));
+        e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), 90 * fast * dt);
+        e.y += (e.oy + Math.sin(e.t * 2) * 10 - e.y) * Math.min(1, dt * 3);
+        e.face = toward;
+        if ((e.wait -= dt) > 0 || !live) break;
+        const acts = [['bombs', 'rain', 'dive'], ['bombs', 'summon', 'ring', 'dive', 'rain'], ['bombs', 'ring', 'rocks', 'dive', 'summon', 'rain']][phase - 1];
+        const act = acts[(e.moves = (e.moves || 0) + 1) % acts.length];
+        e.wait = 1.4 / fast;
+        if (act === 'dive') { e.state = 'dive'; e.vy = 0; W.emit('buzz'); }
+        else if (act === 'bombs') {
+          const n = phase + 1, pvx = W.player.vx;
+          for (let k = 0; k < n; k++) {
+            const t = .9 + k * .15, g = 900, bx = px + pvx * t * .8 + (k - (n - 1) / 2) * 50;
+            W.projectiles.push({ kind: 'bomb', x: ex - 6, y: e.y + e.h - 10, w: 12, h: 12, vx: (bx - ex) / t, vy: (py - e.y - e.h) / t - g * t / 2, g, life: 4 });
+          }
+          W.emit('lob');
+        } else if (act === 'rain') {
+          const n = 6 + phase * 2;
+          for (let k = 0; k < n; k++) W.projectiles.push({ x: px + (k - n / 2) * 48 + Math.random() * 20, y: TS + 4, w: 12, h: 12, vx: 0, vy: 80, g: 500, life: 5 });
+          W.emit('spit');
+        } else if (act === 'ring') { ring8(W, ex, ey, 10 + phase * 2, 170); W.emit('buzz'); }
+        else if (act === 'rocks') {
+          for (let k = 0; k < 6; k++) W.projectiles.push({ kind: 'rock', x: px + (Math.random() * 2 - 1) * TS * 6 - 7, y: TS + 4, w: 14, h: 14, vx: 0, vy: 0, g: 700 + Math.random() * 300, life: 4 });
+          W.emit('slam');
+        } else if (act === 'summon' && minions(W) < 4) {
+          for (let k = 0; k < 2; k++) {
+            const type = WAVE[(e.wave = ((e.wave ?? -1) + 1) % WAVE.length)];
+            const fly = 'FGWZ'.includes(type), x = px + (k ? 1 : -1) * TS * 6;
+            spawnMinion(W, type, Math.max(TS * 2, Math.min((W.w - 4) * TS, x)), fly ? e.y + e.h : type === 'X' ? TS * 1.5 : (W.h - 4) * TS + 16);
+          }
+          W.floaters.push({ x: ex, y: e.y - 10, t: 'rise, my dark!', life: 1.2, c: '#FF6B3D' });
+        }
         break;
       }
       case '&+': case '%+': {

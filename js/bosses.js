@@ -310,5 +310,19 @@
     if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), chapter, boss: true });
     else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...giantArena((n - 5) / 10), chapter, boss: true });
   });
+  // ---- The final boss ----
+  // The very last level, a chapter of its own: the Last Dark, which takes 50 hits.
+  const finalMap = B(60, 20, ({ r, s, walls }) => {
+    walls(); r(0, 0, 59, 0); r(1, 17, 58, 18);
+    s(2, 16, 'P'); s(4, 16, '$'); s(6, 16, 'Q'); s(8, 16, 'a');
+    r(10, 13, 15, 13, '='); s(12, 12, 'o'); r(44, 13, 49, 13, '='); s(46, 12, 'b');
+    r(20, 10, 26, 10, '='); s(23, 9, '$'); r(33, 10, 39, 10, '='); s(36, 9, 'Q');
+    r(27, 7, 32, 7, '='); s(29, 6, 'a'); s(52, 16, '$');
+    s(30, 9, '0'); r(56, 1, 56, 16, 'g'); s(57, 16, 'D');
+  });
+  out.push({
+    chapter: 'The Last Night', name: 'Final Bossfight', dark: .82, map: easeAccess(finalMap), giant: 'Ω', boss: true, finalFight: true,
+    signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 50 hits · stomp it when it dives to the floor' }],
+  });
   L.length = 0; L.push(...out);
 })();

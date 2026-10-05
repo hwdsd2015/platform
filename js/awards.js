@@ -23,6 +23,7 @@
     { id: 'golem', name: 'Giant Slayer', desc: 'Bring down an iron golem.' },
     { id: 'boss', name: 'Boss Breaker', desc: 'Defeat a boss.' },
     { id: 'bossAll', name: 'Monster Hunter', desc: 'Defeat all five bosses.', stat: 'bossKinds', goal: 5 },
+    { id: 'final', name: 'Dawn', desc: 'Defeat the Last Dark.' },
     { id: 'bubble', name: 'Bubble Popper', desc: 'Shoot a lava bubble out of the air.' },
     { id: 'wall', name: 'Wall Runner', desc: 'Wall jump 100 times.', stat: 'walljump', goal: 100 },
     { id: 'djump', name: 'Second Wind', desc: 'Double jump 25 times.', stat: 'djump', goal: 25 },
@@ -80,6 +81,7 @@
       else if (ev.type === 'shield') earn('shield');
       else if (ev.type === 'bossdown') {
         earn('boss');
+        if (d.type === 'Ω+') earn('final');
         const kinds = new Set(stats.bossSeen || []); kinds.add(d.type);
         stats.bossSeen = [...kinds]; bump('bossKinds', kinds.size - (stats.bossKinds || 0));
       }

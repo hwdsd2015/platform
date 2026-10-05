@@ -375,6 +375,23 @@
         ctx.fillStyle = e.state === 'stuck' ? '#9A8FBF' : '#FF6B3D'; ctx.fillRect(6, 9, 7, 3); ctx.fillRect(17, 9, 7, 3);
         ctx.fillStyle = '#211C3F'; ctx.fillRect(9, 19, 12, 3);
         ctx.restore();
+      } else if (e.type === 'Ω+') {
+        // The Last Dark: a towering hooded shape under a candle-snuffer, eyes burning hotter
+        // with each phase, wisps of smoke circling it.
+        const ph = e.phase || 1, sway = reduced ? 0 : Math.sin(clock * 2) * 3, body = e.hurt > 0 ? '#CFC6E8' : '#0E0C22';
+        ctx.fillStyle = 'rgba(70,60,107,.55)';
+        for (let k = 0; k < 6; k++) { const a = clock * (.8 + ph * .3) + k / 6 * TAU; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 46, cy + Math.sin(a) * 30, 7 + (k % 2) * 3, 0, TAU); ctx.fill(); }
+        ctx.fillStyle = body;
+        ctx.beginPath(); ctx.moveTo(cx - 20, e.y + 28); ctx.lineTo(cx + 20, e.y + 28);
+        for (let k = 0; k <= 6; k++) ctx.lineTo(cx + 36 - k * 12 + (k % 2 ? -sway : sway), e.y + e.h - (k % 2 ? 12 : 0));
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx, e.y + 32, 22, 24, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = e.hurt > 0 ? '#A99CC4' : '#463C6B';
+        ctx.beginPath(); ctx.moveTo(cx - 19, e.y + 16); ctx.lineTo(cx + 19, e.y + 16); ctx.lineTo(cx + 2, e.y - 18); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#8F81AB'; ctx.fillRect(cx - 20, e.y + 14, 40, 4);
+        ctx.fillStyle = ['#FF6B3D', '#FFB547', '#FFE2A8'][ph - 1];
+        const blink = e.state === 'floor' ? 1 : 3;
+        ctx.fillRect(cx - 10, e.y + 31, 7, blink); ctx.fillRect(cx + 3, e.y + 31, 7, blink);
       } else {
         // A horde's heart: a knot of shadow with a red eye that opens when it lunges.
         const pulse = reduced ? 1 : 1 + Math.sin(clock * 6) * .06, open = e.state === 'lunge';
@@ -896,6 +913,8 @@
       for (const b of W.bullets) out.push({ x: b.x, y: b.y, r: 45 * (b.s || 1) });
       for (const b of W.ammoFly) out.push({ x: b.x, y: b.y, r: 28 });
       for (const t of W.traps) if (t.type === 'bar') { const bs = LF.barBalls(t); out.push({ x: bs[2].x, y: bs[2].y, r: 90 }); }
+      // The Last Dark's eyes glow, so you can always see where it is.
+      for (const e of W.enemies) if (e.alive && e.type === 'Ω+') out.push({ x: e.x + e.w / 2, y: e.y + 32, r: 110 });
       for (const e of W.enemies) if (e.alive && e.type === 'f+') { out.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, r: 200 }); for (const b of LF.wheelBalls(e).filter((_, k) => k % 3 === 2)) out.push({ x: b.x, y: b.y, r: 70 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
