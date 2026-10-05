@@ -105,7 +105,7 @@
   // a bullet, an explosive round, a grenade blast or a TNT blast each count as one (a
   // grenade's three blasts can land three). And every dazed (or stunned, or resting)
   // moment lasts DAZE times as long as it would otherwise.
-  const BOSS_HITS = 20, DAZE = 1.75;
+  const BOSS_HITS = 20, DAZE = 1.75, SPAWN_HOLD = 1.5;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
@@ -423,6 +423,9 @@
     const { ammo, keys } = W.player;
     Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
     if (W.def.noSpawnInv) W.player.inv = 0;
+    // In a boss fight you can't fire until your spawn protection is over (and at least
+    // SPAWN_HOLD seconds), so you can't spam shots from safety at a boss beside your spawn.
+    if (W.enemies.some(e => e.alive && isBoss(e))) W.player.cool = W.player.hold = Math.max(SPAWN_HOLD, W.player.inv);
     W.projectiles = [];
     // A boss fight carries on where it was: the boss, its damage, its guards, carts and other
     // minions all stay as they are. (Only the horde falls back, below.)
@@ -1955,6 +1958,13 @@
     // holding fire keeps shooting until you let go or run out.
     // Holding Shift makes any shot big: twice the size and blast, twice the ammo.
     p.cool -= dt; p.flash -= dt;
+    if (p.hold > 0) {
+      p.hold -= dt;
+      if (input.firePressed || input.rocketPressed || input.grenadePressed) {
+        input.firePressed = input.rocketPressed = input.grenadePressed = false;
+        if (!W.floaters.some(f => f.t === 'steady…')) W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: 'steady…', life: .8, c: '#D9D0F0' });
+      }
+    }
     const s = input.big ? 2 : 1;
     if ((input.firePressed || input.fire) && p.cool <= 0) {
       const tapped = input.firePressed;
