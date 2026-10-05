@@ -441,6 +441,100 @@
           for (let k = 0; k < e.hp; k++) { ctx.fillStyle = '#FF6B3D'; ctx.fillRect(cx - 11 + k * 5, by - 33, 3, 2); }
           break;
         }
+        // ---- bosses (they flash pale when hit) ----
+        case '5': {
+          // The Bellwether: a huge woolly ram with curled horns and a bell at its throat.
+          const hurt = e.hurt > 0, stun = e.state === 'stun', dip = e.state === 'wind' ? 4 : 0;
+          const leg = reduced || stun ? 0 : Math.sin(clock * (e.state === 'charge' ? 28 : 9) + e.ox) * 3;
+          ctx.fillStyle = '#1A1530';
+          for (const [lx, s] of [[-18, 1], [-8, -1], [6, 1], [16, -1]]) ctx.fillRect(cx + f * lx - 3, by - 13 + Math.max(0, leg * s), 6, 13 - Math.max(0, leg * s));
+          ctx.fillStyle = hurt ? '#CFC6E8' : '#55497F';
+          ctx.beginPath(); ctx.ellipse(cx - f * 4, by - 24, 25, 15, 0, 0, TAU); ctx.fill();
+          for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.arc(cx - f * 4 + k * 9, by - 36 + Math.abs(k) * 2, 7, 0, TAU); ctx.fill(); }
+          ctx.fillStyle = hurt ? '#A99CC4' : '#372C5E';
+          ctx.beginPath(); ctx.ellipse(cx + f * 21, by - 24 + dip, 10, 9, f * .3, 0, TAU); ctx.fill();
+          ctx.strokeStyle = hurt ? '#FFF1CF' : '#CFC6E8'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(cx + f * 15, by - 31 + dip, 7, f > 0 ? Math.PI * .9 : -Math.PI * .1, f > 0 ? Math.PI * 2.5 : Math.PI * 1.5); ctx.stroke();
+          ctx.fillStyle = stun ? '#9A8FBF' : e.state === 'charge' || e.state === 'wind' ? '#FFE2A8' : '#FF6B3D';
+          ctx.fillRect(cx + f * 25 - 1.5, by - 28 + dip, 3, 3);
+          const bx = cx + f * 14, swing = reduced ? 0 : Math.sin(clock * 8) * 2;
+          ctx.fillStyle = '#FFB547';
+          ctx.beginPath(); ctx.moveTo(bx - 3 + swing, by - 19); ctx.lineTo(bx + 3 + swing, by - 19); ctx.lineTo(bx + 6 + swing, by - 10); ctx.lineTo(bx - 6 + swing, by - 10); ctx.fill();
+          ctx.fillStyle = '#7A2E1C'; ctx.beginPath(); ctx.arc(bx + swing, by - 9, 2, 0, TAU); ctx.fill();
+          if (stun) {
+            ctx.fillStyle = '#FFE2A8';
+            for (let k = 0; k < 3; k++) { const a = clock * 5 + k * 2.1; ctx.fillRect(cx + f * 16 + Math.cos(a) * 13 - 2, by - 46 + Math.sin(a) * 4 - 2, 4, 4); }
+          }
+          break;
+        }
+        case '6': {
+          // The Soot Queen: a giant crowned bat.
+          const hurt = e.hurt > 0, cy = e.y + e.h / 2, flap = reduced ? 0 : Math.sin(clock * (e.state === 'rest' ? 3 : 14) + e.ox) * 10;
+          ctx.fillStyle = hurt ? '#A99CC4' : '#1F1A3A';
+          for (const s of [-1, 1]) {
+            ctx.beginPath(); ctx.moveTo(cx + s * 8, cy - 4); ctx.lineTo(cx + s * 34, cy - 12 - flap); ctx.lineTo(cx + s * 29, cy + 2 - flap * .4);
+            ctx.lineTo(cx + s * 22, cy - 1); ctx.lineTo(cx + s * 17, cy + 7); ctx.lineTo(cx + s * 9, cy + 6); ctx.fill();
+          }
+          ctx.fillStyle = hurt ? '#CFC6E8' : '#2A2348';
+          ctx.beginPath(); ctx.ellipse(cx, cy + 1, 12, 15, 0, 0, TAU); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(cx - 9, cy - 9); ctx.lineTo(cx - 6, cy - 20); ctx.lineTo(cx - 2, cy - 11); ctx.moveTo(cx + 9, cy - 9); ctx.lineTo(cx + 6, cy - 20); ctx.lineTo(cx + 2, cy - 11); ctx.fill();
+          ctx.fillStyle = '#FFB547';
+          ctx.beginPath(); ctx.moveTo(cx - 6, cy - 12); for (let k = 0; k <= 4; k++) ctx.lineTo(cx - 6 + k * 3, cy - (k % 2 ? 14 : 19)); ctx.lineTo(cx + 6, cy - 12); ctx.fill();
+          ctx.fillStyle = e.state === 'aim' ? '#FFE2A8' : '#FF6B3D';
+          ctx.fillRect(cx - 5, cy - 5, 3, 3); ctx.fillRect(cx + 2, cy - 5, 3, 3);
+          ctx.fillStyle = '#CFC6E8'; ctx.fillRect(cx - 3, cy + 2, 1.5, 3); ctx.fillRect(cx + 1.5, cy + 2, 1.5, 3);
+          break;
+        }
+        case '7': {
+          // The Ash Marksman: a tall hooded archer with a longbow.
+          const hurt = e.hurt > 0, step = reduced || !e.ground ? 0 : Math.sin(clock * 6 + e.ox) * 2;
+          ctx.fillStyle = '#1A1530'; ctx.fillRect(cx - 8, by - 12 + Math.max(0, step), 6, 12); ctx.fillRect(cx + 2, by - 12 + Math.max(0, -step), 6, 12);
+          ctx.fillStyle = '#7A2E1C'; ctx.fillRect(cx - f * 12 - 3, by - 44, 6, 18);
+          ctx.fillStyle = '#FFE2A8'; for (let k = 0; k < 3; k++) ctx.fillRect(cx - f * 12 - 3 + k * 2, by - 48, 1.5, 4);
+          ctx.fillStyle = hurt ? '#CFC6E8' : '#5E4B3C';
+          ctx.beginPath(); ctx.moveTo(cx - 14, by - 10); ctx.lineTo(cx + 14, by - 10); ctx.lineTo(cx + 9, by - 40); ctx.lineTo(cx - 9, by - 40); ctx.fill();
+          ctx.fillStyle = hurt ? '#A99CC4' : '#3E3128'; ctx.beginPath(); ctx.ellipse(cx, by - 42, 10, 10, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#120F2A'; ctx.beginPath(); ctx.ellipse(cx + f * 3, by - 41, 6, 5, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = e.wait < .4 && e.state !== 'leap' ? '#FFE2A8' : '#FF6B3D'; ctx.fillRect(cx + f * 5 - 1.5, by - 43, 3, 2);
+          ctx.save(); ctx.translate(cx, by - 28); ctx.scale(f, 1);
+          ctx.strokeStyle = '#C08A5C'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(6, 0, 16, -1.15, 1.15); ctx.stroke();
+          ctx.strokeStyle = 'rgba(217,208,240,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6 + 16 * Math.cos(1.15), -16 * Math.sin(1.15)); ctx.lineTo(6 + 16 * Math.cos(1.15), 16 * Math.sin(1.15)); ctx.stroke();
+          ctx.restore();
+          break;
+        }
+        case '8': {
+          // The Iron Colossus: a golem twice the size, glowing at the core.
+          const hurt = e.hurt > 0, crouch = e.state === 'crouch' ? 6 : 0, step = reduced || !e.ground ? 0 : Math.sin(clock * 4 + e.ox) * 3;
+          const body = hurt ? '#CFC6E8' : '#4A4560', dark = hurt ? '#A99CC4' : '#2E2A40';
+          ctx.fillStyle = dark; ctx.fillRect(cx - 24, by - 22 + Math.max(0, step), 16, 22 - Math.max(0, step)); ctx.fillRect(cx + 8, by - 22 + Math.max(0, -step), 16, 22 - Math.max(0, -step));
+          ctx.fillStyle = body; ctx.fillRect(cx - 30, by - 64 + crouch, 60, 44);
+          ctx.fillStyle = dark; ctx.fillRect(cx - 30, by - 64 + crouch, 60, 6);
+          ctx.fillRect(cx - 40, by - 60 + crouch, 10, 30); ctx.fillRect(cx + 30, by - 60 + crouch, 10, 30);
+          ctx.fillRect(cx - 43, by - 32 + crouch, 15, 13); ctx.fillRect(cx + 28, by - 32 + crouch, 15, 13);
+          ctx.fillStyle = body; ctx.fillRect(cx - 14, by - 76 + crouch, 28, 14);
+          ctx.fillStyle = '#FF6B3D'; ctx.fillRect(cx + f * 4 - 8, by - 71 + crouch, 16, 4);
+          ctx.fillStyle = '#6E6186'; for (let k = 0; k < 4; k++) ctx.fillRect(cx - 22 + k * 13, by - 30 + crouch, 5, 5);
+          ctx.globalAlpha = .9; ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(cx, by - 46 + crouch, 6 * flick(e.ox, .25), 0, TAU); ctx.fill();
+          ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(cx, by - 46 + crouch, 2.5, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+          break;
+        }
+        case '9': {
+          // The Powder King: a stout crowned miner in a dynamite bandolier, bomb in hand.
+          const hurt = e.hurt > 0, step = reduced ? 0 : Math.sin(clock * 6 + e.ox) * 2;
+          ctx.fillStyle = '#1A1530'; ctx.fillRect(cx - 12, by - 12 + Math.max(0, step), 8, 12); ctx.fillRect(cx + 4, by - 12 + Math.max(0, -step), 8, 12);
+          ctx.fillStyle = hurt ? '#CFC6E8' : '#7A2E1C'; ctx.beginPath(); ctx.ellipse(cx, by - 26, 21, 18, 0, 0, TAU); ctx.fill();
+          ctx.save(); ctx.translate(cx, by - 27); ctx.rotate(f * -.5);
+          ctx.fillStyle = '#3A2516'; ctx.fillRect(-22, -3, 44, 6);
+          ctx.fillStyle = '#C0392B'; for (let k = -2; k <= 2; k++) ctx.fillRect(k * 8 - 2, -6, 4, 12);
+          ctx.restore();
+          ctx.fillStyle = hurt ? '#A99CC4' : '#5C3B24'; ctx.beginPath(); ctx.arc(cx + f * 2, by - 46, 10, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.moveTo(cx - 9, by - 52); for (let k = 0; k <= 4; k++) ctx.lineTo(cx - 9 + k * 4.5, by - (k % 2 ? 56 : 62)); ctx.lineTo(cx + 9, by - 52); ctx.fill();
+          ctx.fillStyle = '#FFE2A8'; ctx.fillRect(cx + f * 6 - 1.5, by - 48, 3, 3);
+          const hx = cx + f * 22, hy = by - 30;
+          ctx.fillStyle = '#1A1530'; ctx.beginPath(); ctx.arc(hx, hy, 6, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(hx + f * 3, hy - 7, 2 * flick(e.ox, .5), 0, TAU); ctx.fill();
+          break;
+        }
         case 'Y': {
           const cy = e.y + 6, tail = reduced ? 0 : Math.sin(clock * 10 + e.ox) * 3;
           ctx.fillStyle = '#244250';
@@ -858,6 +952,22 @@
           ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(3, -3); ctx.lineTo(3, 3); ctx.fill();
           ctx.fillStyle = '#D9D0F0'; ctx.fillRect(-10, -3, 3, 2); ctx.fillRect(-10, 1, 3, 2);
           ctx.restore(); continue;
+        }
+        if (b.kind === 'shock') {
+          // A shockwave rolling along the floor.
+          const x = b.x + b.w / 2, y = b.y + b.h, d = Math.sign(b.vx);
+          ctx.fillStyle = 'rgba(255,107,61,.8)';
+          ctx.beginPath(); ctx.moveTo(x - d * 14, y); ctx.quadraticCurveTo(x - d * 2, y - b.h * 1.4, x + d * 11, y); ctx.fill();
+          ctx.fillStyle = 'rgba(255,226,168,.9)';
+          ctx.beginPath(); ctx.moveTo(x - d * 6, y); ctx.quadraticCurveTo(x + d * 2, y - b.h * .8, x + d * 9, y); ctx.fill();
+          continue;
+        }
+        if (b.kind === 'bomb') {
+          const x = b.x + b.w / 2, y = b.y + b.h / 2;
+          ctx.fillStyle = '#1A1530'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
+          ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();
+          ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(x + 2, y - 7, 2.2 * flick(x, .5), 0, TAU); ctx.fill();
+          continue;
         }
         const r = b.w / 2;
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x + r, b.y + r, r, 0, TAU); ctx.fill();

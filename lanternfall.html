@@ -44,6 +44,11 @@
   .stats .open b { color: var(--ember); }
   .stats .powers i { font-style: normal; margin-right: 10px; }
   .stats .powers i:last-child { margin-right: 0; }
+  .boss-bar { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 84px); width: min(420px, calc(100vw - 32px)); text-align: center; pointer-events: none; z-index: 3; }
+  .boss-bar span { display: block; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ember); margin-bottom: 5px; }
+  .boss-bar .bar { height: 8px; border-radius: 4px; background: rgba(23,20,47,.75); border: 1px solid rgba(217,208,240,.3); overflow: hidden; }
+  .boss-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--ember), var(--wick)); transition: width .2s; }
+  .boss-tag { color: var(--ember); }
   .stats .ammo b { color: #FFE2A8; }
   .stats .ammo.empty b { color: var(--mist-dim); }
   .stats .pw-a { color: #9FD8FF; }
@@ -285,6 +290,7 @@
     <div class="powers" id="hud-keys-wrap" hidden><span>Keys</span><b id="hud-keys"></b></div>
     <div class="powers" id="hud-powers-wrap" hidden><span>Powers</span><b id="hud-powers"></b></div>
   </div>
+  <div class="boss-bar" id="boss-bar" hidden><span id="boss-name"></span><div class="bar"><i id="boss-fill"></i></div></div>
 </div>
 
 <div class="flash" id="flash"></div>
@@ -408,19 +414,20 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=59"></script>
-<script src="js/render.js?v=59"></script>
-<script src="js/gen.js?v=59"></script>
-<script src="js/levels-1.js?v=59"></script>
-<script src="js/levels-2.js?v=59"></script>
-<script src="js/levels-3.js?v=59"></script>
-<script src="js/levels-4.js?v=59"></script>
-<script src="js/levels-5.js?v=59"></script>
-<script src="js/levels-6.js?v=59"></script>
-<script src="js/levels-7.js?v=59"></script>
-<script src="js/levels-8.js?v=59"></script>
-<script src="js/levels-9.js?v=59"></script>
-<script src="js/levels-10.js?v=59"></script>
-<script src="js/awards.js?v=59"></script>
-<script src="js/editor.js?v=59"></script>
-<script src="js/ui.js?v=59"></script>
+<script src="js/engine.js?v=60"></script>
+<script src="js/render.js?v=60"></script>
+<script src="js/gen.js?v=60"></script>
+<script src="js/levels-1.js?v=60"></script>
+<script src="js/levels-2.js?v=60"></script>
+<script src="js/levels-3.js?v=60"></script>
+<script src="js/levels-4.js?v=60"></script>
+<script src="js/levels-5.js?v=60"></script>
+<script src="js/levels-6.js?v=60"></script>
+<script src="js/levels-7.js?v=60"></script>
+<script src="js/levels-8.js?v=60"></script>
+<script src="js/levels-9.js?v=60"></script>
+<script src="js/levels-10.js?v=60"></script>
+<script src="js/bosses.js?v=60"></script>
+<script src="js/awards.js?v=60"></script>
+<script src="js/editor.js?v=60"></script>
+<script src="js/ui.js?v=60"></script>

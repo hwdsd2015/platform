@@ -21,6 +21,8 @@
     { id: 'stomp', name: 'Stompy', desc: 'Stomp 50 enemies.', stat: 'stomp', goal: 50 },
     { id: 'zap', name: 'Sharpshooter', desc: 'Shoot 100 enemies.', stat: 'zap', goal: 100 },
     { id: 'golem', name: 'Giant Slayer', desc: 'Bring down an iron golem.' },
+    { id: 'boss', name: 'Boss Breaker', desc: 'Defeat a boss.' },
+    { id: 'bossAll', name: 'Monster Hunter', desc: 'Defeat all five bosses.', stat: 'bossKinds', goal: 5 },
     { id: 'bubble', name: 'Bubble Popper', desc: 'Shoot a lava bubble out of the air.' },
     { id: 'wall', name: 'Wall Runner', desc: 'Wall jump 100 times.', stat: 'walljump', goal: 100 },
     { id: 'djump', name: 'Second Wind', desc: 'Double jump 25 times.', stat: 'djump', goal: 25 },
@@ -76,6 +78,11 @@
       else if (ev.type === 'unlock') bump('unlock');
       else if (ev.type === 'bigammo') bump('bigammo');
       else if (ev.type === 'shield') earn('shield');
+      else if (ev.type === 'bossdown') {
+        earn('boss');
+        const kinds = new Set(stats.bossSeen || []); kinds.add(d.type);
+        stats.bossSeen = [...kinds]; bump('bossKinds', kinds.size - (stats.bossKinds || 0));
+      }
       else if (ev.type === 'die') bump('falls');
       else if (ev.type === 'fruit') {
         const kinds = new Set(stats.fruitSeen || []); kinds.add(d.type);

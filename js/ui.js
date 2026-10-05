@@ -22,6 +22,14 @@
   // and water turns to lava wherever the level can be finished without swimming.
   let hardcore = store.get('hardcore', false);
   let progressHC = store.get('progressHC', {});
+  // Boss levels were slotted in after every 10th level. Older saves number the levels
+  // without them, so move each saved level to its new place (once).
+  if (store.get('levelsV', 1) < 2) {
+    const regular = LF.LEVELS.map((lv, i) => i).filter(i => !LF.LEVELS[i].boss);
+    const move = book => Object.fromEntries(Object.entries(book).map(([k, v]) => [regular[k] ?? k, v]));
+    progress = move(progress); progressHC = move(progressHC);
+    store.set('progress', progress); store.set('progressHC', progressHC); store.set('levelsV', 2);
+  }
 
   // ---------- audio ----------
   let ac = null, muted = store.get('muted', false);
@@ -71,6 +79,8 @@
     bubble: () => tone(180, 520, .15, 'sine', .035),
     leap: () => tone(400, 800, .12, 'sine', .03),
     snort: () => tone(140, 90, .2, 'sawtooth', .04),
+    roar: () => { tone(90, 50, .7, 'sawtooth', .07); tone(140, 70, .6, 'square', .03, .05); },
+    bossdown: () => [400, 300, 500, 700, 1000].forEach((f, i) => tone(f, f * 1.2, .16, 'square', .04, i * .09)),
     splash: () => tone(500, 120, .18, 'sine', .04),
     swim: () => tone(300, 520, .1, 'sine', .035),
     walljump: () => tone(360, 680, .08, 'square', .03),
@@ -194,7 +204,7 @@
           const p = progress[i], hc = progressHC[i];
           return `<div class="lvl-wrap"><button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
             <b>${i + 1}</b><strong>${esc(lv.name)}</strong>
-            <small>${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)} · key <span class="lvl-key">${levelKey(lv.name)}</span></small>
+            <small>${lv.boss ? '<span class="boss-tag">boss fight</span> · ' : ''}${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)} · key <span class="lvl-key">${levelKey(lv.name)}</span></small>
             <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · <span class="hc">hardcore ${fmt(hc.best)}</span>` : ''}</em></button>
             <button class="mini lvl-copy" data-act="copyStory" data-i="${i}" title="Open a copy of this level in the editor">Copy to editor</button></div>`;
         }).join('')}</div>
@@ -497,7 +507,8 @@
   function hud() {
     const lit = W.lanterns.filter(l => l.lit).length, open = W.door && W.door.open;
     const p = W.player;
-    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${JSON.stringify(p.keys)}`;
+    const boss = W.enemies.find(e => e.alive && e.awake && LF.isBoss(e));
+    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${JSON.stringify(p.keys)}|${boss ? boss.type + boss.hp : ''}`;
     if (key === hudCache) return;
     hudCache = key;
     $('hud-lamps-label').textContent = open ? 'Door' : 'Lanterns';
@@ -516,6 +527,11 @@
     if (p.dbl > 0) powers.push(`<i class="pw-b">Double ${Math.ceil(p.dbl)}</i>`);
     $('hud-powers-wrap').hidden = !powers.length;
     $('hud-powers').innerHTML = powers.join('');
+    $('boss-bar').hidden = !boss;
+    if (boss) {
+      $('boss-name').textContent = LF.ENEMIES[boss.type].name;
+      $('boss-fill').style.width = `${boss.hp / boss.maxHp * 100}%`;
+    }
   }
 
   // ---------- loop ----------
