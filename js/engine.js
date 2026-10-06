@@ -33,11 +33,12 @@
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10, $: 25 };
   const TAU = Math.PI * 2;
 
-  // Fruit: touch to gain a power. Picked fruit grows back after REGROW seconds.
+  // Fruit: touch to gain a power, which lasts until you die (and carries on into the next
+  // level). Picked fruit grows back after REGROW seconds.
   LF.FRUITS = {
     a: { name: 'Apple', power: 'Shield', color: '#E5484D', note: 'shield: blocks one hit (a second apple doubles it, no more)' },
-    o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', dur: 12, note: 'higher jumps for 12s' },
-    b: { name: 'Banana', power: 'Double jump', color: '#FFE066', dur: 15, note: 'jump again in mid-air for 15s' },
+    o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', note: 'higher jumps, until you die' },
+    b: { name: 'Banana', power: 'Double jump', color: '#FFE066', note: 'jump again in mid-air, until you die' },
   };
 
   // drop: ammo an enemy leaves behind when you kill it — the harder it is to kill, the more.
@@ -67,6 +68,15 @@
     8: { name: 'The Iron Colossus', boss: true, w: 64, h: 76, stomp: true, drop: 10, hits: 22, note: 'boss: slow; its leaps send shockwaves along the floor' },
     9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, drop: 10, hits: 18, note: 'boss: lobs bombs and sends TNT carts' },
   };
+  // A fruit's power on the player: apple adds a shield layer (up to 2), orange the jump
+  // boost, banana the double jump. False if it would add nothing.
+  LF.applyFruit = (p, type) => {
+    if (type === 'a') { if (p.shield >= 2) return false; p.shield++; return true; }
+    if (type === 'o') { if (p.boost) return false; p.boost = 1; return true; }
+    if (type === 'b') { if (p.dbl) return false; p.dbl = 1; p.airJumps = Math.max(p.airJumps, 1); return true; }
+    return false;
+  };
+
   // Giant bosses: one for every enemy and hazard without a boss of its own. They only come
   // from boss arenas, whose map marks the spot with 0 and whose def.giant names the giant.
   // Creature giants are their own enemy drawn k times bigger; the rest are drawn specially.
@@ -252,6 +262,12 @@
     W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
     W.player.ammo = playerTune(def).ammo;
+    // Powers brought from the last level (or the inventory): def.powers = { shield, boost, dbl }.
+    if (def.powers) {
+      const pw = def.powers;
+      W.player.shield = Math.min(2, pw.shield || 0); W.player.boost = pw.boost ? 1 : 0; W.player.dbl = pw.dbl ? 1 : 0;
+    }
+    W.got = {};   // fruit picked up, by type
     // def.noSpawnInv (Hardcore): no invincible second at the start or after respawning.
     if (def.noSpawnInv) W.player.inv = 0;
     // The horde begins HORDE_BACK behind the start, the same distance it falls back to after a death.
@@ -491,6 +507,8 @@
     if (W.door) W.door.glow = approach(W.door.glow, W.door.open ? 1 : 0, dt * 1.5);
 
     const p = W.player;
+    // A timed level (def.timeLimit, in seconds) ends when the time is up.
+    if (playing && !W.cleared && W.def.timeLimit && W.time >= W.def.timeLimit) { W.cleared = true; W.clearedBy = 'time'; W.emit('clear'); }
     if (playing && !W.cleared) {
       W.time += dt;
       if (p.dead) { W.deadTimer -= dt; if (W.deadTimer <= 0) respawn(W); }
@@ -1922,7 +1940,7 @@
       return;
     }
     p.lock -= dt; p.inv -= dt;
-    p.boost = Math.max(0, p.boost - dt); p.dbl = Math.max(0, p.dbl - dt);
+
     if (dir && p.lock <= 0) p.face = dir;
     // Right after a wall jump, steering is weak so the kick carries you off the wall.
     const wet = inWater(W, p);
@@ -2178,10 +2196,9 @@
     for (const f of W.fruits) {
       if (f.taken || Math.abs(cx - f.x) > 20 || Math.abs(cy - f.y) > 22) continue;
       const spec = LF.FRUITS[f.type];
-      f.taken = true; f.regrow = REGROW; f.pop = 1;
-      if (f.type === 'a') p.shield = Math.min(2, p.shield + 1);
-      else if (f.type === 'o') p.boost = spec.dur;
-      else if (f.type === 'b') { p.dbl = spec.dur; p.airJumps = Math.max(p.airJumps, 1); }
+      f.taken = true; f.regrow = W.def.noRegrow ? Infinity : REGROW; f.pop = 1;
+      LF.applyFruit(p, f.type);
+      W.got[f.type] = (W.got[f.type] || 0) + 1;
       burst(W, f.x, f.y, 16, [spec.color, '#FFF6C2'], 130, 150, 2.5);
       W.floaters.push({ x: f.x, y: f.y - 20, t: spec.power.toLowerCase(), life: 1.1, c: spec.color });
       W.emit('fruit', { type: f.type });

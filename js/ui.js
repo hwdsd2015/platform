@@ -175,6 +175,15 @@
   let mapAt = Math.min(store.get('mapAt', 0), LF.LEVELS.length - 1);
   let secrets = store.get('secrets', {});
   let mapBusy = false;   // while the cannon's doing its thing
+  // Fruit houses: beside about one level in seven stands a little house; once that level's
+  // cleared you can walk in for a Fruit Grove minigame (once per house) whose fruit goes in
+  // your inventory. mapHouse is the house the lamplighter's standing at, if any.
+  let houses = store.get('houses', {}), mapHouse = null;
+  const HOUSE_LEVELS = LF.LEVELS.map((lv, i) => i).filter(i => {
+    const lv = LF.LEVELS[i];
+    return !lv.boss && lv.secretTo == null && i % 7 === 4 && LF.WORLDS[lv.world].last !== i;
+  });
+  const houseOpen = i => !!progress[i] && !houses[i];
   // The lamplighter can also stand at a cannon: { world: k } at the end of world k, or
   // { secret: i } beside level i. Enter there plays the Cannon Yard (see cannonLevel).
   let mapCannon = null;
@@ -245,7 +254,10 @@
     // Secret cannons sit just below and beside their level's stop.
     const secretCannons = {};
     LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) secretCannons[i] = { x: Math.min(right + 30, pos[i].x + 34), y: pos[i].y + 46, dir: 1 }; });
-    return layout = { pos, worlds, secretCannons, links, adj, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 120 + PAD + 20 };
+    // Fruit houses sit just below and to the left of their level's stop.
+    const houseSpots = {};
+    for (const i of HOUSE_LEVELS) houseSpots[i] = { x: Math.max(PAD - 40, pos[i].x - 36), y: pos[i].y + 48 };
+    return layout = { pos, worlds, secretCannons, houseSpots, links, adj, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 120 + PAD + 20 };
   }
   const arcPoint = (a, b, u) => {
     const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 170;
@@ -277,7 +289,7 @@
   }
 
   function renderMap(scroll) {
-    const L = LF.LEVELS, n = L.length, { pos, worlds, secretCannons, links, w, h } = mapLayout();
+    const L = LF.LEVELS, n = L.length, { pos, worlds, secretCannons, houseSpots, links, w, h } = mapLayout();
     let out = '';
     // The worlds: each its own landscape (see mapart.js): a sky, its scenery scattered
     // wherever the path and stops leave room, and a couple of creatures wandering about.
@@ -304,6 +316,7 @@
       for (let x = PAD - 20; x < PAD + 380; x += 30) keepOff.push({ x, y: wl.top + 40, r: 30 });   // the world's title
     });
     Object.values(secretCannons).forEach(c => keepOff.push({ x: c.x, y: c.y, r: 34 }));
+    Object.values(houseSpots).forEach(c => keepOff.push({ x: c.x, y: c.y, r: 32 }));
     const clear = (x, y) => keepOff.every(o => Math.hypot(x - o.x, y - o.y) > o.r);
     worlds.forEach((wl, k) => {
       const th = art.theme(k), rect = { x0: 12, y0: wl.top, x1: w - 12, y1: wl.bottom };
@@ -332,6 +345,15 @@
       const to = pos[LF.WORLDS[k + 1].first], d = to.x < c.x ? -1 : 1, open = unlocked(LF.WORLDS[k + 1].first);
       out += `<path class="arc${open ? ' open' : ''}" d="${arcPath(c, to)}"/>` + cannonSvg(c, d, `data-world="${k}"`, '');
     });
+    // Fruit houses: a cottage with a fruit on its sign; dim until its level is cleared, its
+    // door shut once you've been in.
+    for (const [i, c] of Object.entries(houseSpots)) {
+      const cls = houses[i] ? ' used' : progress[i] ? ' open' : '';
+      if (progress[i]) out += `<path class="warp house-path" d="M${pos[i].x} ${pos[i].y} L${c.x} ${c.y}"/>`;
+      out += `<g class="house${cls}" data-house="${i}" transform="translate(${c.x} ${c.y})"><circle class="hit" r="18"/>
+        <rect x="-13" y="-16" width="26" height="18" rx="2" class="walls"/><path d="M-17 -16 L0 -30 L17 -16 Z" class="roof"/>
+        <path d="M-4 2 v-9 a4 4 0 0 1 8 0 v9 Z" class="door"/><circle cx="0" cy="-22" r="3.5" class="fruit"/></g>`;
+    }
     // Secret cannons: always there to see, dim until you find their level's secret exit.
     // Then a gold path runs from the level to its cannon, and its arc to the faraway world.
     for (const [i, c] of Object.entries(secretCannons)) {
@@ -360,14 +382,14 @@
     // you've cleared.
     L.forEach((lv, i) => {
       const p = pos[i], r = stopR(lv), state = !unlocked(i) ? 'locked' : progress[i] ? 'lit' : 'open';
-      const cls = ['stop', state, lv.boss ? 'boss' : '', i === mapAt && !mapCannon ? 'at' : ''].join(' ');
+      const cls = ['stop', state, lv.boss ? 'boss' : '', i === mapAt && !mapCannon && mapHouse == null ? 'at' : ''].join(' ');
       let badge = '';
       if (secrets[i]) badge = `<text class="badge found" x="${r + 2}" y="${-r - 14}">★</text>`;
       else if (lv.secretTo != null && progress[i]) badge = `<text class="badge hint" x="${r + 2}" y="${-r - 14}">?</text>`;
       out += `<g class="${cls}" data-i="${i}" transform="translate(${p.x} ${p.y})"><title>${i + 1}. ${esc(lv.name)}</title>${art.stop(lv, state)}<text class="num" y="${lv.finalFight ? 22 : lv.boss ? 20 : 18}">${i + 1}</text>${badge}</g>`;
     });
     // The lamplighter, standing over the current stop (or beside the cannon it's at).
-    const at = mapCannon ? (mapCannon.secret != null ? secretCannons[mapCannon.secret] : worlds[mapCannon.world].cannon) : null;
+    const at = mapHouse != null ? houseSpots[mapHouse] : mapCannon ? (mapCannon.secret != null ? secretCannons[mapCannon.secret] : worlds[mapCannon.world].cannon) : null;
     const m = at || pos[mapAt], mr = at ? 14 : stopR(L[mapAt]);
     // Little arrows round the stop for each way the lamplighter can walk from here.
     for (const ex of mapExits()) {
@@ -392,8 +414,17 @@
       // A new world is reached by its cannon the first time.
       const wd = LF.WORLDS[L[i].world];
       if (i === wd.first && L[i].world > 0 && !progress[i] && !landedBySecret(i) && L[mapAt].world < L[i].world) return flash('Take the cannon to get there');
-      if (i === mapAt && !mapCannon) ACTIONS.story({ i });
-      else { mapAt = i; mapCannon = null; store.set('mapAt', i); renderMap(); }
+      if (i === mapAt && !mapCannon && mapHouse == null) ACTIONS.story({ i });
+      else { mapAt = i; mapCannon = null; mapHouse = null; store.set('mapAt', i); renderMap(); }
+    });
+    // Houses: click one to stand at it, and again to go in.
+    for (const g of $('map-board').querySelectorAll('.house')) g.addEventListener('click', () => {
+      initAudio();
+      if (mapBusy) return;
+      const i = +g.dataset.house;
+      if (!progress[i]) return flash('Clear the level beside it first');
+      if (mapHouse === i) return ACTIONS.house({ i });
+      mapHouse = i; mapCannon = null; mapAt = i; store.set('mapAt', i); renderMap();
     });
     // Cannons: click one you've reached to stand at it, and again to climb in.
     for (const g of $('map-board').querySelectorAll('.cannon')) g.addEventListener('click', () => {
@@ -403,7 +434,7 @@
       if (!cannonOpen(how)) return flash(how.secret != null ? 'Find this level’s secret exit first' : 'Finish this world first');
       const same = mapCannon && mapCannon.secret === how.secret && mapCannon.world === how.world;
       if (same) return ACTIONS.cannon(how);
-      mapCannon = how; mapAt = how.secret != null ? how.secret : LF.WORLDS[how.world].last; store.set('mapAt', mapAt); renderMap();
+      mapCannon = how; mapHouse = null; mapAt = how.secret != null ? how.secret : LF.WORLDS[how.world].last; store.set('mapAt', mapAt); renderMap();
     });
     const lit = Object.keys(progress).length, found = Object.keys(secrets).length, total = L.filter(lv => lv.secretTo != null).length;
     $('map-stats').textContent = `World ${L[mapAt].world + 1} of ${LF.WORLDS.length} · ${lit} of ${n} lit · secret exits ${found} of ${total}${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}`;
@@ -476,6 +507,17 @@
 
   function mapInfo() {
     const L = LF.LEVELS, lv = L[mapAt], p = progress[mapAt], hc = progressHC[mapAt];
+    if (mapHouse != null) {
+      $('map-info').innerHTML = `<div>
+          <small>Fruit house · beside level ${mapHouse + 1}</small>
+          <strong>Fruit Grove</strong>
+          <em>${houses[mapHouse] ? 'You’ve been in here: the fruit’s all gathered' : '25 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
+        </div>
+        <div class="map-actions">${houses[mapHouse] ? '' : '<button class="go" data-act="house">Go in</button>'}</div>`;
+      const b = $('map-info').querySelector('[data-act]');
+      if (b) b.addEventListener('click', () => { initAudio(); if (!mapBusy) ACTIONS.house({ i: mapHouse }); });
+      return;
+    }
     if (mapCannon) {
       const dw = cannonDest(mapCannon);
       $('map-info').innerHTML = `<div>
@@ -506,6 +548,27 @@
   // web fonts (which are wider than the fallback) have loaded.
   if (document.fonts) document.fonts.ready.then(() => { if (screen === 'map' && !mapBusy) renderMap(false); });
 
+  // The Fruit Grove: 25 seconds on a little hillside of ledges strewn with fruit (different
+  // for every house). Whatever you pick goes in your inventory.
+  function fruitGrove(i) {
+    const R = LF.rng(4242 + i * 31), kinds = 'aob';
+    return {
+      name: 'Fruit Grove', dark: .3, timeLimit: 25, noRegrow: true,
+      signs: [{ x: 2, y: 9.4, t: '25 seconds: grab all the fruit you can!' }],
+      map: LF.build(44, 14, ({ r, s }) => {
+        r(0, 12, 43, 13); s(2, 11, 'P');
+        for (let k = 0; k < 6; k++) {
+          const x = 5 + k * 6 + Math.floor(R() * 3), y = 7 + Math.floor(R() * 3), len = 3 + Math.floor(R() * 2);
+          r(x, y, x + len, y, R() < .5 ? '=' : '#');
+          s(x + 1 + Math.floor(R() * (len - 1)), y - 1, kinds[Math.floor(R() * 3)]);
+          if (R() < .6) s(x + Math.floor(len / 2), y - 4, kinds[Math.floor(R() * 3)]);
+        }
+        for (let x = 6; x < 42; x += 5) if (R() < .7) s(x, 11, kinds[Math.floor(R() * 3)]);
+        s(20, 11, 'B'); s(34, 11, 'B');
+      }),
+    };
+  }
+
   // The Cannon Yard: a short walk to a cannon. Climb in with ↓ and it fires you off to the
   // next world (or, for a secret cannon, a faraway one): the map takes up the flight.
   function cannonLevel(how) {
@@ -524,14 +587,16 @@
   // Move the lamplighter to stop i if it's open.
   // Where the lamplighter is: a stop, or a cannon.
   function mapHere() {
-    const { pos, worlds, secretCannons } = mapLayout();
+    const { pos, worlds, secretCannons, houseSpots } = mapLayout();
+    if (mapHouse != null) return houseSpots[mapHouse];
     return mapCannon ? (mapCannon.secret != null ? secretCannons[mapCannon.secret] : worlds[mapCannon.world].cannon) : pos[mapAt];
   }
   // The ways on from here: open levels along a path, a world's cannon once its last level is
   // done (and back from the next world's first level once you've cleared it), a secret
   // cannon once found. A new world is reached by its cannon the first time.
   function mapExits() {
-    const { pos, worlds, secretCannons } = mapLayout(), W = LF.WORLDS, out = [];
+    const { pos, worlds, secretCannons, houseSpots } = mapLayout(), W = LF.WORLDS, out = [];
+    if (mapHouse != null) return [{ ...pos[mapHouse], level: mapHouse }];
     if (mapCannon) {
       if (mapCannon.secret != null) return [{ ...pos[mapCannon.secret], level: mapCannon.secret }];
       const k = mapCannon.world;
@@ -544,6 +609,7 @@
     if (mapAt === W[k].last && worlds[k].cannon && progress[mapAt]) out.push({ ...worlds[k].cannon, cannon: { world: k } });
     if (mapAt === W[k].first && k > 0 && progress[mapAt]) out.push({ ...worlds[k - 1].cannon, cannon: { world: k - 1 } });
     if (secrets[mapAt]) out.push({ ...secretCannons[mapAt], cannon: { secret: mapAt } });
+    if (houseSpots[mapAt] && progress[mapAt]) out.push({ ...houseSpots[mapAt], house: mapAt });
     return out;
   }
   // Walk the way (dx, dy) points, along whichever path goes most nearly that way.
@@ -557,7 +623,9 @@
     }
     if (!best) return;
     walkTo(here, best, () => {
-      if (best.cannon) { mapCannon = best.cannon; mapAt = best.cannon.secret != null ? best.cannon.secret : LF.WORLDS[best.cannon.world].last; }
+      mapHouse = null;
+      if (best.house != null) { mapHouse = best.house; mapCannon = null; mapAt = best.house; }
+      else if (best.cannon) { mapCannon = best.cannon; mapAt = best.cannon.secret != null ? best.cannon.secret : LF.WORLDS[best.cannon.world].last; }
       else { mapCannon = null; mapAt = best.level; }
       store.set('mapAt', mapAt); renderMap();
     });
@@ -577,6 +645,52 @@
     requestAnimationFrame(step);
   }
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- inventory ----------
+  // Fruit you've gathered (in Fruit Groves), up to INV_MAX of each. Tab opens it on the map
+  // or in a level (which waits while it's open). Using a fruit in a level gives you its
+  // power at once; on the map it gets you ready for your next level. Powers last until you
+  // die, and carry on from level to level (carry: { shield, boost, dbl }). Not in Hardcore.
+  const INV_MAX = 9, FRUIT_ICON = { a: '🍎', o: '🍊', b: '🍌' };
+  let inventory = store.get('inventory', { a: 0, o: 0, b: 0 }), carry = store.get('powers', null), invFrom = null;
+  function saveCarry(p) {
+    carry = p.shield || p.boost || p.dbl ? { shield: p.shield, boost: !!p.boost, dbl: !!p.dbl } : null;
+    store.set('powers', carry);
+  }
+  const powersText = p => [p.shield ? `🍎 shield${p.shield > 1 ? ' ×2' : ''}` : '', p.boost ? '🍊 jump boost' : '', p.dbl ? '🍌 double jump' : ''].filter(Boolean).join(' · ') || 'none';
+  function showInventory() {
+    if (screen !== 'map' && screen !== 'play' && screen !== 'inv') return;
+    if (screen === 'inv') return closeInventory();
+    invFrom = screen; screen = 'inv';
+    $('inv').hidden = false;
+    renderInventory();
+  }
+  function closeInventory() {
+    $('inv').hidden = true;
+    screen = invFrom || 'map'; invFrom = null;
+  }
+  function renderInventory() {
+    const inLevel = invFrom === 'play', now = inLevel ? W.player : (carry || {});
+    $('inv').innerHTML = `<div class="inv-card">
+      <header><h2>Inventory</h2><button class="mini" id="inv-close">Close · Tab</button></header>
+      <ul class="inv-items">${Object.entries(LF.FRUITS).map(([t, f]) => `<li>
+        <span class="inv-icon">${FRUIT_ICON[t]}</span><div><b>${f.name} ×${inventory[t] || 0}</b><small>${esc(f.note)}</small></div>
+        <button class="mini go-mini" data-use="${t}" ${(inventory[t] || 0) > 0 && !hardcore ? '' : 'disabled'}>Use</button></li>`).join('')}</ul>
+      <p class="lede">${hardcore ? 'Hardcore is on: no fruit.' : inLevel ? `Your powers now: ${powersText(now)}` : `Ready for your next level: ${powersText(now)}`}</p>
+      <p class="inv-note">Gather fruit in the fruit houses on the map. Powers last until you die and carry on from level to level.</p>
+    </div>`;
+    $('inv-close').addEventListener('click', closeInventory);
+    for (const b of $('inv').querySelectorAll('[data-use]')) b.addEventListener('click', () => useItem(b.dataset.use));
+  }
+  function useItem(t) {
+    if (hardcore || !(inventory[t] > 0)) return;
+    const target = invFrom === 'play' ? W.player : { shield: 0, boost: 0, dbl: 0, airJumps: 0, ...(carry || {}) };
+    if (!LF.applyFruit(target, t)) return flash('You already have that power');
+    inventory[t]--; store.set('inventory', inventory);
+    if (invFrom !== 'play') saveCarry(target);
+    flash(`${FRUIT_ICON[t]} ${LF.FRUITS[t].power}`); SFX.fruit && SFX.fruit();
+    renderInventory();
+  }
 
   function showHelp() {
     screen = 'help';
@@ -620,6 +734,7 @@
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
     if (playCtx.kind === 'cannon') return `Cannon Yard · to World ${cannonDest(playCtx.how) + 1}`;
+    if (playCtx.kind === 'house') return 'Fruit house · 25 seconds';
     if (playCtx.kind === 'shared') return 'Shared level';
     const key = keyFor(playCtx);
     return key ? `Your level · key ${key}` : 'Your level';
@@ -629,7 +744,9 @@
   function play(def, ctx) {
     playDef = def; playCtx = ctx;
     if (ctx.kind !== 'shared') setHash(keyFor(ctx));
-    W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(def) : def);
+    // Fruit powers you're carrying come with you into story levels (not in Hardcore).
+    const withPowers = ctx.kind === 'story' && !hardcore && carry ? { ...def, powers: carry } : def;
+    W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(withPowers) : withPowers);
     for (const k in input) input[k] = false;
     syncBig(false);
     LF.followCamera(W, cam, 0, true);
@@ -655,6 +772,7 @@
       <div class="menu">
         <button class="go" data-act="resume">Resume</button>
         <button class="alt" data-act="restart">Restart level</button>
+        ${playCtx.kind === 'story' ? '<button class="alt" data-act="itemsFromPause">Items · Tab</button>' : ''}
         ${playCtx.kind === 'test' ? '<button class="alt" data-act="backToEditor">Back to editor</button>' : ''}
         ${playCtx.kind === 'random' ? '<button class="alt" data-act="editRandom">Open in editor</button>' : ''}
         ${playCtx.kind !== 'test' ? '<button class="alt" data-act="copyToEditor">Copy to editor</button>' : ''}
@@ -663,6 +781,22 @@
   }
 
   function cleared() {
+    // Clearing a story level carries your fruit powers on to the next.
+    if (playCtx.kind === 'story' && !hardcore) saveCarry(W.player);
+    // Out of the Fruit Grove: everything picked goes in the inventory.
+    if (playCtx.kind === 'house') {
+      screen = 'clear';
+      setVisible({ hud: true, overlay: true });
+      houses[playCtx.i] = true; store.set('houses', houses);
+      const got = Object.entries(W.got).filter(([, n]) => n > 0);
+      for (const [t, n] of got) inventory[t] = Math.min(INV_MAX, (inventory[t] || 0) + n);
+      store.set('inventory', inventory);
+      mapHouse = null;
+      card(`<p class="eyebrow">Fruit Grove · time’s up</p><h2>${got.length ? 'A good haul' : 'Nothing this time'}</h2>
+        <p class="lede">${got.length ? 'Into your inventory: ' + got.map(([t, n]) => `${FRUIT_ICON[t]} ×${n}`).join(' · ') : 'The fruit got away.'} Press <kbd>Tab</kbd> any time to use it.</p>
+        <div class="menu"><button class="go" data-act="menu">Back to the map</button></div>`);
+      return;
+    }
     // Out of the Cannon Yard: straight back to the map, mid-flight.
     if (playCtx.kind === 'cannon') {
       store.set('launch', { ...playCtx.how, fromCannon: true });
@@ -849,6 +983,10 @@
     // Follow a secret path you've found: the lamplighter goes to the level it leads to.
     // Stand at a secret cannon you've found (from the level's button on the map).
     warp: d => { const i = +(d.i ?? mapAt); if (LF.LEVELS[i].secretTo != null && secrets[i]) { mapAt = i; mapCannon = { secret: i }; store.set('mapAt', i); renderMap(); } },
+    // Into a fruit house's Fruit Grove (once per house).
+    house: d => { const i = +d.i; if (houseOpen(i)) play(fruitGrove(i), { kind: 'house', i }); },
+    items: () => showInventory(),
+    itemsFromPause: () => { screen = 'play'; setVisible({ hud: true, touch: true }); showInventory(); },
     // From the clear screen: off to the cannon you've just reached.
     toCannon: () => ACTIONS.cannon(mapCannon),
     // Play the Cannon Yard for a cannon.
@@ -889,6 +1027,8 @@
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (screen === 'editor') { if (e.code === 'Escape') showMap(); return; }
+    if (e.code === 'Tab' && (screen === 'map' || screen === 'play' || screen === 'inv')) { e.preventDefault(); initAudio(); showInventory(); return; }
+    if (screen === 'inv') { if (e.code === 'Escape') closeInventory(); return; }
     const k = KEYMAP[e.code];
     if (screen === 'play') {
       if (k) {
@@ -912,7 +1052,7 @@
       if (e.code === 'ArrowRight' && e.shiftKey && secrets[mapAt] && !mapCannon) { e.preventDefault(); mapCannon = { secret: mapAt }; renderMap(); return; }
       const dirs = { ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0], ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] };
       if (dirs[e.code]) { e.preventDefault(); mapGo(...dirs[e.code]); return; }
-      if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); initAudio(); if (mapCannon) ACTIONS.cannon(mapCannon); else ACTIONS.story({ i: mapAt }); return; }
+      if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); initAudio(); if (mapHouse != null) ACTIONS.house({ i: mapHouse }); else if (mapCannon) ACTIONS.cannon(mapCannon); else ACTIONS.story({ i: mapAt }); return; }
     }
     if (k === 'jump' || e.code === 'Space') e.preventDefault();
   });
@@ -948,7 +1088,8 @@
     $('hud-lamps-label').textContent = W.cannon && !W.door ? 'Cannon' : open || !W.total ? 'Door' : 'Lanterns';
     $('hud-lamps').textContent = W.cannon && !W.door ? '↓ to climb in' : open ? 'open' : W.total ? `${lit}/${W.total}` : 'shut';
     $('hud-lamps-wrap').className = open ? 'open' : 'lamps';
-    $('hud-time').textContent = fmt(W.time);
+    $('hud-time').textContent = fmt(W.def.timeLimit ? Math.max(0, W.def.timeLimit - W.time) : W.time);
+    $('hud-time').previousElementSibling.textContent = W.def.timeLimit ? 'Left' : 'Time';
     $('hud-falls').textContent = W.falls;
     $('hud-ammo').textContent = p.ammo;
     const held = Object.keys(p.keys);
@@ -957,8 +1098,8 @@
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push(`<i class="pw-a">Shield${p.shield > 1 ? ' ×2' : ''}</i>`);
-    if (p.boost > 0) powers.push(`<i class="pw-o">Boost ${Math.ceil(p.boost)}</i>`);
-    if (p.dbl > 0) powers.push(`<i class="pw-b">Double ${Math.ceil(p.dbl)}</i>`);
+    if (p.boost > 0) powers.push('<i class="pw-o">Boost</i>');
+    if (p.dbl > 0) powers.push('<i class="pw-b">Double</i>');
     $('hud-powers-wrap').hidden = !powers.length;
     $('hud-powers').innerHTML = powers.join('');
     $('boss-bar').hidden = !boss;
@@ -973,8 +1114,8 @@
   function frame(now) {
     const dt = Math.min(.1, (now - last) / 1000); last = now;
     if (screen === 'editor') editor.frame(dt);
-    else if (W && (screen === 'play' || screen === 'paused' || screen === 'clear')) {
-      if (screen !== 'paused') {
+    else if (W && (screen === 'play' || screen === 'paused' || screen === 'clear' || screen === 'inv')) {
+      if (screen !== 'paused' && screen !== 'inv') {
         acc += dt;
         while (acc >= STEP) { LF.step(W, input, STEP, true); acc -= STEP; }
       }
@@ -984,6 +1125,7 @@
         if (playCtx.kind === 'story') LF.awards.event(ev);
         if (ev.type === 'door') flash('The door is open');
         if (ev.type === 'clear') clearTimer = .7;
+        if (ev.type === 'die' && playCtx.kind === 'story' && carry) { carry = null; store.set('powers', null); }
       }
       W.events.length = 0;
       if (clearTimer > 0 && screen === 'play') { clearTimer -= dt; if (clearTimer <= 0) cleared(); }

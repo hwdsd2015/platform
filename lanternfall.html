@@ -243,6 +243,30 @@
   .map-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .map-actions .go { font-size: 17px; padding: 9px 18px 8px; }
 
+  /* ---------- inventory ---------- */
+  .inv { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; padding: 16px; background: rgba(14,12,34,.7); }
+  .inv-card { width: min(28rem, 100%); display: grid; gap: 14px; padding: 20px 22px; border-radius: 10px; background: #1B1736; border: 1px solid rgba(255,181,71,.4); box-shadow: 0 0 40px rgba(255,181,71,.15); }
+  .inv-card header { display: flex; justify-content: space-between; align-items: center; }
+  .inv-card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 32px; color: var(--wick); }
+  .inv-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .inv-items li { display: grid; grid-template-columns: 2.4rem 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--plum-2); }
+  .inv-icon { font-size: 26px; text-align: center; }
+  .inv-items b { display: block; font-size: 13px; }
+  .inv-items small { font-size: 11px; color: var(--mist-dim); }
+  .inv-items button:disabled { opacity: .35; cursor: default; }
+  .inv-note { margin: 0; font-size: 11px; color: var(--mist-dim); line-height: 1.6; }
+  /* fruit houses on the map */
+  .map-board .house { cursor: pointer; opacity: .5; }
+  .map-board .house.open { opacity: 1; }
+  .map-board .house.used { opacity: .55; }
+  .map-board .house .walls { fill: #D9D0F0; stroke: #8F81AB; stroke-width: 1.5; }
+  .map-board .house .roof { fill: #E5484D; }
+  .map-board .house.open .roof { animation: mp-flicker 2s ease-in-out infinite; }
+  .map-board .house .door { fill: #5C3B24; }
+  .map-board .house.used .door { fill: #2A2348; }
+  .map-board .house .fruit { fill: #FFB547; }
+  .map-board .house-path { stroke: #FFB547; opacity: .55; }
+
   /* ---------- level select ---------- */
   .panel {
     position: fixed; inset: 0; z-index: 10; overflow-y: auto;
@@ -410,6 +434,7 @@
     <nav class="map-nav">
       <button class="mini" data-act="random">Random map</button>
       <button class="mini" data-act="editor">Level editor</button>
+      <button class="mini" data-act="items">Items · Tab</button>
       <button class="mini" data-act="yours">Your levels</button>
       <button class="mini" data-act="awards" id="map-awards">Awards</button>
       <button class="mini" data-act="toggleHardcore" id="map-hc">Hardcore: off</button>
@@ -419,6 +444,8 @@
   <div class="map-board" id="map-board"></div>
   <footer class="map-info" id="map-info"></footer>
 </section>
+
+<section class="inv" id="inv" hidden></section>
 
 <section class="panel" id="select" hidden>
   <header><h2>Your levels</h2><button class="alt" id="sel-back">Back to the map</button></header>
@@ -536,24 +563,24 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=81"></script>
-<script src="js/render.js?v=81"></script>
-<script src="js/gen.js?v=81"></script>
-<script src="js/levels-1.js?v=81"></script>
-<script src="js/levels-2.js?v=81"></script>
-<script src="js/levels-3.js?v=81"></script>
-<script src="js/levels-4.js?v=81"></script>
-<script src="js/levels-5.js?v=81"></script>
-<script src="js/levels-6.js?v=81"></script>
-<script src="js/levels-7.js?v=81"></script>
-<script src="js/levels-8.js?v=81"></script>
-<script src="js/levels-9.js?v=81"></script>
-<script src="js/levels-10.js?v=81"></script>
-<script src="js/levels-11.js?v=81"></script>
-<script src="js/bosses.js?v=81"></script>
-<script src="js/worlds.js?v=81"></script>
-<script src="js/secrets.js?v=81"></script>
-<script src="js/awards.js?v=81"></script>
-<script src="js/editor.js?v=81"></script>
-<script src="js/mapart.js?v=81"></script>
-<script src="js/ui.js?v=81"></script>
+<script src="js/engine.js?v=82"></script>
+<script src="js/render.js?v=82"></script>
+<script src="js/gen.js?v=82"></script>
+<script src="js/levels-1.js?v=82"></script>
+<script src="js/levels-2.js?v=82"></script>
+<script src="js/levels-3.js?v=82"></script>
+<script src="js/levels-4.js?v=82"></script>
+<script src="js/levels-5.js?v=82"></script>
+<script src="js/levels-6.js?v=82"></script>
+<script src="js/levels-7.js?v=82"></script>
+<script src="js/levels-8.js?v=82"></script>
+<script src="js/levels-9.js?v=82"></script>
+<script src="js/levels-10.js?v=82"></script>
+<script src="js/levels-11.js?v=82"></script>
+<script src="js/bosses.js?v=82"></script>
+<script src="js/worlds.js?v=82"></script>
+<script src="js/secrets.js?v=82"></script>
+<script src="js/awards.js?v=82"></script>
+<script src="js/editor.js?v=82"></script>
+<script src="js/mapart.js?v=82"></script>
+<script src="js/ui.js?v=82"></script>
