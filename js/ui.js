@@ -163,13 +163,15 @@
 
   // ---------- screens ----------
   // ---------- world map ----------
-  // Every story level is a stop on a winding path, laid out world by world (see worlds.js).
-  // Clearing a level opens the next one; a fork opens two. At the end of each world a cannon
-  // fires the lamplighter to the start of the next. Beside each level with a secret exit
-  // stands a secret cannon: leave the level by its secret exit and a path opens to it, and
-  // it fires you to a faraway world, opening its first two levels. The lamplighter marks
-  // where you are: arrow keys (or a click or tap) move along open stops, Enter plays,
-  // Shift+→ fires a secret cannon you've found.
+  // Every story level is a stop on the map, world by world (see worlds.js). Paths run from
+  // stop to stop: each world's winding road, plus links down from one row to the next, so
+  // there's more than one way to the end of the world (never around a boss fight). A level
+  // opens once a level next to it on a path is cleared, so a crossroads opens two or three.
+  // At the end of each world a cannon fires the lamplighter to the start of the next.
+  // Beside each level with a secret exit stands a secret cannon: leave the level by its
+  // secret exit and a path opens to it, and it fires you to a faraway world. The arrow keys
+  // walk the lamplighter along whichever path goes that way (arrows round it show which);
+  // a click or tap jumps to an open stop; Enter plays.
   let mapAt = Math.min(store.get('mapAt', 0), LF.LEVELS.length - 1);
   let secrets = store.get('secrets', {});
   let mapBusy = false;   // while the cannon's doing its thing
@@ -178,14 +180,18 @@
   let mapCannon = null;
   const cannonOpen = how => how.secret != null ? !!secrets[how.secret] : !!progress[LF.WORLDS[how.world].last];
   const cannonDest = how => how.secret != null ? LF.LEVELS[how.secret].secretWorld : how.world + 1;
-  const into = {};       // level index -> the levels whose forks or secret paths lead to it
-  LF.LEVELS.forEach((lv, i) => {
-    for (const t of lv.alsoUnlocks || []) (into[t] ||= []).push({ from: i, fork: true });
-    if (lv.secretTo != null) for (const t of [lv.secretTo, lv.secretTo + 1]) (into[t] ||= []).push({ from: i, fork: false });
-  });
-  const unlocked = i => i === 0 || !!progress[i] || !!progress[i - 1] ||
-    (into[i] || []).some(({ from, fork }) => fork ? progress[from] : secrets[from]);
-  const COLS = 8, CW = 104, RH = 100, PAD = 70;
+  const secretInto = {};   // level index -> the levels whose secret cannon lands there
+  LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) (secretInto[lv.secretTo] ||= []).push(i); });
+  const near = i => mapLayout().adj[i];
+  const landedBySecret = i => (secretInto[i] || []).some(j => secrets[j]);
+  const unlocked = i => {
+    if (i === 0 || progress[i] || landedBySecret(i)) return true;
+    const L = LF.LEVELS, k = L[i].world;
+    if (i === LF.WORLDS[k].first && k > 0 && progress[LF.WORLDS[k - 1].last]) return true;
+    // Next to a cleared level, or to where a secret cannon lands you.
+    return near(i).some(j => progress[j] || landedBySecret(j));
+  };
+  const COLS = 8, CW = 104, RH = 120, PAD = 70;
   const stopR = lv => lv.finalFight ? 22 : lv.boss ? 17 : 12;
 
   // Where everything goes: each world starts a new block of rows under its title, snaking
@@ -208,10 +214,38 @@
       worlds.push({ top, bottom: (cannon ? Math.max(cannon.y, y) : y) + 50, cannon });
       y = (cannon ? Math.max(cannon.y, y) : y) + RH + 120;
     });
+    // More ways through each world, never around a boss fight:
+    // - Splits: every few stops the road forks round a stop that sits below it; go straight
+    //   on past it, or down and round through it.
+    // - Links down from one row to the next: from a stop to the one straight below it, as
+    //   long as the stretch of road it cuts out has no boss fight.
+    const links = [], adj = LF.LEVELS.map(() => []);
+    LF.WORLDS.forEach(wd => {
+      for (let i = wd.first + 1; i + 2 <= wd.last; i++) {
+        const col = (i - wd.first) % COLS;
+        if ((i - wd.first) % 5 !== 1 || col > COLS - 3 || LF.LEVELS[i + 1].boss) continue;
+        pos[i + 1].y += 54; pos[i + 1].dip = true;
+        links.push([i, i + 2]);
+      }
+      for (let r = 0; wd.first + (r + 1) * COLS <= wd.last; r++) {
+        for (const c of [2 + (r % 3) * 2, 3, 5, 1, 6, 4]) {
+          const i = wd.first + r * COLS + c, j = wd.first + (r + 1) * COLS + (COLS - 1 - c);
+          if (j > wd.last || j - i < 3 || pos[i].dip || pos[j].dip) continue;
+          let boss = false;
+          for (let t = i + 1; t < j; t++) if (LF.LEVELS[t].boss) boss = true;
+          if (boss) continue;
+          links.push([i, j]); break;
+        }
+      }
+    });
+    LF.LEVELS.forEach((lv, i) => {
+      if (LF.LEVELS[i + 1] && LF.LEVELS[i + 1].world === lv.world) { adj[i].push(i + 1); adj[i + 1].push(i); }
+    });
+    for (const [i, j] of links) { adj[i].push(j); adj[j].push(i); }
     // Secret cannons sit just below and beside their level's stop.
     const secretCannons = {};
     LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) secretCannons[i] = { x: Math.min(right + 30, pos[i].x + 34), y: pos[i].y + 46, dir: 1 }; });
-    return layout = { pos, worlds, secretCannons, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 120 + PAD + 20 };
+    return layout = { pos, worlds, secretCannons, links, adj, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 120 + PAD + 20 };
   }
   const arcPoint = (a, b, u) => {
     const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 170;
@@ -243,7 +277,7 @@
   }
 
   function renderMap(scroll) {
-    const L = LF.LEVELS, n = L.length, { pos, worlds, secretCannons, w, h } = mapLayout();
+    const L = LF.LEVELS, n = L.length, { pos, worlds, secretCannons, links, w, h } = mapLayout();
     let out = '';
     // The worlds: each its own landscape (see mapart.js): a sky, its scenery scattered
     // wherever the path and stops leave room, and a couple of creatures wandering about.
@@ -264,6 +298,7 @@
       const q = pos[i + 1];
       if (q && L[i].world === L[i + 1].world) for (let u = .25; u < 1; u += .25) keepOff.push({ x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u, r: 30 });
     });
+    for (const [i, j] of links) for (let u = .2; u < 1; u += .2) keepOff.push({ x: pos[i].x + (pos[j].x - pos[i].x) * u, y: pos[i].y + (pos[j].y - pos[i].y) * u, r: 28 });
     worlds.forEach(wl => {
       if (wl.cannon) keepOff.push({ x: wl.cannon.x, y: wl.cannon.y, r: 46 });
       for (let x = PAD - 20; x < PAD + 380; x += 30) keepOff.push({ x, y: wl.top + 40, r: 30 });   // the world's title
@@ -284,13 +319,12 @@
       const open = unlocked(i), color = art.theme(L[i].world).trail;
       out += `<path class="trail${open ? ' open' : ''}" d="${segs[i]}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" d="${segs[i]}"/>`;
     }
-    // Forks: a short arc over the path to the stop after next.
-    L.forEach((lv, i) => {
-      for (const t of lv.alsoUnlocks || []) {
-        const a = pos[i], b = pos[t], mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 46;
-        out += `<path class="fork${progress[i] ? ' open' : ''}" d="M${a.x} ${a.y} Q${a.y === b.y ? mx : a.x + (a.x > w / 2 ? 90 : -90)} ${a.y === b.y ? my : (a.y + b.y) / 2} ${b.x} ${b.y}"/>`;
-      }
-    });
+    // The links between rows: more paths, the same trail.
+    for (const [i, j] of links) {
+      const a = pos[i], b = pos[j], my = (a.y + b.y) / 2, open = unlocked(i) && unlocked(j), color = art.theme(L[i].world).trail;
+      const d = `M${a.x} ${a.y} C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`;
+      out += `<path class="trail${open ? ' open' : ''}" d="${d}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" d="${d}"/>`;
+    }
     // Each world's cannon, aimed along the dotted arc to the next world's first stop.
     worlds.forEach((wl, k) => {
       const c = wl.cannon;
@@ -335,6 +369,11 @@
     // The lamplighter, standing over the current stop (or beside the cannon it's at).
     const at = mapCannon ? (mapCannon.secret != null ? secretCannons[mapCannon.secret] : worlds[mapCannon.world].cannon) : null;
     const m = at || pos[mapAt], mr = at ? 14 : stopR(L[mapAt]);
+    // Little arrows round the stop for each way the lamplighter can walk from here.
+    for (const ex of mapExits()) {
+      const vx = ex.x - m.x, vy = ex.y - m.y, len = Math.hypot(vx, vy) || 1;
+      out += `<path class="exit" d="M-5 -3 L0 3 L5 -3" transform="translate(${m.x + vx / len * 30} ${m.y + vy / len * 30}) rotate(${Math.atan2(vy, vx) * 180 / Math.PI - 90})"/>`;
+    }
     out += `<g class="marker" transform="translate(${m.x} ${m.y - mr - 30})"><g class="bob">${markerSvg}</g></g>`;
     $('map-board').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="World map: ${n} levels in ${LF.WORLDS.length} worlds"><defs>${defs}</defs>${out}</svg>`;
     renderWorldBar();
@@ -352,7 +391,7 @@
       if (!unlocked(i)) return flash('Clear the levels before it first');
       // A new world is reached by its cannon the first time.
       const wd = LF.WORLDS[L[i].world];
-      if (i === wd.first && L[i].world > 0 && !progress[i] && !(into[i] || []).some(({ from, fork }) => !fork && secrets[from]) && L[mapAt].world < L[i].world) return flash('Take the cannon to get there');
+      if (i === wd.first && L[i].world > 0 && !progress[i] && !landedBySecret(i) && L[mapAt].world < L[i].world) return flash('Take the cannon to get there');
       if (i === mapAt && !mapCannon) ACTIONS.story({ i });
       else { mapAt = i; mapCannon = null; store.set('mapAt', i); renderMap(); }
     });
@@ -449,7 +488,7 @@
       return;
     }
     const secret = lv.secretTo == null ? '' : secrets[mapAt] ? ` · secret exit found ★ (its cannon reaches World ${lv.secretWorld + 1})` : p ? ' · a secret exit hides here' : '';
-    const fork = lv.alsoUnlocks ? ' · a fork: opens two ways on' : '';
+    const fork = near(mapAt).length > 2 ? ` · a crossroads: ${near(mapAt).length} paths` : '';
     $('map-info').innerHTML = `<div>
         <small>World ${lv.world + 1} · chapter ${roman(chapterIndex(mapAt))} · ${esc(lv.chapter)} · level ${mapAt + 1} · key ${levelKey(lv.name)}</small>
         <strong>${esc(lv.name)}</strong>
@@ -483,40 +522,61 @@
   }
 
   // Move the lamplighter to stop i if it's open.
-  function mapMove(i) {
-    if (mapBusy || i < 0 || i >= LF.LEVELS.length || !unlocked(i)) return;
-    // Walk there: a short stroll along the path, then settle at the new stop.
-    const { pos } = mapLayout(), marker = $('map-board').querySelector('.marker');
-    const a = mapCannon ? null : pos[mapAt], b = pos[i];
-    mapAt = i; mapCannon = null; store.set('mapAt', i);
-    if (!a || !marker || reducedMotion) return renderMap();
+  // Where the lamplighter is: a stop, or a cannon.
+  function mapHere() {
+    const { pos, worlds, secretCannons } = mapLayout();
+    return mapCannon ? (mapCannon.secret != null ? secretCannons[mapCannon.secret] : worlds[mapCannon.world].cannon) : pos[mapAt];
+  }
+  // The ways on from here: open levels along a path, a world's cannon once its last level is
+  // done (and back from the next world's first level once you've cleared it), a secret
+  // cannon once found. A new world is reached by its cannon the first time.
+  function mapExits() {
+    const { pos, worlds, secretCannons } = mapLayout(), W = LF.WORLDS, out = [];
+    if (mapCannon) {
+      if (mapCannon.secret != null) return [{ ...pos[mapCannon.secret], level: mapCannon.secret }];
+      const k = mapCannon.world;
+      out.push({ ...pos[W[k].last], level: W[k].last });
+      if (progress[W[k + 1].first]) out.push({ ...pos[W[k + 1].first], level: W[k + 1].first });
+      return out;
+    }
+    for (const j of near(mapAt)) if (unlocked(j)) out.push({ ...pos[j], level: j });
+    const k = LF.LEVELS[mapAt].world;
+    if (mapAt === W[k].last && worlds[k].cannon && progress[mapAt]) out.push({ ...worlds[k].cannon, cannon: { world: k } });
+    if (mapAt === W[k].first && k > 0 && progress[mapAt]) out.push({ ...worlds[k - 1].cannon, cannon: { world: k - 1 } });
+    if (secrets[mapAt]) out.push({ ...secretCannons[mapAt], cannon: { secret: mapAt } });
+    return out;
+  }
+  // Walk the way (dx, dy) points, along whichever path goes most nearly that way.
+  function mapGo(dx, dy) {
+    if (mapBusy) return;
+    const here = mapHere();
+    let best = null, bestDot = .4;
+    for (const ex of mapExits()) {
+      const vx = ex.x - here.x, vy = ex.y - here.y, dot = (vx * dx + vy * dy) / (Math.hypot(vx, vy) || 1);
+      if (dot > bestDot) { bestDot = dot; best = ex; }
+    }
+    if (!best) return;
+    walkTo(here, best, () => {
+      if (best.cannon) { mapCannon = best.cannon; mapAt = best.cannon.secret != null ? best.cannon.secret : LF.WORLDS[best.cannon.world].last; }
+      else { mapCannon = null; mapAt = best.level; }
+      store.set('mapAt', mapAt); renderMap();
+    });
+  }
+  // A short stroll from a to b, then done().
+  function walkTo(a, b, done) {
+    const marker = $('map-board').querySelector('.marker');
+    if (!marker || reducedMotion) return done();
     mapBusy = true;
-    const t0 = performance.now(), ra = stopR(LF.LEVELS[i]) + 30;
+    const t0 = performance.now(), lift = 44;
     const step = now => {
-      const u = Math.min(1, (now - t0) / 220), e = u * (2 - u);
-      marker.setAttribute('transform', `translate(${a.x + (b.x - a.x) * e} ${a.y + (b.y - a.y) * e - ra - Math.sin(u * Math.PI) * 8})`);
+      const u = Math.min(1, (now - t0) / 240), e = u * (2 - u);
+      marker.setAttribute('transform', `translate(${a.x + (b.x - a.x) * e} ${a.y + (b.y - a.y) * e - lift - Math.sin(u * Math.PI) * 8})`);
       if (u < 1) return requestAnimationFrame(step);
-      mapBusy = false; renderMap();
+      mapBusy = false; done();
     };
     requestAnimationFrame(step);
   }
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // → from a world's last level (once it's done) steps onto the world's cannon; → again walks
-  // on into the next world only once you've cleared a level there (the first time, the way
-  // on is the cannon); ← steps back off a cannon.
-  function mapStep(d) {
-    if (mapBusy) return;
-    const L = LF.LEVELS, k = L[mapAt].world;
-    if (mapCannon) {
-      if (d < 0) { mapCannon = null; return renderMap(); }
-      const next = mapCannon.world != null && LF.WORLDS[mapCannon.world + 1];
-      if (next && progress[next.first]) return mapMove(next.first);
-      return flash('Climb in: press Enter');
-    }
-    if (d > 0 && mapAt === LF.WORLDS[k].last && LF.WORLDS[k + 1] && progress[mapAt]) { mapCannon = { world: k }; return renderMap(); }
-    if (d > 0 && mapAt === LF.WORLDS[k].last) return;
-    mapMove(mapAt + d);
-  }
 
   function showHelp() {
     screen = 'help';
@@ -526,7 +586,7 @@
       <h2>Light every lamp</h2>
       <p class="lede">Night is falling on the old town. Light every lantern to open each door: across the rooftops, up the belfry, down through the kilns and into the Hollow Spire. On the map, each level you clear opens the next; some hide a secret exit that opens a shortcut further on.</p>
       <ul class="keys">
-        <li>Map: <kbd>←</kbd><kbd>→</kbd> move · <kbd>Enter</kbd> play · <kbd>Shift</kbd>+<kbd>→</kbd> fire a secret cannon you've found</li>
+        <li>Map: <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> walk along the paths (the little arrows show the ways on) · <kbd>Enter</kbd> play · crossroads open more than one level</li>
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
@@ -850,8 +910,8 @@
     if (screen === 'map') {
       if (mapBusy) { e.preventDefault(); return; }
       if (e.code === 'ArrowRight' && e.shiftKey && secrets[mapAt] && !mapCannon) { e.preventDefault(); mapCannon = { secret: mapAt }; renderMap(); return; }
-      if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'KeyA' || e.code === 'KeyW') { e.preventDefault(); mapStep(-1); return; }
-      if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'KeyD' || e.code === 'KeyS') { e.preventDefault(); mapStep(1); return; }
+      const dirs = { ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0], ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] };
+      if (dirs[e.code]) { e.preventDefault(); mapGo(...dirs[e.code]); return; }
       if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); initAudio(); if (mapCannon) ACTIONS.cannon(mapCannon); else ACTIONS.story({ i: mapAt }); return; }
     }
     if (k === 'jump' || e.code === 'Space') e.preventDefault();
