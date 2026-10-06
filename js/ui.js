@@ -163,21 +163,51 @@
 
   // ---------- screens ----------
   // ---------- world map ----------
-  // Every story level is a stop on a winding path. Clearing a level opens the next one;
-  // leaving one by its secret exit also opens a shortcut (a gold dashed line) to a level
-  // further on. The lamplighter marks where you are: arrow keys (or a click or tap) move
-  // along open stops, Enter plays, Shift+→ takes a secret path you've found.
+  // Every story level is a stop on a winding path, laid out world by world (see worlds.js).
+  // Clearing a level opens the next one; a fork opens two; leaving by a secret exit also
+  // opens a shortcut (a gold dashed line) further on. At the end of each world a cannon
+  // fires the lamplighter to the start of the next. The lamplighter marks where you are:
+  // arrow keys (or a click or tap) move along open stops, Enter plays, Shift+→ takes a
+  // secret path you've found.
   let mapAt = Math.min(store.get('mapAt', 0), LF.LEVELS.length - 1);
   let secrets = store.get('secrets', {});
-  const warpsInto = {};
-  LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) (warpsInto[lv.secretTo] ||= []).push(i); });
-  const unlocked = i => i === 0 || !!progress[i] || !!progress[i - 1] || (warpsInto[i] || []).some(j => secrets[j]);
+  let mapBusy = false;   // while the cannon's doing its thing
+  const into = {};       // level index -> the levels whose forks or secret paths lead to it
+  LF.LEVELS.forEach((lv, i) => {
+    for (const t of lv.alsoUnlocks || []) (into[t] ||= []).push({ from: i, fork: true });
+    if (lv.secretTo != null) (into[lv.secretTo] ||= []).push({ from: i, fork: false });
+  });
+  const unlocked = i => i === 0 || !!progress[i] || !!progress[i - 1] ||
+    (into[i] || []).some(({ from, fork }) => fork ? progress[from] : secrets[from]);
   const COLS = 8, CW = 104, RH = 100, PAD = 70;
-  const mapPos = i => {
-    const row = Math.floor(i / COLS), col = i % COLS;
-    return { x: PAD + (row % 2 ? COLS - 1 - col : col) * CW, y: PAD + row * RH };
-  };
   const stopR = lv => lv.finalFight ? 22 : lv.boss ? 17 : 12;
+
+  // Where everything goes: each world starts a new block of rows under its title, snaking
+  // back and forth; its cannon sits one step past its last stop.
+  let layout = null;
+  function mapLayout() {
+    if (layout) return layout;
+    const pos = [], worlds = [], right = PAD + (COLS - 1) * CW;
+    let y = PAD + 80;
+    LF.WORLDS.forEach((wd, k) => {
+      const top = y - 100;
+      let row = 0;
+      for (let i = wd.first, c = 0; i <= wd.last; i++, c++) {
+        if (c === COLS) { c = 0; row++; y += RH; }
+        pos[i] = { x: PAD + (row % 2 ? COLS - 1 - c : c) * CW, y, row };
+      }
+      const last = pos[wd.last], dir = last.row % 2 ? -1 : 1, cx = last.x + dir * CW;
+      const cannon = k === LF.WORLDS.length - 1 ? null : cx >= PAD && cx <= right ? { x: cx, y: last.y, dir } : { x: last.x, y: last.y + RH * .7, dir };
+      worlds.push({ top, bottom: (cannon ? Math.max(cannon.y, y) : y) + 50, cannon });
+      y = (cannon ? Math.max(cannon.y, y) : y) + RH + 90;
+    });
+    return layout = { pos, worlds, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 90 + PAD + 20 };
+  }
+  const arcPoint = (a, b, u) => {
+    const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 170;
+    return { x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * my + u * u * b.y };
+  };
+  const markerSvg = '<path d="M-7 14 L0 -2 L7 14 Z" fill="#D9D0F0"/><circle cy="-6" r="5" fill="#D9D0F0"/><line x1="6" y1="0" x2="12" y2="-12" stroke="#8F81AB" stroke-width="2"/><circle cx="12" cy="-15" r="3.5" fill="#FFB547"/>';
 
   function showMap() {
     screen = 'map';
@@ -186,37 +216,63 @@
     LF.followCamera(attract, cam, 0, true);
     setVisible({ map: true });
     renderMap(true);
+    // Just finished a world? Into the cannon.
+    const k = store.get('launch', null);
+    if (k != null && LF.WORLDS[k + 1]) { store.set('launch', null); launch(k); }
   }
 
   function renderMap(scroll) {
-    const L = LF.LEVELS, n = L.length, rows = Math.ceil(n / COLS);
-    const w = PAD * 2 + (COLS - 1) * CW, h = PAD * 2 + (rows - 1) * RH;
+    const L = LF.LEVELS, n = L.length, { pos, worlds, w, h } = mapLayout();
     let out = '';
-    // The path, lit up to the furthest stop you can reach.
+    // The worlds: a tinted region each, with its name.
+    worlds.forEach((wl, k) => {
+      out += `<rect class="world${k % 2 ? ' alt' : ''}" x="12" y="${wl.top}" width="${w - 24}" height="${wl.bottom - wl.top}" rx="18"/>`;
+      out += `<text class="wname" x="${PAD - 30}" y="${wl.top + 34}">World ${k + 1} · ${esc(LF.WORLDS[k].name)}</text>`;
+    });
+    // The path within each world, lit up to the furthest stop you can reach.
     for (let i = 0; i < n - 1; i++) {
-      const a = mapPos(i), b = mapPos(i + 1), cls = unlocked(i + 1) ? 'seg open' : 'seg';
+      if (L[i].world !== L[i + 1].world) continue;
+      const a = pos[i], b = pos[i + 1], cls = unlocked(i + 1) ? 'seg open' : 'seg';
       if (a.y === b.y) out += `<line class="${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
       else { const side = a.x > w / 2 ? 1 : -1; out += `<path class="${cls}" d="M${a.x} ${a.y} C${a.x + side * 60} ${a.y} ${b.x + side * 60} ${b.y} ${b.x} ${b.y}"/>`; }
     }
+    // Forks: a short arc over the path to the stop after next.
+    L.forEach((lv, i) => {
+      for (const t of lv.alsoUnlocks || []) {
+        const a = pos[i], b = pos[t], mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 46;
+        out += `<path class="fork${progress[i] ? ' open' : ''}" d="M${a.x} ${a.y} Q${a.y === b.y ? mx : a.x + (a.x > w / 2 ? 90 : -90)} ${a.y === b.y ? my : (a.y + b.y) / 2} ${b.x} ${b.y}"/>`;
+      }
+    });
+    // Each world's cannon, aimed along the dotted arc to the next world's first stop.
+    worlds.forEach((wl, k) => {
+      const c = wl.cannon;
+      if (!c) return;
+      const to = pos[LF.WORLDS[k + 1].first], d = to.x < c.x ? -1 : 1, open = unlocked(LF.WORLDS[k + 1].first);
+      let arc = `M${c.x} ${c.y}`;
+      for (let u = .05; u <= 1.001; u += .05) { const q = arcPoint(c, to, u); arc += ` L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }
+      out += `<path class="arc${open ? ' open' : ''}" d="${arc}"/>`;
+      out += `<g class="cannon" data-world="${k}" transform="translate(${c.x} ${c.y})">
+        <g class="barrel" transform="rotate(${d < 0 ? -140 : -40})"><rect x="-4" y="-9" width="34" height="18" rx="5"/><rect class="rim" x="26" y="-11" width="8" height="22" rx="3"/></g>
+        <circle class="wheel" r="11"/><circle class="hub" r="4"/></g>`;
+    });
     // Secret shortcuts you've found.
     for (const j of Object.keys(secrets)) {
       const t = L[j] && L[j].secretTo;
       if (t == null) continue;
-      const a = mapPos(+j), b = mapPos(t);
+      const a = pos[+j], b = pos[t];
       out += `<path class="warp" d="M${a.x} ${a.y} Q${(a.x + b.x) / 2 + 90} ${(a.y + b.y) / 2} ${b.x} ${b.y}"/>`;
     }
     // Chapter names where each chapter starts, run the way the path goes (unless that's
     // off the edge) and clear of the lamplighter. (Ones that collide are moved below.)
     L.forEach((lv, i) => {
       if (i && L[i - 1].chapter === lv.chapter) return;
-      const p = mapPos(i), forward = Math.floor(i / COLS) % 2 === 0;
-      const right = p.x < 230 || (forward && p.x < w - 230);
+      const p = pos[i], forward = p.row % 2 === 0, right = p.x < 230 || (forward && p.x < w - 230);
       out += `<text class="ch" x="${p.x + (right ? 22 : -22)}" y="${p.y - 30}" text-anchor="${right ? 'start' : 'end'}">${roman(chapterIndex(i))} · ${esc(lv.chapter)}</text>`;
     });
     // The stops: dim if locked, outlined if open, lit if cleared. A star marks a secret exit
     // you've found; a blue ? one still hiding in a level you've cleared.
     L.forEach((lv, i) => {
-      const p = mapPos(i), r = stopR(lv);
+      const p = pos[i], r = stopR(lv);
       const cls = ['stop', !unlocked(i) ? 'locked' : progress[i] ? 'lit' : 'open', lv.boss ? 'boss' : '', i === mapAt ? 'at' : ''].join(' ');
       let badge = '';
       if (secrets[i]) badge = `<text class="badge found" x="${r}" y="${-r + 2}">★</text>`;
@@ -224,11 +280,9 @@
       out += `<g class="${cls}" data-i="${i}" transform="translate(${p.x} ${p.y})"><title>${i + 1}. ${esc(lv.name)}</title><circle r="${r}"/><text y="4">${i + 1}</text>${badge}</g>`;
     });
     // The lamplighter, standing over the current stop.
-    const m = mapPos(mapAt), mr = stopR(L[mapAt]);
-    out += `<g class="marker" transform="translate(${m.x} ${m.y - mr - 16})">
-      <path d="M-7 14 L0 -2 L7 14 Z" fill="#D9D0F0"/><circle cy="-6" r="5" fill="#D9D0F0"/>
-      <line x1="6" y1="0" x2="12" y2="-12" stroke="#8F81AB" stroke-width="2"/><circle cx="12" cy="-15" r="3.5" fill="#FFB547"/></g>`;
-    $('map-board').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="World map: ${n} levels">${out}</svg>`;
+    const m = pos[mapAt], mr = stopR(L[mapAt]);
+    out += `<g class="marker" transform="translate(${m.x} ${m.y - mr - 16})">${markerSvg}</g>`;
+    $('map-board').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="World map: ${n} levels in ${LF.WORLDS.length} worlds">${out}</svg>`;
     // A chapter name that runs into the one before it on its row drops under the path.
     const boxes = [];
     for (const t of $('map-board').querySelectorAll('.ch')) {
@@ -238,46 +292,82 @@
     }
     for (const g of $('map-board').querySelectorAll('.stop')) g.addEventListener('click', () => {
       initAudio();
+      if (mapBusy) return;
       const i = +g.dataset.i;
       if (!unlocked(i)) return flash('Clear the levels before it first');
       if (i === mapAt) ACTIONS.story({ i });
       else { mapAt = i; store.set('mapAt', i); renderMap(); }
     });
-    const lit = Object.keys(progress).length, found = Object.keys(secrets).length, total = Object.keys(warpsInto).length;
-    $('map-stats').textContent = `${lit} of ${n} lit · secret exits ${found} of ${total}${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}`;
+    const lit = Object.keys(progress).length, found = Object.keys(secrets).length, total = L.filter(lv => lv.secretTo != null).length;
+    $('map-stats').textContent = `World ${L[mapAt].world + 1} of ${LF.WORLDS.length} · ${lit} of ${n} lit · secret exits ${found} of ${total}${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}`;
     $('map-awards').textContent = `Awards · ${LF.awards.count().earned}/${LF.awards.count().total}`;
     $('map-hc').textContent = `Hardcore: ${hardcore ? 'on' : 'off'}`; $('map-hc').classList.toggle('hc-on', hardcore);
     mapInfo();
-    if (scroll !== false) {
-      const svg = $('map-board').querySelector('svg'), k = svg.getBoundingClientRect().width / w, board = $('map-board');
-      const target = m.y * k - board.clientHeight / 2;
-      if (scroll === true || Math.abs(board.scrollTop - target) > board.clientHeight * .35) board.scrollTop = target;
-    }
+    if (scroll !== false) mapScroll(m.y, scroll === true);
+  }
+  // Keep a point (in map units) in view, centred if asked.
+  function mapScroll(y, center) {
+    const svg = $('map-board').querySelector('svg'), board = $('map-board');
+    const k = svg.getBoundingClientRect().width / mapLayout().w, target = y * k - board.clientHeight / 2;
+    if (center || Math.abs(board.scrollTop - target) > board.clientHeight * .35) board.scrollTop = target;
+  }
+
+  // The cannon: walk in, shrink inside, BOOM, tumble along the arc to the next world.
+  function launch(k) {
+    const { pos, worlds } = mapLayout(), c = worlds[k].cannon, from = pos[LF.WORLDS[k].last], dest = LF.WORLDS[k + 1].first, to = pos[dest];
+    const svg = $('map-board').querySelector('svg'), marker = svg.querySelector('.marker'), cannon = svg.querySelector(`.cannon[data-world="${k}"]`);
+    if (!c || !marker) return;
+    mapBusy = true;
+    let fired = false;
+    const t0 = performance.now();
+    const step = now => {
+      const t = (now - t0) / 1000;
+      let x, y, turn = 0, size = 1;
+      if (t < .7) { const u = t / .7; x = from.x + (c.x - from.x) * u; y = from.y + (c.y - from.y) * u - 28; }
+      else if (t < 1.1) { x = c.x; y = c.y - 28 + (t - .7) / .4 * 20; size = 1 - (t - .7) / .4 * .8; }
+      else if (t < 2.3) {
+        if (!fired) {
+          fired = true; SFX.boom(); cannon.classList.add('fire');
+          for (let s = 0; s < 6; s++) svg.insertAdjacentHTML('beforeend', `<circle class="puff" cx="${c.x + (Math.random() - .5) * 40}" cy="${c.y - 20 - Math.random() * 30}" r="${8 + Math.random() * 10}"/>`);
+        }
+        const u = (t - 1.1) / 1.2, q = arcPoint(c, to, u);
+        x = q.x; y = q.y - 28; turn = u * 720; size = .6 + Math.sin(u * Math.PI) * .6;
+      } else { x = to.x; y = to.y - 28; }
+      marker.setAttribute('transform', `translate(${x} ${y}) rotate(${turn}) scale(${size})`);
+      mapScroll(y, false);
+      if (t < 2.4) return requestAnimationFrame(step);
+      mapBusy = false;
+      mapAt = dest; store.set('mapAt', dest);
+      renderMap();
+      flash(`World ${k + 2} · ${LF.WORLDS[k + 1].name}`);
+    };
+    requestAnimationFrame(step);
   }
 
   function mapInfo() {
     const L = LF.LEVELS, lv = L[mapAt], p = progress[mapAt], hc = progressHC[mapAt];
     const secret = lv.secretTo == null ? '' : secrets[mapAt] ? ' · secret exit found ★' : p ? ' · a secret exit hides here' : '';
+    const fork = lv.alsoUnlocks ? ' · a fork: opens two ways on' : '';
     $('map-info').innerHTML = `<div>
-        <small>Chapter ${roman(chapterIndex(mapAt))} · ${esc(lv.chapter)} · level ${mapAt + 1} · key ${levelKey(lv.name)}</small>
+        <small>World ${lv.world + 1} · chapter ${roman(chapterIndex(mapAt))} · ${esc(lv.chapter)} · level ${mapAt + 1} · key ${levelKey(lv.name)}</small>
         <strong>${esc(lv.name)}</strong>
-        <em>${lv.boss ? 'boss fight · ' : ''}${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · hardcore ${fmt(hc.best)}` : ''}${secret}</em>
+        <em>${lv.boss ? 'boss fight · ' : ''}${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · hardcore ${fmt(hc.best)}` : ''}${fork}${secret}</em>
       </div>
       <div class="map-actions">
         <button class="go" data-act="story" data-i="${mapAt}">Play</button>
         ${secrets[mapAt] ? `<button class="mini" data-act="warp" data-i="${mapAt}">Secret path → ${esc(L[lv.secretTo].name)}</button>` : ''}
         <button class="mini" data-act="copyStory" data-i="${mapAt}">Copy to editor</button>
       </div>`;
-    for (const b of $('map-info').querySelectorAll('[data-act]')) b.addEventListener('click', () => { initAudio(); ACTIONS[b.dataset.act](b.dataset); });
+    for (const b of $('map-info').querySelectorAll('[data-act]')) b.addEventListener('click', () => { initAudio(); if (!mapBusy) ACTIONS[b.dataset.act](b.dataset); });
   }
-  for (const b of $('map').querySelectorAll('.map-nav [data-act]')) b.addEventListener('click', () => { initAudio(); ACTIONS[b.dataset.act](b.dataset); });
+  for (const b of $('map').querySelectorAll('.map-nav [data-act]')) b.addEventListener('click', () => { initAudio(); if (!mapBusy) ACTIONS[b.dataset.act](b.dataset); });
   // Chapter names are measured to keep them apart, so lay the map out again once the
   // web fonts (which are wider than the fallback) have loaded.
-  if (document.fonts) document.fonts.ready.then(() => { if (screen === 'map') renderMap(false); });
+  if (document.fonts) document.fonts.ready.then(() => { if (screen === 'map' && !mapBusy) renderMap(false); });
 
   // Move the lamplighter to stop i if it's open.
   function mapMove(i) {
-    if (i < 0 || i >= LF.LEVELS.length || !unlocked(i)) return;
+    if (mapBusy || i < 0 || i >= LF.LEVELS.length || !unlocked(i)) return;
     mapAt = i; store.set('mapAt', i); renderMap();
   }
 
@@ -372,7 +462,7 @@
     const tally = (extra = '') => `<dl class="tally"><div><dt>Time</dt><dd>${fmt(t)}</dd></div><div><dt>Falls</dt><dd>${falls}</dd></div>${extra}</dl>`;
     if (playCtx.kind === 'story') {
       // Hardcore runs keep their own best times; a hardcore clear also counts the level as lit.
-      const book = hardcore ? progressHC : progress, i = playCtx.index, prev = book[i];
+      const book = hardcore ? progressHC : progress, i = playCtx.index, prev = book[i], wasLit = !!progress[i];
       const isBest = !prev || t < prev.best;
       if (isBest) { book[i] = { best: t, falls }; store.set(hardcore ? 'progressHC' : 'progress', book); }
       if (hardcore && !progress[i]) { progress[i] = { best: t, falls }; store.set('progress', progress); }
@@ -382,9 +472,17 @@
       // On the map the lamplighter moves on: to the next level, or down the secret path.
       if (secret) { secrets[i] = true; store.set('secrets', secrets); }
       mapAt = secret ? LF.LEVELS[i].secretTo : Math.min(i + 1, LF.LEVELS.length - 1); store.set('mapAt', mapAt);
+      // The first time you finish a world, the map fires you out of its cannon to the next.
+      const world = LF.WORLDS[LF.LEVELS[i].world], worldDone = !secret && !wasLit && world.last === i && LF.WORLDS[LF.LEVELS[i].world + 1];
+      if (worldDone) { store.set('launch', LF.LEVELS[i].world); mapAt = i; store.set('mapAt', i); }
       eyebrow = secret ? `Level ${i + 1} · secret exit found!` : `Level ${i + 1} of ${LF.LEVELS.length} · ${hardcore ? 'hardcore clear' : 'every lamp lit'}`;
       stats = tally(`<div class="best"><dt>${isBest ? 'New best' : 'Best'}</dt><dd>${fmt(isBest ? t : prev.best)}</dd></div>`);
-      if (secret) {
+      if (worldDone) {
+        const next = LF.WORLDS[LF.LEVELS[i].world + 1];
+        eyebrow = `World ${LF.LEVELS[i].world + 1} · ${world.name} · complete!`;
+        stats += `<p class="lede">The lamplighter climbs into the cannon at the end of ${esc(world.name)}… next stop, World ${LF.LEVELS[i].world + 2}: ${esc(next.name)}.</p>`;
+        buttons = `<button class="go" data-act="menu">Into the cannon!</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="copyToEditor">Copy to editor</button>`;
+      } else if (secret) {
         const to = LF.LEVELS[i].secretTo;
         stats += `<p class="lede">A secret path opens on the map, straight to level ${to + 1}: ${esc(LF.LEVELS[to].name)}.</p>`;
         buttons = `<button class="go" data-act="story" data-i="${to}">Take the secret path</button><button class="alt" data-act="menu">Back to the map</button><button class="alt" data-act="restart">Replay</button>`;
@@ -591,6 +689,7 @@
     if (screen === 'paused' && (e.code === 'Escape' || e.code === 'KeyP')) { ACTIONS.resume(); return; }
     if (screen === 'select' && e.code === 'Escape') { showMap(); return; }
     if (screen === 'map') {
+      if (mapBusy) { e.preventDefault(); return; }
       if (e.code === 'ArrowRight' && e.shiftKey && secrets[mapAt]) { e.preventDefault(); ACTIONS.warp({ i: mapAt }); return; }
       if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'KeyA' || e.code === 'KeyW') { e.preventDefault(); mapMove(mapAt - 1); return; }
       if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'KeyD' || e.code === 'KeyS') { e.preventDefault(); mapMove(mapAt + 1); return; }
