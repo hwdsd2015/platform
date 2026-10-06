@@ -35,7 +35,7 @@
 
   // Fruit: touch to gain a power. Picked fruit grows back after REGROW seconds.
   LF.FRUITS = {
-    a: { name: 'Apple', power: 'Shield', color: '#E5484D', note: 'shield: blocks one hit' },
+    a: { name: 'Apple', power: 'Shield', color: '#E5484D', note: 'shield: blocks one hit (a second apple doubles it, no more)' },
     o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', dur: 12, note: 'higher jumps for 12s' },
     b: { name: 'Banana', power: 'Double jump', color: '#FFE066', dur: 15, note: 'jump again in mid-air for 15s' },
   };
@@ -170,7 +170,12 @@
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
       else if (c === 'D') { W.door = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: false, glow: 0 }; tiles[y][x] = ' '; }
       // ? is a secret exit: a second door, always open, tucked away somewhere.
-      else if (c === '?') { W.secret = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: true, glow: 1, secret: true }; tiles[y][x] = ' '; }
+      // (Next to a false wall (l) it's in a hidden room: it looks like rock until you step in.)
+      else if (c === '?') {
+        const hidden = [rows[y][x - 1], rows[y][x + 1], rows[y - 1]?.[x]].includes('l');
+        W.secret = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: true, glow: 1, secret: true, hidden };
+        tiles[y][x] = hidden ? 'l' : ' ';
+      }
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
@@ -321,7 +326,7 @@
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
       wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
       // One second of invincibility at the start of a level and after every respawn.
-      shield: false, boost: 0, dbl: 0, airJumps: 0, inv: 1, conv: 0, cool: 0, flash: 0,
+      shield: 0, boost: 0, dbl: 0, airJumps: 0, inv: 1, conv: 0, cool: 0, flash: 0,
     };
   }
 
@@ -415,9 +420,10 @@
     const p = W.player;
     if (p.dead || p.inv > 0) return;
     if (!p.shield) return kill(W);
-    p.shield = false; p.inv = 1.2; p.vy = -520; p.jumping = false;
+    // p.shield counts layers: 1, or 2 after a second apple. A hit takes one off.
+    p.shield--; p.inv = 1.2; p.vy = -520; p.jumping = false;
     burst(W, p.x + p.w / 2, p.y + p.h / 2, 20, ['#9FD8FF', '#D9D0F0'], 200, 300);
-    W.floaters.push({ x: p.x + p.w / 2, y: p.y - 8, t: 'shield broke', life: 1, c: '#9FD8FF' });
+    W.floaters.push({ x: p.x + p.w / 2, y: p.y - 8, t: p.shield ? 'shield cracked' : 'shield broke', life: 1, c: '#9FD8FF' });
     W.shake = .15; W.freeze = .06; ring(W, p.x + p.w / 2, p.y + p.h / 2, 46, '159,216,255', .45); W.emit('shield');
   }
 
@@ -690,7 +696,7 @@
       if (b.kind) { stepSpecial(W, b, dt); continue; }
       b.x += b.vx * dt; b.life -= dt;
       const btx = Math.floor(b.x / TS), bty = Math.floor(b.y / TS);
-      if (isSolid(tile(W, btx, bty))) {
+      if (isSolid(tile(W, btx, bty)) || tile(W, btx, bty) === 'l') {
         const d = W.shotDoorAt[bty * W.w + btx];
         if (d && !d.open) hitShotDoor(W, d, b.id);
         b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s, b.id); continue; }
@@ -794,7 +800,7 @@
   }
   function hordeCaught(W, p) {
     if (!W.horde || p.inv > 0 || playerAlong(W.horde, p) > W.horde.f) return false;
-    p.shield = false; p.inv = 0; kill(W);
+    p.shield = 0; p.inv = 0; kill(W);
     return true;
   }
 
@@ -845,7 +851,8 @@
     W.crumbles = W.crumbles.filter(c => c.state !== 'done');
   }
 
-  function turnMarker(W, tx, ty) { return tile(W, tx, ty) === '|'; }
+  // Walkers turn at stop markers, and at false walls (l) so they don't give them away.
+  function turnMarker(W, tx, ty) { const c = tile(W, tx, ty); return c === '|' || c === 'l'; }
 
   // Ground enemies fall when there's nothing under them (placed in mid-air, or their floor
   // crumbled or blinked away), and die if they land in water or lava or leave the level.
@@ -2058,7 +2065,7 @@
     if (p.y + p.h > W.h * TS && tile(W, Math.floor((p.x + p.w / 2) / TS), W.h - 1) === '~') { p.y = W.h * TS - p.h; p.vy = Math.min(p.vy, 0); }
     if (p.y > W.h * TS + 60) return kill(W);
     // Lava kills outright; the shield doesn't help.
-    if (p.inv <= 0 && lavaAt(W, p)) { p.shield = false; return kill(W); }
+    if (p.inv <= 0 && lavaAt(W, p)) { p.shield = 0; return kill(W); }
     if (hazardHit(W, p, true)) { hurt(W); if (p.dead) return; }
     if (p.inv <= 0 && trapHit(W, p)) { hurt(W); if (p.dead) return; }
     // Crusher sides push you out instead of hurting.
@@ -2140,7 +2147,7 @@
       if (f.taken || Math.abs(cx - f.x) > 20 || Math.abs(cy - f.y) > 22) continue;
       const spec = LF.FRUITS[f.type];
       f.taken = true; f.regrow = REGROW; f.pop = 1;
-      if (f.type === 'a') p.shield = true;
+      if (f.type === 'a') p.shield = Math.min(2, p.shield + 1);
       else if (f.type === 'o') p.boost = spec.dur;
       else if (f.type === 'b') { p.dbl = spec.dur; p.airJumps = Math.max(p.airJumps, 1); }
       burst(W, f.x, f.y, 16, [spec.color, '#FFF6C2'], 130, 150, 2.5);
@@ -2148,8 +2155,22 @@
       W.emit('fruit', { type: f.type });
     }
 
-    // Leaving by the secret exit clears the level too, the secret way.
+    // The secret exit shows itself when you step into its hidden room (through a false
+    // wall), or, if it isn't in one, when you come within 3 tiles of it.
     const sd = W.secret;
+    if (sd && !W.secretSeen) {
+      let found = false;
+      if (sd.hidden) {
+        for (let ty = Math.floor(p.y / TS); ty <= Math.floor((p.y + p.h - 1) / TS) && !found; ty++)
+          for (let tx = Math.floor(p.x / TS); tx <= Math.floor((p.x + p.w - 1) / TS); tx++) if (tile(W, tx, ty) === 'l') { found = true; break; }
+      } else found = Math.hypot(cx - (sd.x + 16), cy - (sd.y + 30)) < TS * 3;
+      if (found) {
+        W.secretSeen = true;
+        W.floaters.push({ x: sd.x + 16, y: sd.y - 14, t: 'a secret!', life: 1.4, c: '#9FD8FF' });
+        W.emit('key');
+      }
+    }
+    // Leaving by the secret exit clears the level too, the secret way.
     if (sd && overlap(p, { x: sd.x + 8, y: sd.y + 10, w: 16, h: sd.h - 10 })) {
       W.cleared = true; W.clearedBy = 'secret';
       burst(W, sd.x + 16, sd.y + 20, 40, ['#9FD8FF', '#D9D0F0', '#FFE2A8'], 260, 200, 3);

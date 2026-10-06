@@ -133,13 +133,20 @@
     function drawTiles(W, cam, opts) {
       const { x0, x1, y0, y1 } = visibleRange(W, cam);
       const t = (x, y) => LF.tile(W, x, y);
+      const looksSolid = c => LF.isSolid(c) || (c === 'l' && (!W.secretSeen || opts.edit));
       for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
         const c = W.tiles[ty][tx], x = tx * TS, y = ty * TS;
-        if (c === '#') {
+        // False walls (l) look just like the stone around them until the secret is found
+        // (in the editor they're marked).
+        if (c === 'l' && W.secretSeen && !opts.edit) {
+          ctx.strokeStyle = 'rgba(159,216,255,.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+          ctx.strokeRect(x + 2, y + 2, TS - 4, TS - 4); ctx.setLineDash([]);
+        } else if (c === '#' || c === 'l') {
           drawStone(W, tx, ty, x, y, '#5E5173', '#4C4062');
-          if (!LF.isSolid(t(tx, ty - 1))) { ctx.fillStyle = '#8F81AB'; ctx.fillRect(x, y, TS, 4); ctx.fillStyle = '#A99CC4'; ctx.fillRect(x, y, TS, 1.5); }
-          if (!LF.isSolid(t(tx - 1, ty)) && tx > 0) { ctx.fillStyle = '#6E6186'; ctx.fillRect(x, y, 2, TS); }
-          if (!LF.isSolid(t(tx + 1, ty)) && tx < W.w - 1) { ctx.fillStyle = '#433858'; ctx.fillRect(x + TS - 2, y, 2, TS); }
+          if (!looksSolid(t(tx, ty - 1))) { ctx.fillStyle = '#8F81AB'; ctx.fillRect(x, y, TS, 4); ctx.fillStyle = '#A99CC4'; ctx.fillRect(x, y, TS, 1.5); }
+          if (!looksSolid(t(tx - 1, ty)) && tx > 0) { ctx.fillStyle = '#6E6186'; ctx.fillRect(x, y, 2, TS); }
+          if (!looksSolid(t(tx + 1, ty)) && tx < W.w - 1) { ctx.fillStyle = '#433858'; ctx.fillRect(x + TS - 2, y, 2, TS); }
+          if (c === 'l' && opts.edit) { ctx.strokeStyle = '#9FD8FF'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.strokeRect(x + 3, y + 3, TS - 6, TS - 6); ctx.setLineDash([]); }
         } else if (c === 'C') {
           const cr = W.crumbles.find(k => k.tx === tx && k.ty === ty);
           const j = cr && !reduced ? (Math.random() - .5) * 3 : 0;
@@ -753,6 +760,11 @@
     function drawShield(p) {
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2 - 4;
       const pulse = reduced ? 0 : Math.sin(clock * 4) * 1.5;
+      // A double shield gets an outer ring too.
+      if (p.shield > 1) {
+        ctx.strokeStyle = 'rgba(159,216,255,.55)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.ellipse(cx, cy, 22 - pulse, 28 - pulse, 0, 0, TAU); ctx.stroke();
+      }
       ctx.strokeStyle = 'rgba(159,216,255,.75)'; ctx.lineWidth = 1.5;
       ctx.fillStyle = 'rgba(159,216,255,.12)';
       ctx.beginPath(); ctx.ellipse(cx, cy, 17 + pulse, 23 + pulse, 0, 0, TAU); ctx.fill(); ctx.stroke();
@@ -927,7 +939,7 @@
       for (const e of W.enemies) if (e.alive && e.type === 'f+') { out.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, r: 200 }); for (const b of LF.wheelBalls(e).filter((_, k) => k % 3 === 2)) out.push({ x: b.x, y: b.y, r: 70 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
-      if (W.secret) out.push({ x: W.secret.x + 16, y: W.secret.y + 30, r: 90 });
+      if (W.secret && W.secretSeen) out.push({ x: W.secret.x + 16, y: W.secret.y + 30, r: 90 });
       for (const b of W.projectiles) out.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, r: 60 * Math.max(1, b.w / 10) });
       for (const e of W.enemies) if (e.alive && e.type === 'S') out.push({ x: e.x + 12, y: e.y + 2, r: 34 });
       for (const e of W.enemies) if (e.alive && e.type === 'Z') out.push({ x: e.x + 7, y: e.y + 7, r: 56 });
@@ -1126,8 +1138,8 @@
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x + r, b.y + r, r, 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(b.x + r, b.y + r, r * .44, 0, TAU); ctx.fill();
       }
-      // The secret exit glows a cool blue.
-      if (W.secret) {
+      // The secret exit glows a cool blue (once found).
+      if (W.secret && W.secretSeen) {
         const s = W.secret, g = ctx.createLinearGradient(0, s.y, 0, s.y + s.h);
         g.addColorStop(0, 'rgba(159,216,255,.8)'); g.addColorStop(1, 'rgba(46,78,130,.6)');
         ctx.globalAlpha = .5 + (reduced ? 0 : Math.sin(clock * 2) * .2); ctx.fillStyle = g; doorPath(s, 3); ctx.fill(); ctx.globalAlpha = 1;
@@ -1246,7 +1258,7 @@
       }
       drawTiles(W, cam, opts);
       drawPlats(W);
-      drawDoor(W.door); drawDoor(W.secret);
+      drawDoor(W.door); if (W.secretSeen || opts.edit) drawDoor(W.secret);
       for (const l of W.lanterns) drawLantern(l);
       for (const e of W.enemies) LF.ENEMIES[e.type].special ? drawGiant(e) : scaled(e, drawEnemy);
       drawTraps(W);

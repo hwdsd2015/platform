@@ -164,18 +164,19 @@
   // ---------- screens ----------
   // ---------- world map ----------
   // Every story level is a stop on a winding path, laid out world by world (see worlds.js).
-  // Clearing a level opens the next one; a fork opens two; leaving by a secret exit also
-  // opens a shortcut (a gold dashed line) further on. At the end of each world a cannon
-  // fires the lamplighter to the start of the next. The lamplighter marks where you are:
-  // arrow keys (or a click or tap) move along open stops, Enter plays, Shift+→ takes a
-  // secret path you've found.
+  // Clearing a level opens the next one; a fork opens two. At the end of each world a cannon
+  // fires the lamplighter to the start of the next. Beside each level with a secret exit
+  // stands a secret cannon: leave the level by its secret exit and a path opens to it, and
+  // it fires you to a faraway world, opening its first two levels. The lamplighter marks
+  // where you are: arrow keys (or a click or tap) move along open stops, Enter plays,
+  // Shift+→ fires a secret cannon you've found.
   let mapAt = Math.min(store.get('mapAt', 0), LF.LEVELS.length - 1);
   let secrets = store.get('secrets', {});
   let mapBusy = false;   // while the cannon's doing its thing
   const into = {};       // level index -> the levels whose forks or secret paths lead to it
   LF.LEVELS.forEach((lv, i) => {
     for (const t of lv.alsoUnlocks || []) (into[t] ||= []).push({ from: i, fork: true });
-    if (lv.secretTo != null) (into[lv.secretTo] ||= []).push({ from: i, fork: false });
+    if (lv.secretTo != null) for (const t of [lv.secretTo, lv.secretTo + 1]) (into[t] ||= []).push({ from: i, fork: false });
   });
   const unlocked = i => i === 0 || !!progress[i] || !!progress[i - 1] ||
     (into[i] || []).some(({ from, fork }) => fork ? progress[from] : secrets[from]);
@@ -201,12 +202,23 @@
       worlds.push({ top, bottom: (cannon ? Math.max(cannon.y, y) : y) + 50, cannon });
       y = (cannon ? Math.max(cannon.y, y) : y) + RH + 90;
     });
-    return layout = { pos, worlds, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 90 + PAD + 20 };
+    // Secret cannons sit just below and beside their level's stop.
+    const secretCannons = {};
+    LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) secretCannons[i] = { x: Math.min(right + 30, pos[i].x + 34), y: pos[i].y + 46, dir: 1 }; });
+    return layout = { pos, worlds, secretCannons, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 90 + PAD + 20 };
   }
   const arcPoint = (a, b, u) => {
     const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 170;
     return { x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * my + u * u * b.y };
   };
+  const arcPath = (a, b) => {
+    let d = `M${a.x} ${a.y}`;
+    for (let u = .05; u <= 1.001; u += .05) { const q = arcPoint(a, b, u); d += ` L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }
+    return d;
+  };
+  const cannonSvg = (c, d, attr, cls) => `<g class="cannon${cls}" ${attr} transform="translate(${c.x} ${c.y})${cls ? ' scale(.75)' : ''}">
+      <g class="barrel" transform="rotate(${d < 0 ? -140 : -40})"><rect x="-4" y="-9" width="34" height="18" rx="5"/><rect class="rim" x="26" y="-11" width="8" height="22" rx="3"/></g>
+      <circle class="wheel" r="11"/><circle class="hub" r="4"/></g>`;
   const markerSvg = '<path d="M-7 14 L0 -2 L7 14 Z" fill="#D9D0F0"/><circle cy="-6" r="5" fill="#D9D0F0"/><line x1="6" y1="0" x2="12" y2="-12" stroke="#8F81AB" stroke-width="2"/><circle cx="12" cy="-15" r="3.5" fill="#FFB547"/>';
 
   function showMap() {
@@ -216,13 +228,15 @@
     LF.followCamera(attract, cam, 0, true);
     setVisible({ map: true });
     renderMap(true);
-    // Just finished a world? Into the cannon.
-    const k = store.get('launch', null);
-    if (k != null && LF.WORLDS[k + 1]) { store.set('launch', null); launch(k); }
+    // Just finished a world, or left by a secret exit? Into the cannon.
+    const go = store.get('launch', null);
+    store.set('launch', null);
+    if (typeof go === 'number' && LF.WORLDS[go + 1]) launch({ world: go });
+    else if (go && go.secret != null && LF.LEVELS[go.secret] && LF.LEVELS[go.secret].secretTo != null) launch({ secret: go.secret });
   }
 
   function renderMap(scroll) {
-    const L = LF.LEVELS, n = L.length, { pos, worlds, w, h } = mapLayout();
+    const L = LF.LEVELS, n = L.length, { pos, worlds, secretCannons, w, h } = mapLayout();
     let out = '';
     // The worlds: a tinted region each, with its name.
     worlds.forEach((wl, k) => {
@@ -248,19 +262,14 @@
       const c = wl.cannon;
       if (!c) return;
       const to = pos[LF.WORLDS[k + 1].first], d = to.x < c.x ? -1 : 1, open = unlocked(LF.WORLDS[k + 1].first);
-      let arc = `M${c.x} ${c.y}`;
-      for (let u = .05; u <= 1.001; u += .05) { const q = arcPoint(c, to, u); arc += ` L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }
-      out += `<path class="arc${open ? ' open' : ''}" d="${arc}"/>`;
-      out += `<g class="cannon" data-world="${k}" transform="translate(${c.x} ${c.y})">
-        <g class="barrel" transform="rotate(${d < 0 ? -140 : -40})"><rect x="-4" y="-9" width="34" height="18" rx="5"/><rect class="rim" x="26" y="-11" width="8" height="22" rx="3"/></g>
-        <circle class="wheel" r="11"/><circle class="hub" r="4"/></g>`;
+      out += `<path class="arc${open ? ' open' : ''}" d="${arcPath(c, to)}"/>` + cannonSvg(c, d, `data-world="${k}"`, '');
     });
-    // Secret shortcuts you've found.
-    for (const j of Object.keys(secrets)) {
-      const t = L[j] && L[j].secretTo;
-      if (t == null) continue;
-      const a = pos[+j], b = pos[t];
-      out += `<path class="warp" d="M${a.x} ${a.y} Q${(a.x + b.x) / 2 + 90} ${(a.y + b.y) / 2} ${b.x} ${b.y}"/>`;
+    // Secret cannons: always there to see, dim until you find their level's secret exit.
+    // Then a gold path runs from the level to its cannon, and its arc to the faraway world.
+    for (const [i, c] of Object.entries(secretCannons)) {
+      const found = !!secrets[i], a = pos[i], to = pos[L[i].secretTo];
+      if (found) out += `<path class="warp" d="M${a.x} ${a.y} L${c.x} ${c.y}"/><path class="arc open secret" d="${arcPath(c, to)}"/>`;
+      out += cannonSvg(c, to.x < c.x ? -1 : 1, `data-secret="${i}"`, found ? ' secret found' : ' secret');
     }
     // Chapter names where each chapter starts, run the way the path goes (unless that's
     // off the edge) and clear of the lamplighter. (Ones that collide are moved below.)
@@ -312,11 +321,16 @@
     if (center || Math.abs(board.scrollTop - target) > board.clientHeight * .35) board.scrollTop = target;
   }
 
-  // The cannon: walk in, shrink inside, BOOM, tumble along the arc to the next world.
-  function launch(k) {
-    const { pos, worlds } = mapLayout(), c = worlds[k].cannon, from = pos[LF.WORLDS[k].last], dest = LF.WORLDS[k + 1].first, to = pos[dest];
-    const svg = $('map-board').querySelector('svg'), marker = svg.querySelector('.marker'), cannon = svg.querySelector(`.cannon[data-world="${k}"]`);
-    if (!c || !marker) return;
+  // A cannon: walk in, shrink inside, BOOM, tumble along the arc. Either the cannon at the
+  // end of world k ({ world: k }) or the secret cannon of level i ({ secret: i }).
+  function launch(how) {
+    const { pos, worlds, secretCannons } = mapLayout(), L = LF.LEVELS;
+    const c = how.secret != null ? secretCannons[how.secret] : worlds[how.world].cannon;
+    const start = how.secret != null ? how.secret : LF.WORLDS[how.world].last, from = pos[start];
+    const dest = how.secret != null ? L[how.secret].secretTo : LF.WORLDS[how.world + 1].first, to = pos[dest];
+    const svg = $('map-board').querySelector('svg'), marker = svg.querySelector('.marker');
+    const cannon = svg.querySelector(how.secret != null ? `.cannon[data-secret="${how.secret}"]` : `.cannon[data-world="${how.world}"]`);
+    if (!c || !marker || !cannon) return;
     mapBusy = true;
     let fired = false;
     const t0 = performance.now();
@@ -339,14 +353,14 @@
       mapBusy = false;
       mapAt = dest; store.set('mapAt', dest);
       renderMap();
-      flash(`World ${k + 2} · ${LF.WORLDS[k + 1].name}`);
+      flash(`World ${L[dest].world + 1} · ${LF.WORLDS[L[dest].world].name}`);
     };
     requestAnimationFrame(step);
   }
 
   function mapInfo() {
     const L = LF.LEVELS, lv = L[mapAt], p = progress[mapAt], hc = progressHC[mapAt];
-    const secret = lv.secretTo == null ? '' : secrets[mapAt] ? ' · secret exit found ★' : p ? ' · a secret exit hides here' : '';
+    const secret = lv.secretTo == null ? '' : secrets[mapAt] ? ` · secret exit found ★ (its cannon reaches World ${lv.secretWorld + 1})` : p ? ' · a secret exit hides here' : '';
     const fork = lv.alsoUnlocks ? ' · a fork: opens two ways on' : '';
     $('map-info').innerHTML = `<div>
         <small>World ${lv.world + 1} · chapter ${roman(chapterIndex(mapAt))} · ${esc(lv.chapter)} · level ${mapAt + 1} · key ${levelKey(lv.name)}</small>
@@ -355,7 +369,7 @@
       </div>
       <div class="map-actions">
         <button class="go" data-act="story" data-i="${mapAt}">Play</button>
-        ${secrets[mapAt] ? `<button class="mini" data-act="warp" data-i="${mapAt}">Secret path → ${esc(L[lv.secretTo].name)}</button>` : ''}
+        ${secrets[mapAt] ? `<button class="mini" data-act="warp" data-i="${mapAt}">Secret cannon → World ${lv.secretWorld + 1}</button>` : ''}
         <button class="mini" data-act="copyStory" data-i="${mapAt}">Copy to editor</button>
       </div>`;
     for (const b of $('map-info').querySelectorAll('[data-act]')) b.addEventListener('click', () => { initAudio(); if (!mapBusy) ACTIONS[b.dataset.act](b.dataset); });
@@ -379,13 +393,13 @@
       <h2>Light every lamp</h2>
       <p class="lede">Night is falling on the old town. Light every lantern to open each door: across the rooftops, up the belfry, down through the kilns and into the Hollow Spire. On the map, each level you clear opens the next; some hide a secret exit that opens a shortcut further on.</p>
       <ul class="keys">
-        <li>Map: <kbd>←</kbd><kbd>→</kbd> move · <kbd>Enter</kbd> play · <kbd>Shift</kbd>+<kbd>→</kbd> take a secret path you've found</li>
+        <li>Map: <kbd>←</kbd><kbd>→</kbd> move · <kbd>Enter</kbd> play · <kbd>Shift</kbd>+<kbd>→</kbd> fire a secret cannon you've found</li>
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
-        <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
+        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
@@ -471,7 +485,8 @@
       const last = i === LF.LEVELS.length - 1, secret = W.clearedBy === 'secret' && LF.LEVELS[i].secretTo != null;
       // On the map the lamplighter moves on: to the next level, or down the secret path.
       if (secret) { secrets[i] = true; store.set('secrets', secrets); }
-      mapAt = secret ? LF.LEVELS[i].secretTo : Math.min(i + 1, LF.LEVELS.length - 1); store.set('mapAt', mapAt);
+      mapAt = secret ? i : Math.min(i + 1, LF.LEVELS.length - 1); store.set('mapAt', mapAt);
+      if (secret) store.set('launch', { secret: i });
       // The first time you finish a world, the map fires you out of its cannon to the next.
       const world = LF.WORLDS[LF.LEVELS[i].world], worldDone = !secret && !wasLit && world.last === i && LF.WORLDS[LF.LEVELS[i].world + 1];
       if (worldDone) { store.set('launch', LF.LEVELS[i].world); mapAt = i; store.set('mapAt', i); }
@@ -483,9 +498,9 @@
         stats += `<p class="lede">The lamplighter climbs into the cannon at the end of ${esc(world.name)}… next stop, World ${LF.LEVELS[i].world + 2}: ${esc(next.name)}.</p>`;
         buttons = `<button class="go" data-act="menu">Into the cannon!</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="copyToEditor">Copy to editor</button>`;
       } else if (secret) {
-        const to = LF.LEVELS[i].secretTo;
-        stats += `<p class="lede">A secret path opens on the map, straight to level ${to + 1}: ${esc(LF.LEVELS[to].name)}.</p>`;
-        buttons = `<button class="go" data-act="story" data-i="${to}">Take the secret path</button><button class="alt" data-act="menu">Back to the map</button><button class="alt" data-act="restart">Replay</button>`;
+        const sw = LF.LEVELS[i].secretWorld;
+        stats += `<p class="lede">A hidden path opens on the map, to a secret cannon… aimed at World ${sw + 1}: ${esc(LF.WORLDS[sw].name)}.</p>`;
+        buttons = `<button class="go" data-act="menu">Into the secret cannon!</button><button class="alt" data-act="restart">Replay</button>`;
       } else if (last) {
         eyebrow = 'The whole town is lit'; title = 'Every lamp burns.';
         stats += `<p class="lede">All ${LF.LEVELS.length} levels done. The lamplighter goes home. Try the random maps, or build a level of your own.</p>`;
@@ -633,7 +648,7 @@
     yours: showYours,
     help: showHelp,
     // Follow a secret path you've found: the lamplighter goes to the level it leads to.
-    warp: d => { const t = LF.LEVELS[+(d.i ?? mapAt)].secretTo; if (t != null) { mapAt = t; store.set('mapAt', t); showMap(); } },
+    warp: d => { const i = +(d.i ?? mapAt); if (LF.LEVELS[i].secretTo != null && secrets[i]) { mapAt = i; store.set('mapAt', i); store.set('launch', { secret: i }); showMap(); } },
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
     menu: showMap,
@@ -737,7 +752,7 @@
     $('hud-keys').innerHTML = held.map(k => `<i style="color:${LF.KEYS[k].color}">${LF.KEYS[k].name.split(' ')[0]}</i>`).join('');
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
-    if (p.shield) powers.push('<i class="pw-a">Shield</i>');
+    if (p.shield) powers.push(`<i class="pw-a">Shield${p.shield > 1 ? ' ×2' : ''}</i>`);
     if (p.boost > 0) powers.push(`<i class="pw-o">Boost ${Math.ceil(p.boost)}</i>`);
     if (p.dbl > 0) powers.push(`<i class="pw-b">Double ${Math.ceil(p.dbl)}</i>`);
     $('hud-powers-wrap').hidden = !powers.length;
