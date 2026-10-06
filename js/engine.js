@@ -262,6 +262,8 @@
     W.blinkT = 0; W.blinkOn = 'T';
     W.player = makePlayer(W.start);
     W.player.ammo = playerTune(def).ammo;
+    // Ammo brought from the last level, on top of the level's own.
+    if (def.carryAmmo) W.player.ammo += def.carryAmmo;
     // Powers brought from the last level (or the inventory): def.powers = { shield, boost, dbl }.
     if (def.powers) {
       const pw = def.powers;

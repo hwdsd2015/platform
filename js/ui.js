@@ -677,7 +677,7 @@
         <span class="inv-icon">${FRUIT_ICON[t]}</span><div><b>${f.name} ×${inventory[t] || 0}</b><small>${esc(f.note)}</small></div>
         <button class="mini go-mini" data-use="${t}" ${(inventory[t] || 0) > 0 && !hardcore ? '' : 'disabled'}>Use</button></li>`).join('')}</ul>
       <p class="lede">${hardcore ? 'Hardcore is on: no fruit.' : inLevel ? `Your powers now: ${powersText(now)}` : `Ready for your next level: ${powersText(now)}`}</p>
-      <p class="inv-note">Gather fruit in the fruit houses on the map. Powers last until you die and carry on from level to level.</p>
+      <p class="inv-note">Gather fruit in the fruit houses on the map. Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
     </div>`;
     $('inv-close').addEventListener('click', closeInventory);
     for (const b of $('inv').querySelectorAll('[data-use]')) b.addEventListener('click', () => useItem(b.dataset.use));
@@ -706,7 +706,7 @@
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
-        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump</li>
+        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · powers last until you die; powers and leftover ammo carry on to the next level</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
@@ -744,8 +744,9 @@
   function play(def, ctx) {
     playDef = def; playCtx = ctx;
     if (ctx.kind !== 'shared') setHash(keyFor(ctx));
-    // Fruit powers you're carrying come with you into story levels (not in Hardcore).
-    const withPowers = ctx.kind === 'story' && !hardcore && carry ? { ...def, powers: carry } : def;
+    // Fruit powers and ammo you're carrying come with you into story levels (not in Hardcore).
+    const carrying = ctx.kind === 'story' && !hardcore;
+    const withPowers = carrying ? { ...def, ...(carry ? { powers: carry } : {}), carryAmmo: store.get('ammo', 0) } : def;
     W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(withPowers) : withPowers);
     for (const k in input) input[k] = false;
     syncBig(false);
@@ -781,8 +782,8 @@
   }
 
   function cleared() {
-    // Clearing a story level carries your fruit powers on to the next.
-    if (playCtx.kind === 'story' && !hardcore) saveCarry(W.player);
+    // Clearing a story level carries your fruit powers and leftover ammo on to the next.
+    if (playCtx.kind === 'story' && !hardcore) { saveCarry(W.player); store.set('ammo', W.player.ammo); }
     // Out of the Fruit Grove: everything picked goes in the inventory.
     if (playCtx.kind === 'house') {
       screen = 'clear';
