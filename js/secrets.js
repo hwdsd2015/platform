@@ -1,6 +1,6 @@
 // Lanternfall: secret exits. Two levels in each world (but the last) hide a second door (?),
-// and so does every tower (in its climb or along its battlements, never in the boss's
-// arena); leaving by it fires you out of a secret cannon to a faraway world: two worlds on
+// and so does one tower in every four worlds (in its climb or along its battlements, never
+// in the boss's arena); leaving by it fires you out of a secret cannon to a faraway world: two worlds on
 // (or the last one). lv.secretTo is the index of that world's first level, lv.secretWorld the
 // world's index. Load after worlds.js, so the worlds and level indexes are final.
 //
@@ -113,9 +113,13 @@
       }
       if (!placed && L[regular[at]].secretTo == null && farSpot(L[regular[at]])) { L[regular[at]].secretTo = WORLDS[to].first; L[regular[at]].secretWorld = to; }
     }
-    // Every tower, too (if two worlds on is still somewhere new).
-    if (to > k) for (const lv of L.filter(l => l.world === k && l.boss && !l.finalFight)) {
-      if (hideRoom(lv, lv.arenaX - 2) || buildRoom(lv, lv.arenaX - 2)) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; }
+    // And one tower in every four worlds (the second world of each four, from its middle
+    // tower on), if two worlds on is still somewhere new.
+    if (to > k && k % 4 === 1) {
+      const towers = L.filter(l => l.world === k && l.boss && !l.finalFight);
+      for (const lv of [...towers.slice(towers.length >> 1), ...towers.slice(0, towers.length >> 1)]) {
+        if (hideRoom(lv, lv.arenaX - 2) || buildRoom(lv, lv.arenaX - 2)) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; break; }
+      }
     }
   });
 })();
