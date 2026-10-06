@@ -169,6 +169,8 @@
       else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
       else if (c === 'D') { W.door = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: false, glow: 0 }; tiles[y][x] = ' '; }
+      // + is a cannon: climb in with ↓ and it fires you out of the level (that finishes it).
+      else if (c === '+') { W.cannon = { x: x * TS + 16, y: (y + 1) * TS, state: 'idle', t: 0 }; tiles[y][x] = ' '; }
       // ? is a secret exit: a second door, always open, tucked away somewhere.
       // (Next to a false wall (l) it's in a hidden room: it looks like rock until you step in.)
       else if (c === '?') {
@@ -492,6 +494,7 @@
     if (playing && !W.cleared) {
       W.time += dt;
       if (p.dead) { W.deadTimer -= dt; if (W.deadTimer <= 0) respawn(W); }
+      else if (p.inCannon) stepCannon(W, p, dt);
       else stepPlayer(W, p, input, dt);
     }
     for (const q of W.particles) { q.vy += q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; }
@@ -1887,8 +1890,37 @@
     return false;
   }
 
+  // The cannon: climb in (↓ beside it), a moment's pause, BOOM, and away up and to the
+  // right in a long arc, which finishes the level. While inside or flying, the player is
+  // just a passenger.
+  const CANNON_MOUTH = { x: 30, y: -46 };
+  LF.cannonMouth = c => ({ x: c.x + CANNON_MOUTH.x, y: c.y + CANNON_MOUTH.y });
+  function stepCannon(W, p, dt) {
+    const c = W.cannon, m = LF.cannonMouth(c);
+    c.t += dt;
+    if (c.state === 'in' && c.t > .7) {
+      c.state = 'fire'; c.t = 0;
+      burst(W, m.x, m.y, 30, ['#FFF1CF', '#FFB547', '#FF6B3D', '#D9D0F0'], 260, -40, 4);
+      W.shake = Math.max(W.shake, .5); W.emit('boom');
+    }
+    if (c.state === 'fire') {
+      const t = c.t;
+      p.x = m.x + 520 * t - p.w / 2; p.y = m.y - 900 * t + 450 * t * t - p.h / 2;
+      if (Math.random() < .7) W.particles.push({ x: p.x + p.w / 2, y: p.y + p.h / 2, vx: (Math.random() - .5) * 40, vy: 20, life: .5, max: .5, c: LF.WARM[Math.floor(Math.random() * 3)], size: 3, g: 0 });
+      if (t > 1.4 && !W.cleared) { W.cleared = true; W.clearedBy = 'cannon'; W.emit('clear'); }
+    }
+  }
+
   function stepPlayer(W, p, input, dt) {
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    // Standing at the cannon and pressing ↓ climbs in.
+    const cn = W.cannon;
+    if (cn && cn.state === 'idle' && input.down && p.onGround && Math.abs(p.x + p.w / 2 - cn.x) < 26 && Math.abs(p.y + p.h - cn.y) < 8) {
+      cn.state = 'in'; cn.t = 0; p.inCannon = true; p.vx = p.vy = 0; p.inv = 99;
+      p.x = cn.x - p.w / 2; p.y = cn.y - p.h - 10;
+      W.emit('hop');
+      return;
+    }
     p.lock -= dt; p.inv -= dt;
     p.boost = Math.max(0, p.boost - dt); p.dbl = Math.max(0, p.dbl - dt);
     if (dir && p.lock <= 0) p.face = dir;

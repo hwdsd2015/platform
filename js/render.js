@@ -323,6 +323,31 @@
       }
     }
 
+    // A cannon on its wheel, barrel up and to the right. It rocks back when it fires, and
+    // shows a bouncing ↓ while you're standing at it.
+    function drawCannon(W, opts) {
+      const c = W.cannon;
+      if (!c) return;
+      const kick = c.state === 'fire' && c.t < .25 ? (1 - c.t / .25) * 6 : 0, shake = c.state === 'in' && !reduced ? Math.sin(c.t * 60) * 1.5 : 0;
+      ctx.save(); ctx.translate(c.x - kick + shake, c.y - 18);
+      ctx.save(); ctx.rotate(-.7);
+      ctx.fillStyle = '#463C6B'; ctx.strokeStyle = '#CFC6E8'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(-8, -14, 58, 28, 8); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = c.state === 'fire' && c.t < .3 ? '#FFB547' : '#4C4062'; ctx.beginPath(); ctx.roundRect(44, -17, 12, 34, 4); ctx.fill();
+      ctx.fillStyle = '#6E6186'; ctx.fillRect(8, -14, 4, 28); ctx.fillRect(24, -14, 4, 28);
+      ctx.restore();
+      ctx.fillStyle = '#5C3B24'; ctx.strokeStyle = '#3A2516'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, 0, 17, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#C08A5C'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill();
+      ctx.restore();
+      const p = W.player;
+      if (c.state === 'idle' && !opts.edit && Math.abs(p.x + p.w / 2 - c.x) < 40 && Math.abs(p.y + p.h - c.y) < 40) {
+        const bob = reduced ? 0 : Math.sin(clock * 6) * 3;
+        ctx.fillStyle = '#FFE2A8'; ctx.font = '700 18px ui-monospace, monospace'; ctx.textAlign = 'center';
+        ctx.fillText('↓', c.x, c.y - 78 + bob); ctx.textAlign = 'left';
+      }
+    }
+
     // Draw a resized enemy by drawing it at its normal size and scaling the canvas around it.
     function scaled(e, draw) {
       const s = e.scale || 1;
@@ -1195,8 +1220,8 @@
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(g.x + W.player.face * 3, g.y, 4, 0, TAU); ctx.fill();
       }
       const p = W.player;
-      if (!p.dead && !opts.hidePlayer && p.shield) drawShield(p);
-      if (!p.dead && !opts.hidePlayer) {
+      if (!p.dead && !opts.hidePlayer && !p.inCannon && p.shield) drawShield(p);
+      if (!p.dead && !opts.hidePlayer && !p.inCannon) {
         const f = LF.flamePos(p), k = flick(3, .15);
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 3.4 * k, 4.8 * k, 0, 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 1, 1.6, 2.4, 0, 0, TAU); ctx.fill();
@@ -1259,11 +1284,21 @@
       drawTiles(W, cam, opts);
       drawPlats(W);
       drawDoor(W.door); if (W.secretSeen || opts.edit) drawDoor(W.secret);
+      drawCannon(W, opts);
       for (const l of W.lanterns) drawLantern(l);
       for (const e of W.enemies) LF.ENEMIES[e.type].special ? drawGiant(e) : scaled(e, drawEnemy);
       drawTraps(W);
       drawGhosts(W);
-      if (!opts.hidePlayer) drawPlayer(W.player);
+      if (!opts.hidePlayer && !W.player.inCannon) drawPlayer(W.player);
+      // Fired from the cannon: the lamplighter tumbling through the air.
+      if (W.cannon && W.cannon.state === 'fire') {
+        const p = W.player;
+        ctx.save(); ctx.translate(p.x + p.w / 2, p.y + p.h / 2); ctx.rotate(W.cannon.t * 9);
+        ctx.fillStyle = '#D9D0F0'; ctx.beginPath(); ctx.moveTo(-8, 12); ctx.lineTo(0, -4); ctx.lineTo(8, 12); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -8, 5.5, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(12, -14, 3.5, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
       drawParticles(W, false);
       drawHorde(W, cam, opts);
       if (opts.edit) {

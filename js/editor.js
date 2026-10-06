@@ -30,6 +30,7 @@
     { c: 'L', label: 'Lantern', group: 'Level', chip: '#FFB547' },
     { c: 'D', label: 'Door', group: 'Level', chip: '#8F81AB' },
     { c: '?', label: 'Secret exit', group: 'Level', chip: '#7FB0E0', note: 'a second door, always open, unseen until you come near: leaving by it opens a secret path on the map' },
+    { c: '+', label: 'Cannon', group: 'Level', chip: '#5C3B24', note: 'press ↓ beside it to climb in and be fired out: that finishes the level' },
     { c: 'l', label: 'False wall', group: 'Level', chip: '#5E5173', note: 'looks like stone but you can walk through it: hide a secret exit behind it' },
     { c: 'M', label: 'Lift ↔', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
