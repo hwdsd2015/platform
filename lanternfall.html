@@ -137,6 +137,51 @@
   }
   .alt:hover { color: var(--wick); border-color: var(--wick); }
 
+  /* ---------- world map ---------- */
+  .map {
+    position: fixed; inset: 0; z-index: 10; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr);
+    background: radial-gradient(ellipse at 50% 0%, rgba(58,42,85,.92), rgba(14,12,34,.97) 70%);
+  }
+  .map-bar {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px 18px; flex-wrap: wrap;
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 10px; border-bottom: 1px solid rgba(217,208,240,.1);
+  }
+  .map-brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .map-brand b { font-family: var(--display); font-weight: 400; font-size: 30px; color: var(--wick); text-shadow: 0 3px 0 #7A3E1C; }
+  .map-brand span { font-size: 11px; color: var(--mist-dim); overflow-wrap: anywhere; }
+  .map-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  .map-nav .hc-on { background: #8A2F1E; color: #FFE2A8; }
+  .map-board { overflow: auto; padding: 0 16px; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+  .map-board svg { display: block; margin: 0 auto; width: 100%; max-width: 900px; height: auto; }
+  .map-board .seg { fill: none; stroke: #3A3350; stroke-width: 4; stroke-dasharray: 2 8; stroke-linecap: round; }
+  .map-board .seg.open { stroke: #8A6A3E; stroke-dasharray: none; }
+  .map-board .warp { fill: none; stroke: var(--wick); stroke-width: 3; stroke-dasharray: 10 7; opacity: .85; }
+  .map-board .ch { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; fill: var(--ember); text-transform: uppercase; }
+  .map-board .stop { cursor: pointer; }
+  .map-board .stop circle { fill: #211C3F; stroke: #4C4062; stroke-width: 3; }
+  .map-board .stop text { font-family: var(--mono); font-size: 10px; fill: var(--mist-dim); text-anchor: middle; pointer-events: none; }
+  .map-board .stop.open circle { stroke: var(--wick); fill: #2A2348; }
+  .map-board .stop.lit circle { fill: var(--wick); stroke: #FFE2A8; }
+  .map-board .stop.lit text { fill: var(--ink); font-weight: 600; }
+  .map-board .stop.boss circle { stroke-width: 4; }
+  .map-board .stop.boss.open circle, .map-board .stop.boss.locked circle { stroke: var(--ember); }
+  .map-board .stop.locked { cursor: default; opacity: .45; }
+  .map-board .stop.at circle { filter: drop-shadow(0 0 8px rgba(255,181,71,.9)); }
+  .map-board .badge { font-family: var(--mono); font-size: 13px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+  .map-board .badge.found { fill: var(--wick); }
+  .map-board .badge.hint { fill: #9FD8FF; }
+  .map-board .marker { pointer-events: none; }
+  .map-info {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap;
+    padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px); border-top: 1px solid rgba(217,208,240,.1); background: rgba(14,12,34,.8);
+  }
+  .map-info > div:first-child { display: grid; gap: 3px; min-width: 0; }
+  .map-info small { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ember); }
+  .map-info strong { font-family: var(--display); font-weight: 400; font-size: 24px; color: var(--mist); }
+  .map-info em { font-style: normal; font-size: 11px; color: var(--mist-dim); }
+  .map-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .map-actions .go { font-size: 17px; padding: 9px 18px 8px; }
+
   /* ---------- level select ---------- */
   .panel {
     position: fixed; inset: 0; z-index: 10; overflow-y: auto;
@@ -298,8 +343,24 @@
 
 <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
 
+<section class="map" id="map" hidden>
+  <header class="map-bar">
+    <div class="map-brand"><b>Lanternfall</b><span id="map-stats"></span></div>
+    <nav class="map-nav">
+      <button class="mini" data-act="random">Random map</button>
+      <button class="mini" data-act="editor">Level editor</button>
+      <button class="mini" data-act="yours">Your levels</button>
+      <button class="mini" data-act="awards" id="map-awards">Awards</button>
+      <button class="mini" data-act="toggleHardcore" id="map-hc">Hardcore: off</button>
+      <button class="mini" data-act="help">How to play</button>
+    </nav>
+  </header>
+  <div class="map-board" id="map-board"></div>
+  <footer class="map-info" id="map-info"></footer>
+</section>
+
 <section class="panel" id="select" hidden>
-  <header><h2>Choose a level</h2><button class="alt" id="sel-back">Back to menu</button></header>
+  <header><h2>Your levels</h2><button class="alt" id="sel-back">Back to the map</button></header>
   <div id="sel-body"></div>
 </section>
 
@@ -414,21 +475,22 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=73"></script>
-<script src="js/render.js?v=73"></script>
-<script src="js/gen.js?v=73"></script>
-<script src="js/levels-1.js?v=73"></script>
-<script src="js/levels-2.js?v=73"></script>
-<script src="js/levels-3.js?v=73"></script>
-<script src="js/levels-4.js?v=73"></script>
-<script src="js/levels-5.js?v=73"></script>
-<script src="js/levels-6.js?v=73"></script>
-<script src="js/levels-7.js?v=73"></script>
-<script src="js/levels-8.js?v=73"></script>
-<script src="js/levels-9.js?v=73"></script>
-<script src="js/levels-10.js?v=73"></script>
-<script src="js/levels-11.js?v=73"></script>
-<script src="js/bosses.js?v=73"></script>
-<script src="js/awards.js?v=73"></script>
-<script src="js/editor.js?v=73"></script>
-<script src="js/ui.js?v=73"></script>
+<script src="js/engine.js?v=75"></script>
+<script src="js/render.js?v=75"></script>
+<script src="js/gen.js?v=75"></script>
+<script src="js/levels-1.js?v=75"></script>
+<script src="js/levels-2.js?v=75"></script>
+<script src="js/levels-3.js?v=75"></script>
+<script src="js/levels-4.js?v=75"></script>
+<script src="js/levels-5.js?v=75"></script>
+<script src="js/levels-6.js?v=75"></script>
+<script src="js/levels-7.js?v=75"></script>
+<script src="js/levels-8.js?v=75"></script>
+<script src="js/levels-9.js?v=75"></script>
+<script src="js/levels-10.js?v=75"></script>
+<script src="js/levels-11.js?v=75"></script>
+<script src="js/bosses.js?v=75"></script>
+<script src="js/secrets.js?v=75"></script>
+<script src="js/awards.js?v=75"></script>
+<script src="js/editor.js?v=75"></script>
+<script src="js/ui.js?v=75"></script>

@@ -298,6 +298,15 @@
     }
     function drawDoor(d) {
       if (!d) return;
+      if (d.secret) {
+        // The secret exit: a pale blue arch with a star over it.
+        ctx.fillStyle = '#7FB0E0'; doorPath(d, -4); ctx.fill();
+        ctx.fillStyle = '#1E3550'; doorPath(d, 0); ctx.fill();
+        ctx.fillStyle = '#FFE2A8'; ctx.beginPath();
+        for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? 2.5 : 6; ctx.lineTo(d.x + 16 + Math.cos(a) * rr, d.y - 8 + Math.sin(a) * rr); }
+        ctx.fill();
+        return;
+      }
       ctx.fillStyle = '#8F81AB'; doorPath(d, -4); ctx.fill();
       ctx.fillStyle = d.open ? '#3A2440' : '#0E0C22'; doorPath(d, 0); ctx.fill();
       if (!d.open) {
@@ -918,6 +927,7 @@
       for (const e of W.enemies) if (e.alive && e.type === 'f+') { out.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, r: 200 }); for (const b of LF.wheelBalls(e).filter((_, k) => k % 3 === 2)) out.push({ x: b.x, y: b.y, r: 70 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
+      if (W.secret) out.push({ x: W.secret.x + 16, y: W.secret.y + 30, r: 90 });
       for (const b of W.projectiles) out.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, r: 60 * Math.max(1, b.w / 10) });
       for (const e of W.enemies) if (e.alive && e.type === 'S') out.push({ x: e.x + 12, y: e.y + 2, r: 34 });
       for (const e of W.enemies) if (e.alive && e.type === 'Z') out.push({ x: e.x + 7, y: e.y + 7, r: 56 });
@@ -1116,6 +1126,12 @@
         ctx.fillStyle = '#FF6B3D'; ctx.beginPath(); ctx.arc(b.x + r, b.y + r, r, 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFE2A8'; ctx.beginPath(); ctx.arc(b.x + r, b.y + r, r * .44, 0, TAU); ctx.fill();
       }
+      // The secret exit glows a cool blue.
+      if (W.secret) {
+        const s = W.secret, g = ctx.createLinearGradient(0, s.y, 0, s.y + s.h);
+        g.addColorStop(0, 'rgba(159,216,255,.8)'); g.addColorStop(1, 'rgba(46,78,130,.6)');
+        ctx.globalAlpha = .5 + (reduced ? 0 : Math.sin(clock * 2) * .2); ctx.fillStyle = g; doorPath(s, 3); ctx.fill(); ctx.globalAlpha = 1;
+      }
       const d = W.door;
       if (d && d.glow > 0) {
         ctx.globalAlpha = d.glow;
@@ -1230,7 +1246,7 @@
       }
       drawTiles(W, cam, opts);
       drawPlats(W);
-      drawDoor(W.door);
+      drawDoor(W.door); drawDoor(W.secret);
       for (const l of W.lanterns) drawLantern(l);
       for (const e of W.enemies) LF.ENEMIES[e.type].special ? drawGiant(e) : scaled(e, drawEnemy);
       drawTraps(W);

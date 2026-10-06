@@ -29,6 +29,7 @@
     { c: 'P', label: 'Start', group: 'Level', chip: '#D9D0F0' },
     { c: 'L', label: 'Lantern', group: 'Level', chip: '#FFB547' },
     { c: 'D', label: 'Door', group: 'Level', chip: '#8F81AB' },
+    { c: '?', label: 'Secret exit', group: 'Level', chip: '#7FB0E0', note: 'a second door, always open: leaving by it opens a secret path on the map' },
     { c: 'M', label: 'Lift ↔', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },

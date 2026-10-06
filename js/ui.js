@@ -104,8 +104,8 @@
   const app = { canvas: cvs, renderer: R };
   const editor = LF.createEditor(app);
 
-  function setVisible({ hud = false, overlay = false, select = false, touch = false }) {
-    $('hud').hidden = !hud; $('overlay').hidden = !overlay; $('select').hidden = !select; $('touch').hidden = !touch;
+  function setVisible({ hud = false, overlay = false, select = false, touch = false, map = false }) {
+    $('hud').hidden = !hud; $('overlay').hidden = !overlay; $('select').hidden = !select; $('touch').hidden = !touch; $('map').hidden = !map;
     if (screen !== 'editor' && editor.active) editor.close();
   }
   function card(html) {
@@ -162,26 +162,134 @@
   LF.awards.sync({ storyLit: Object.keys(progress).length, hcLit: Object.keys(progressHC).length, first: !!progress[0] });
 
   // ---------- screens ----------
-  function showTitle() {
-    screen = 'title';
+  // ---------- world map ----------
+  // Every story level is a stop on a winding path. Clearing a level opens the next one;
+  // leaving one by its secret exit also opens a shortcut (a gold dashed line) to a level
+  // further on. The lamplighter marks where you are: arrow keys (or a click or tap) move
+  // along open stops, Enter plays, Shift+→ takes a secret path you've found.
+  let mapAt = Math.min(store.get('mapAt', 0), LF.LEVELS.length - 1);
+  let secrets = store.get('secrets', {});
+  const warpsInto = {};
+  LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) (warpsInto[lv.secretTo] ||= []).push(i); });
+  const unlocked = i => i === 0 || !!progress[i] || !!progress[i - 1] || (warpsInto[i] || []).some(j => secrets[j]);
+  const COLS = 8, CW = 104, RH = 100, PAD = 70;
+  const mapPos = i => {
+    const row = Math.floor(i / COLS), col = i % COLS;
+    return { x: PAD + (row % 2 ? COLS - 1 - col : col) * CW, y: PAD + row * RH };
+  };
+  const stopR = lv => lv.finalFight ? 22 : lv.boss ? 17 : 12;
+
+  function showMap() {
+    screen = 'map';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     attract = LF.createWorld(LF.LEVELS[0]);
     LF.followCamera(attract, cam, 0, true);
-    setVisible({ overlay: true });
-    const n = nextStory(), cleared = Object.keys(progress).length;
-    card(`
-      <p class="eyebrow">A lamplighter's night · ${LF.LEVELS.length} levels · ${cleared} lit${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}</p>
-      <h1>Lanternfall</h1>
-      <p class="lede">Night is falling on the old town. Light every lantern to open each door: across the rooftops, up the belfry, down through the kilns and into the Hollow Spire.</p>
-      <div class="menu">
-        <button class="go" data-act="story" data-i="${n}">${cleared ? `Continue · ${n + 1}. ${esc(LF.LEVELS[n].name)}` : 'Light the first lamp'}</button>
-        <button class="alt" data-act="select">Choose a level</button>
-        <button class="alt" data-act="random">Random map</button>
-        <button class="alt" data-act="editor">Level editor</button>
-        <button class="alt" data-act="awards">Awards · ${LF.awards.count().earned}/${LF.awards.count().total}</button>
-        <button class="alt${hardcore ? ' hc-on' : ''}" data-act="toggleHardcore" aria-pressed="${hardcore}">Hardcore: ${hardcore ? 'on' : 'off'}</button>
+    setVisible({ map: true });
+    renderMap(true);
+  }
+
+  function renderMap(scroll) {
+    const L = LF.LEVELS, n = L.length, rows = Math.ceil(n / COLS);
+    const w = PAD * 2 + (COLS - 1) * CW, h = PAD * 2 + (rows - 1) * RH;
+    let out = '';
+    // The path, lit up to the furthest stop you can reach.
+    for (let i = 0; i < n - 1; i++) {
+      const a = mapPos(i), b = mapPos(i + 1), cls = unlocked(i + 1) ? 'seg open' : 'seg';
+      if (a.y === b.y) out += `<line class="${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+      else { const side = a.x > w / 2 ? 1 : -1; out += `<path class="${cls}" d="M${a.x} ${a.y} C${a.x + side * 60} ${a.y} ${b.x + side * 60} ${b.y} ${b.x} ${b.y}"/>`; }
+    }
+    // Secret shortcuts you've found.
+    for (const j of Object.keys(secrets)) {
+      const t = L[j] && L[j].secretTo;
+      if (t == null) continue;
+      const a = mapPos(+j), b = mapPos(t);
+      out += `<path class="warp" d="M${a.x} ${a.y} Q${(a.x + b.x) / 2 + 90} ${(a.y + b.y) / 2} ${b.x} ${b.y}"/>`;
+    }
+    // Chapter names where each chapter starts, run the way the path goes (unless that's
+    // off the edge) and clear of the lamplighter. (Ones that collide are moved below.)
+    L.forEach((lv, i) => {
+      if (i && L[i - 1].chapter === lv.chapter) return;
+      const p = mapPos(i), forward = Math.floor(i / COLS) % 2 === 0;
+      const right = p.x < 230 || (forward && p.x < w - 230);
+      out += `<text class="ch" x="${p.x + (right ? 22 : -22)}" y="${p.y - 30}" text-anchor="${right ? 'start' : 'end'}">${roman(chapterIndex(i))} · ${esc(lv.chapter)}</text>`;
+    });
+    // The stops: dim if locked, outlined if open, lit if cleared. A star marks a secret exit
+    // you've found; a blue ? one still hiding in a level you've cleared.
+    L.forEach((lv, i) => {
+      const p = mapPos(i), r = stopR(lv);
+      const cls = ['stop', !unlocked(i) ? 'locked' : progress[i] ? 'lit' : 'open', lv.boss ? 'boss' : '', i === mapAt ? 'at' : ''].join(' ');
+      let badge = '';
+      if (secrets[i]) badge = `<text class="badge found" x="${r}" y="${-r + 2}">★</text>`;
+      else if (lv.secretTo != null && progress[i]) badge = `<text class="badge hint" x="${r}" y="${-r + 2}">?</text>`;
+      out += `<g class="${cls}" data-i="${i}" transform="translate(${p.x} ${p.y})"><title>${i + 1}. ${esc(lv.name)}</title><circle r="${r}"/><text y="4">${i + 1}</text>${badge}</g>`;
+    });
+    // The lamplighter, standing over the current stop.
+    const m = mapPos(mapAt), mr = stopR(L[mapAt]);
+    out += `<g class="marker" transform="translate(${m.x} ${m.y - mr - 16})">
+      <path d="M-7 14 L0 -2 L7 14 Z" fill="#D9D0F0"/><circle cy="-6" r="5" fill="#D9D0F0"/>
+      <line x1="6" y1="0" x2="12" y2="-12" stroke="#8F81AB" stroke-width="2"/><circle cx="12" cy="-15" r="3.5" fill="#FFB547"/></g>`;
+    $('map-board').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="World map: ${n} levels">${out}</svg>`;
+    // A chapter name that runs into the one before it on its row drops under the path.
+    const boxes = [];
+    for (const t of $('map-board').querySelectorAll('.ch')) {
+      const b = t.getBBox();
+      if (boxes.some(o => Math.abs(o.y - b.y) < 2 && o.x < b.x + b.width + 10 && b.x < o.x + o.width + 10)) t.setAttribute('y', +t.getAttribute('y') + 68);
+      boxes.push(t.getBBox());
+    }
+    for (const g of $('map-board').querySelectorAll('.stop')) g.addEventListener('click', () => {
+      initAudio();
+      const i = +g.dataset.i;
+      if (!unlocked(i)) return flash('Clear the levels before it first');
+      if (i === mapAt) ACTIONS.story({ i });
+      else { mapAt = i; store.set('mapAt', i); renderMap(); }
+    });
+    const lit = Object.keys(progress).length, found = Object.keys(secrets).length, total = Object.keys(warpsInto).length;
+    $('map-stats').textContent = `${lit} of ${n} lit · secret exits ${found} of ${total}${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}`;
+    $('map-awards').textContent = `Awards · ${LF.awards.count().earned}/${LF.awards.count().total}`;
+    $('map-hc').textContent = `Hardcore: ${hardcore ? 'on' : 'off'}`; $('map-hc').classList.toggle('hc-on', hardcore);
+    mapInfo();
+    if (scroll !== false) {
+      const svg = $('map-board').querySelector('svg'), k = svg.getBoundingClientRect().width / w, board = $('map-board');
+      const target = m.y * k - board.clientHeight / 2;
+      if (scroll === true || Math.abs(board.scrollTop - target) > board.clientHeight * .35) board.scrollTop = target;
+    }
+  }
+
+  function mapInfo() {
+    const L = LF.LEVELS, lv = L[mapAt], p = progress[mapAt], hc = progressHC[mapAt];
+    const secret = lv.secretTo == null ? '' : secrets[mapAt] ? ' · secret exit found ★' : p ? ' · a secret exit hides here' : '';
+    $('map-info').innerHTML = `<div>
+        <small>Chapter ${roman(chapterIndex(mapAt))} · ${esc(lv.chapter)} · level ${mapAt + 1} · key ${levelKey(lv.name)}</small>
+        <strong>${esc(lv.name)}</strong>
+        <em>${lv.boss ? 'boss fight · ' : ''}${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · hardcore ${fmt(hc.best)}` : ''}${secret}</em>
       </div>
-      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
+      <div class="map-actions">
+        <button class="go" data-act="story" data-i="${mapAt}">Play</button>
+        ${secrets[mapAt] ? `<button class="mini" data-act="warp" data-i="${mapAt}">Secret path → ${esc(L[lv.secretTo].name)}</button>` : ''}
+        <button class="mini" data-act="copyStory" data-i="${mapAt}">Copy to editor</button>
+      </div>`;
+    for (const b of $('map-info').querySelectorAll('[data-act]')) b.addEventListener('click', () => { initAudio(); ACTIONS[b.dataset.act](b.dataset); });
+  }
+  for (const b of $('map').querySelectorAll('.map-nav [data-act]')) b.addEventListener('click', () => { initAudio(); ACTIONS[b.dataset.act](b.dataset); });
+  // Chapter names are measured to keep them apart, so lay the map out again once the
+  // web fonts (which are wider than the fallback) have loaded.
+  if (document.fonts) document.fonts.ready.then(() => { if (screen === 'map') renderMap(false); });
+
+  // Move the lamplighter to stop i if it's open.
+  function mapMove(i) {
+    if (i < 0 || i >= LF.LEVELS.length || !unlocked(i)) return;
+    mapAt = i; store.set('mapAt', i); renderMap();
+  }
+
+  function showHelp() {
+    screen = 'help';
+    setVisible({ overlay: true });
+    card(`
+      <p class="eyebrow">How to play</p>
+      <h2>Light every lamp</h2>
+      <p class="lede">Night is falling on the old town. Light every lantern to open each door: across the rooftops, up the belfry, down through the kilns and into the Hollow Spire. On the map, each level you clear opens the next; some hide a secret exit that opens a shortcut further on.</p>
       <ul class="keys">
+        <li>Map: <kbd>←</kbd><kbd>→</kbd> move · <kbd>Enter</kbd> play · <kbd>Shift</kbd>+<kbd>→</kbd> take a secret path you've found</li>
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
@@ -189,31 +297,17 @@
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield · 🍊 jump boost · 🍌 double jump</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
-      </ul>`);
+      </ul>
+      ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
+      <div class="menu"><button class="go" data-act="menu">Back to the map</button></div>`);
   }
 
-  function showSelect() {
+  // Your own saved levels (the story levels live on the map).
+  function showYours() {
     screen = 'select';
     setVisible({ select: true });
-    const chapters = [];
-    LF.LEVELS.forEach((lv, i) => {
-      let ch = chapters[chapters.length - 1];
-      if (!ch || ch.name !== lv.chapter) chapters.push(ch = { name: lv.chapter, items: [] });
-      ch.items.push({ lv, i });
-    });
-    let html = chapters.map((ch, k) => `
-      <section class="chapter">
-        <h3><span>Chapter ${roman(k)}</span>${esc(ch.name)}</h3>
-        <div class="tiles">${ch.items.map(({ lv, i }) => {
-          const p = progress[i], hc = progressHC[i];
-          return `<div class="lvl-wrap"><button class="lvl${p ? ' lit' : ''}" data-act="story" data-i="${i}">
-            <b>${i + 1}</b><strong>${esc(lv.name)}</strong>
-            <small>${lv.boss ? '<span class="boss-tag">boss fight</span> · ' : ''}${lv.map[0].length}×${lv.map.length} · ${shapeOf(lv)} · key <span class="lvl-key">${levelKey(lv.name)}</span></small>
-            <em>${p ? 'best ' + fmt(p.best) : 'not yet lit'}${hc ? ` · <span class="hc">hardcore ${fmt(hc.best)}</span>` : ''}</em></button>
-            <button class="mini lvl-copy" data-act="copyStory" data-i="${i}" title="Open a copy of this level in the editor">Copy to editor</button></div>`;
-        }).join('')}</div>
-      </section>`).join('');
-    html += `<section class="chapter"><h3><span>Workshop</span>Your levels</h3>` + (customs.length
+    let html = '';
+    html += `<section class="chapter"><h3><span>Workshop</span>Saved in this browser</h3>` + (customs.length
       ? `<ul class="customs">${customs.map(c => `<li><div><strong>${esc(c.name)}</strong><small>${c.map[0].length}×${c.map.length} · ${shapeOf(c)} · key <span class="lvl-key">${customKey(c)}</span></small></div>
           <span><button class="mini go-mini" data-act="custom" data-id="${c.id}">Play</button><button class="mini" data-act="editCustom" data-id="${c.id}">Edit</button><button class="mini danger" data-act="deleteCustom" data-id="${c.id}">Delete</button></span></li>`).join('')}</ul>`
       : `<p class="empty">Nothing saved yet. Build one in the editor, or generate a random map and save it.</p>`) + `</section>`;
@@ -266,7 +360,7 @@
         ${playCtx.kind === 'test' ? '<button class="alt" data-act="backToEditor">Back to editor</button>' : ''}
         ${playCtx.kind === 'random' ? '<button class="alt" data-act="editRandom">Open in editor</button>' : ''}
         ${playCtx.kind !== 'test' ? '<button class="alt" data-act="copyToEditor">Copy to editor</button>' : ''}
-        <button class="alt" data-act="menu">Main menu</button>
+        <button class="alt" data-act="menu">Back to the map</button>
       </div>`);
   }
 
@@ -284,32 +378,39 @@
       if (hardcore && !progress[i]) { progress[i] = { best: t, falls }; store.set('progress', progress); }
       LF.awards.clear({ kind: 'story', index: i, time: t, falls, hardcore, horde: !!W.horde, storyLit: Object.keys(progress).length, hcLit: Object.keys(progressHC).length });
       story.time += t; story.falls += falls;
-      const last = i === LF.LEVELS.length - 1;
-      eyebrow = `Level ${i + 1} of ${LF.LEVELS.length} · ${hardcore ? 'hardcore clear' : 'every lamp lit'}`;
+      const last = i === LF.LEVELS.length - 1, secret = W.clearedBy === 'secret' && LF.LEVELS[i].secretTo != null;
+      // On the map the lamplighter moves on: to the next level, or down the secret path.
+      if (secret) { secrets[i] = true; store.set('secrets', secrets); }
+      mapAt = secret ? LF.LEVELS[i].secretTo : Math.min(i + 1, LF.LEVELS.length - 1); store.set('mapAt', mapAt);
+      eyebrow = secret ? `Level ${i + 1} · secret exit found!` : `Level ${i + 1} of ${LF.LEVELS.length} · ${hardcore ? 'hardcore clear' : 'every lamp lit'}`;
       stats = tally(`<div class="best"><dt>${isBest ? 'New best' : 'Best'}</dt><dd>${fmt(isBest ? t : prev.best)}</dd></div>`);
-      if (last) {
+      if (secret) {
+        const to = LF.LEVELS[i].secretTo;
+        stats += `<p class="lede">A secret path opens on the map, straight to level ${to + 1}: ${esc(LF.LEVELS[to].name)}.</p>`;
+        buttons = `<button class="go" data-act="story" data-i="${to}">Take the secret path</button><button class="alt" data-act="menu">Back to the map</button><button class="alt" data-act="restart">Replay</button>`;
+      } else if (last) {
         eyebrow = 'The whole town is lit'; title = 'Every lamp burns.';
         stats += `<p class="lede">All ${LF.LEVELS.length} levels done. The lamplighter goes home. Try the random maps, or build a level of your own.</p>`;
-        buttons = `<button class="go" data-act="random">Random map</button><button class="alt" data-act="copyToEditor">Copy to editor</button><button class="alt" data-act="editor">Level editor</button><button class="alt" data-act="menu">Main menu</button>`;
+        buttons = `<button class="go" data-act="menu">Back to the map</button><button class="alt" data-act="random">Random map</button><button class="alt" data-act="copyToEditor">Copy to editor</button><button class="alt" data-act="editor">Level editor</button>`;
       } else {
         const nx = LF.LEVELS[i + 1];
         stats += `<p class="lede">Next: ${esc(nx.name)} · ${nx.map[0].length}×${nx.map.length}, ${shapeOf(nx)}.</p>`;
-        buttons = `<button class="go" data-act="story" data-i="${i + 1}">Next level</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="copyToEditor">Copy to editor</button><button class="alt" data-act="select">Choose a level</button>`;
+        buttons = `<button class="go" data-act="story" data-i="${i + 1}">Next level</button><button class="alt" data-act="menu">Back to the map</button><button class="alt" data-act="restart">Replay</button><button class="alt" data-act="copyToEditor">Copy to editor</button>`;
       }
     } else if (playCtx.kind === 'random') {
       LF.awards.clear({ kind: 'random', time: t, falls, hardcore, horde: !!W.horde });
       eyebrow = `Random map · seed ${playCtx.opts.seed}`; stats = tally();
-      buttons = `<button class="go" data-act="rerollRandom">Another random map</button><button class="alt" data-act="saveRandom">Save to Your levels</button><button class="alt" data-act="editRandom">Open in editor</button><button class="alt" data-act="menu">Main menu</button>`;
+      buttons = `<button class="go" data-act="rerollRandom">Another random map</button><button class="alt" data-act="saveRandom">Save to Your levels</button><button class="alt" data-act="editRandom">Open in editor</button><button class="alt" data-act="menu">Back to the map</button>`;
     } else if (playCtx.kind === 'test') {
       eyebrow = 'Test play · cleared'; stats = tally();
       buttons = `<button class="go" data-act="backToEditor">Back to editor</button><button class="alt" data-act="restart">Play again</button>`;
     } else if (playCtx.kind === 'shared') {
       eyebrow = 'Shared level · cleared'; stats = tally();
-      buttons = `<button class="go" data-act="restart">Play again</button><button class="alt" data-act="editShared">Open in editor</button><button class="alt" data-act="menu">Main menu</button>`;
+      buttons = `<button class="go" data-act="restart">Play again</button><button class="alt" data-act="editShared">Open in editor</button><button class="alt" data-act="menu">Back to the map</button>`;
     } else {
       LF.awards.clear({ kind: 'custom', time: t, falls, hardcore, horde: !!W.horde });
       eyebrow = 'Your level · cleared'; stats = tally();
-      buttons = `<button class="go" data-act="restart">Play again</button><button class="alt" data-act="editCustom" data-id="${playCtx.id}">Edit</button><button class="alt" data-act="select">Choose a level</button>`;
+      buttons = `<button class="go" data-act="restart">Play again</button><button class="alt" data-act="editCustom" data-id="${playCtx.id}">Edit</button><button class="alt" data-act="yours">Your levels</button>`;
     }
     card(`<p class="eyebrow">${esc(eyebrow)}</p><h2>${esc(title)}</h2>${stats}<div class="menu">${buttons}</div>`);
   }
@@ -425,17 +526,21 @@
     store.set('custom', customs);
     return rec;
   };
-  app.menu = showTitle;
+  app.menu = showMap;
 
   // ---------- actions ----------
   const ACTIONS = {
     story: d => { story = +d.i === 0 ? { time: 0, falls: 0 } : story; play(LF.LEVELS[+d.i], { kind: 'story', index: +d.i }); },
-    select: showSelect,
+    select: showMap,
+    yours: showYours,
+    help: showHelp,
+    // Follow a secret path you've found: the lamplighter goes to the level it leads to.
+    warp: d => { const t = LF.LEVELS[+(d.i ?? mapAt)].secretTo; if (t != null) { mapAt = t; store.set('mapAt', t); showMap(); } },
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
-    menu: () => { if (location.hash) history.replaceState(null, '', location.pathname + location.search); showTitle(); },
+    menu: showMap,
     awards: showAwards,
-    toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); showTitle(); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
+    toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); renderMap(false); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
     restart: () => play(playDef, playCtx),
     backToEditor: () => { screen = 'editor'; setVisible({}); editor.resume(); },
@@ -451,10 +556,10 @@
     deleteCustom: d => {
       const c = customs.find(x => x.id === d.id);
       if (!c || !confirm(`Delete “${c.name}”? This can’t be undone.`)) return;
-      customs = customs.filter(x => x.id !== d.id); store.set('custom', customs); showSelect();
+      customs = customs.filter(x => x.id !== d.id); store.set('custom', customs); showYours();
     },
   };
-  $('sel-back').addEventListener('click', showTitle);
+  $('sel-back').addEventListener('click', showMap);
 
   // ---------- input ----------
   const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyQ: 'grenade' };
@@ -466,7 +571,7 @@
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (screen === 'editor') { if (e.code === 'Escape') showTitle(); return; }
+    if (screen === 'editor') { if (e.code === 'Escape') showMap(); return; }
     const k = KEYMAP[e.code];
     if (screen === 'play') {
       if (k) {
@@ -484,7 +589,13 @@
       return;
     }
     if (screen === 'paused' && (e.code === 'Escape' || e.code === 'KeyP')) { ACTIONS.resume(); return; }
-    if (screen === 'select' && e.code === 'Escape') { showTitle(); return; }
+    if (screen === 'select' && e.code === 'Escape') { showMap(); return; }
+    if (screen === 'map') {
+      if (e.code === 'ArrowRight' && e.shiftKey && secrets[mapAt]) { e.preventDefault(); ACTIONS.warp({ i: mapAt }); return; }
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'KeyA' || e.code === 'KeyW') { e.preventDefault(); mapMove(mapAt - 1); return; }
+      if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'KeyD' || e.code === 'KeyS') { e.preventDefault(); mapMove(mapAt + 1); return; }
+      if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); initAudio(); ACTIONS.story({ i: mapAt }); return; }
+    }
     if (k === 'jump' || e.code === 'Space') e.preventDefault();
   });
   addEventListener('keyup', e => { syncBig(e.shiftKey); const k = KEYMAP[e.code]; if (k) input[k] = false; });
@@ -574,7 +685,7 @@
   function start(data) {
     try { window.claude?.hot?.snapshot?.(() => ({ screen, ctx: playCtx && playCtx.kind === 'story' ? playCtx : null })); } catch (e) {}
     if (data && data.ctx && data.ctx.kind === 'story' && LF.LEVELS[data.ctx.index]) play(LF.LEVELS[data.ctx.index], data.ctx);
-    else if (!openFromLink()) showTitle();
+    else if (!openFromLink()) showMap();
     requestAnimationFrame(frame);
   }
   window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});

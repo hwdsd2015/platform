@@ -169,6 +169,8 @@
       else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
       else if (c === 'D') { W.door = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: false, glow: 0 }; tiles[y][x] = ' '; }
+      // ? is a secret exit: a second door, always open, tucked away somewhere.
+      else if (c === '?') { W.secret = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: true, glow: 1, secret: true }; tiles[y][x] = ' '; }
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
@@ -2146,6 +2148,14 @@
       W.emit('fruit', { type: f.type });
     }
 
+    // Leaving by the secret exit clears the level too, the secret way.
+    const sd = W.secret;
+    if (sd && overlap(p, { x: sd.x + 8, y: sd.y + 10, w: 16, h: sd.h - 10 })) {
+      W.cleared = true; W.clearedBy = 'secret';
+      burst(W, sd.x + 16, sd.y + 20, 40, ['#9FD8FF', '#D9D0F0', '#FFE2A8'], 260, 200, 3);
+      W.emit('secretExit'); W.emit('clear');
+      return;
+    }
     const d = W.door;
     if (d && d.open && overlap(p, { x: d.x + 8, y: d.y + 10, w: 16, h: d.h - 10 })) {
       W.cleared = true;
