@@ -18,6 +18,8 @@
     const problems = [];
     let start = null, door = null, doors = 0;
     const lanterns = [], platStand = new Set();
+    // Passage doors: walking into the k-th j (counting left to right) takes you to the k-th n.
+    const passIn = [], passOut = [];
     const key = (x, y) => y * w + x;
 
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -25,6 +27,8 @@
       if (c === 'P') { if (start) problems.push('There is more than one start (P).'); start = { x, y }; }
       else if (c === 'D') { doors++; door = { x, y }; }
       else if (c === 'L') lanterns.push({ x, y });
+      else if (c === 'j') passIn.push({ x, y });
+      else if (c === 'n') passOut.push({ x, y });
       else if (KEY_GATE[c]) keys.push({ x, y, gate: KEY_GATE[c] });
       else if (c === 'M') {
         let l = x, r = x;
@@ -40,7 +44,9 @@
       }
     }
     if (!start) problems.push('Place a start (P).');
-    if (!doors) problems.push('Place a door (D).');
+    passIn.sort((a, b) => a.x - b.x); passOut.sort((a, b) => a.x - b.x);
+    // (A boss level ends when the boss falls, so it needs no door: def.noDoor.)
+    if (!doors && !def.noDoor) problems.push('Place a door (D).');
     if (doors > 1) problems.push('There is more than one door (D).');
 
     // Water is swimmable: you can jump from anywhere in it.
@@ -51,12 +57,15 @@
     let seen = new Uint8Array(w * h), noGround = false;
     const flood = () => {
     seen = new Uint8Array(w * h);
+    // Drop from a spot to the ground under it (null if there's none).
+    const ground = (x, y) => { while (y < h && !stand(x, y)) { if (solid(T(x, y)) || hazard(T(x, y))) return null; y++; } return y < h ? y : null; };
     if (start) {
-      let sy = start.y;
-      while (sy < h && !stand(start.x, sy)) { if (solid(T(start.x, sy)) || hazard(T(start.x, sy))) { sy = h; break; } sy++; }
-      if (sy >= h) noGround = true;
+      const sy = ground(start.x, start.y);
+      if (sy == null) noGround = true;
       else {
         const q = [[start.x, sy]]; seen[key(start.x, sy)] = 1;
+        const used = new Set();
+        for (;;) {
         while (q.length) {
           const [x, y] = q.pop();
           const spring = T(x, y + 1) === 'O';
@@ -80,6 +89,19 @@
               seen[key(x2, y2)] = 1; q.push([x2, y2]);
             }
           }
+        }
+        // Through any passage door we've reached, and on from where it lets out.
+        let more = false;
+        passIn.forEach((d, k) => {
+          if (used.has(k) || !passOut[k]) return;
+          let at = false;
+          for (let dx = -1; dx <= 1 && !at; dx++) for (let r = 0; r <= 1; r++) if (seen[key(d.x + dx, d.y + r)]) at = true;
+          if (!at) return;
+          used.add(k);
+          const o = passOut[k], oy = ground(o.x, o.y);
+          if (oy != null && !seen[key(o.x, oy)]) { seen[key(o.x, oy)] = 1; q.push([o.x, oy]); more = true; }
+        });
+        if (!more) break;
         }
       }
     }

@@ -151,6 +151,8 @@
   .map-brand span { font-size: 11px; color: var(--mist-dim); overflow-wrap: anywhere; }
   .map-nav { display: flex; gap: 6px; flex-wrap: wrap; }
   .map-nav .hc-on { background: #8A2F1E; color: #FFE2A8; }
+  .map-nav .pr-on { background: #2E4E82; color: #D9F0FF; }
+  .map.practicing .map-board { box-shadow: inset 0 0 0 3px rgba(127,176,224,.5); }
   .map-board { overflow: auto; padding: 0 16px; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
   .map-board svg { display: block; margin: 0 auto; width: 100%; max-width: 900px; height: auto; }
   .map-board .trail { fill: none; stroke-width: 16; stroke-linecap: round; opacity: .14; }
@@ -438,6 +440,7 @@
       <button class="mini" data-act="yours">Your levels</button>
       <button class="mini" data-act="awards" id="map-awards">Awards</button>
       <button class="mini" data-act="toggleHardcore" id="map-hc">Hardcore: off</button>
+      <button class="mini" data-act="togglePractice" id="map-practice">Practice: off</button>
       <button class="mini" data-act="help">How to play</button>
     </nav>
   </header>
@@ -563,24 +566,25 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=83"></script>
-<script src="js/render.js?v=83"></script>
-<script src="js/gen.js?v=83"></script>
-<script src="js/levels-1.js?v=83"></script>
-<script src="js/levels-2.js?v=83"></script>
-<script src="js/levels-3.js?v=83"></script>
-<script src="js/levels-4.js?v=83"></script>
-<script src="js/levels-5.js?v=83"></script>
-<script src="js/levels-6.js?v=83"></script>
-<script src="js/levels-7.js?v=83"></script>
-<script src="js/levels-8.js?v=83"></script>
-<script src="js/levels-9.js?v=83"></script>
-<script src="js/levels-10.js?v=83"></script>
-<script src="js/levels-11.js?v=83"></script>
-<script src="js/bosses.js?v=83"></script>
-<script src="js/worlds.js?v=83"></script>
-<script src="js/secrets.js?v=83"></script>
-<script src="js/awards.js?v=83"></script>
-<script src="js/editor.js?v=83"></script>
-<script src="js/mapart.js?v=83"></script>
-<script src="js/ui.js?v=83"></script>
+<script src="js/engine.js?v=84"></script>
+<script src="js/render.js?v=84"></script>
+<script src="js/gen.js?v=84"></script>
+<script src="js/levels-1.js?v=84"></script>
+<script src="js/levels-2.js?v=84"></script>
+<script src="js/levels-3.js?v=84"></script>
+<script src="js/levels-4.js?v=84"></script>
+<script src="js/levels-5.js?v=84"></script>
+<script src="js/levels-6.js?v=84"></script>
+<script src="js/levels-7.js?v=84"></script>
+<script src="js/levels-8.js?v=84"></script>
+<script src="js/levels-9.js?v=84"></script>
+<script src="js/levels-10.js?v=84"></script>
+<script src="js/levels-11.js?v=84"></script>
+<script src="js/checkpoints.js?v=84"></script>
+<script src="js/bosses.js?v=84"></script>
+<script src="js/worlds.js?v=84"></script>
+<script src="js/secrets.js?v=84"></script>
+<script src="js/awards.js?v=84"></script>
+<script src="js/editor.js?v=84"></script>
+<script src="js/mapart.js?v=84"></script>
+<script src="js/ui.js?v=84"></script>

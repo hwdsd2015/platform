@@ -1,6 +1,7 @@
 // Lanternfall: secret exits. Two levels in each world (but the last) hide a second door (?),
-// and leaving by it fires you out of a secret cannon to a faraway world: two worlds on (or
-// the last one). lv.secretTo is the index of that world's first level, lv.secretWorld the
+// and so does every tower (in its climb or along its battlements, never in the boss's
+// arena); leaving by it fires you out of a secret cannon to a faraway world: two worlds on
+// (or the last one). lv.secretTo is the index of that world's first level, lv.secretWorld the
 // world's index. Load after worlds.js, so the worlds and level indexes are final.
 //
 // The door goes in a little hidden room behind a false wall (l) that looks just like stone:
@@ -12,10 +13,10 @@
   const LF = window.LF, L = LF.LEVELS, WORLDS = LF.WORLDS;
   const floor = c => c === '#' || c === '=';
 
-  // Try to hide a secret door in level lv; true if it found a room for it.
-  function hideRoom(lv) {
+  // Try to hide a secret door in level lv (left of column xMax); true if it found a room for it.
+  function hideRoom(lv, xMax = Infinity) {
     const g = LF.normalize(lv.map).map(row => row.split('')), h = g.length, w = g[0].length;
-    const seen = LF.analyze(lv).seen, P = find(g, 'P'), D = find(g, 'D');
+    const seen = LF.analyze(lv).seen, P = find(g, 'P'), D = find(g, 'D') || lastDoor(g);
     if (!P || !D) return false;
     let best = null;
     for (let y = 3; y < h - 2; y++) for (let x = 1; x < w - 1; x++) {
@@ -23,7 +24,7 @@
       for (const d of [-1, 1]) {
         // Rock 3 wide and 4 tall beside the spot: the entrance, the room, and a wall behind.
         const far = x + 3 * d;
-        if (far < 1 || far > w - 2) continue;
+        if (far < 1 || far > w - 2 || Math.max(x, far) >= xMax) continue;
         let rock = true;
         for (let k = 1; k <= 3 && rock; k++) for (let r = -2; r <= 1; r++) if (g[y + r][x + k * d] !== '#') { rock = false; break; }
         if (!rock) continue;
@@ -40,16 +41,16 @@
     return true;
   }
   // Build a 3x3 block of stone on a ledge with the room inside, facing the spot beside it.
-  function buildRoom(lv) {
+  function buildRoom(lv, xMax = Infinity) {
     const g0 = LF.normalize(lv.map).map(row => row.split('')), h = g0.length, w = g0[0].length;
-    const a0 = LF.analyze(lv), seen = a0.seen, P = find(g0, 'P'), D = find(g0, 'D');
+    const a0 = LF.analyze(lv), seen = a0.seen, P = find(g0, 'P'), D = find(g0, 'D') || lastDoor(g0);
     if (!P || !D) return false;
     const spots = [];
     for (let y = 4; y < h - 2; y++) for (let x = 1; x < w - 1; x++) {
       if (!seen[y * w + x] || g0[y][x] !== '.' || g0[y - 1][x] !== '.' || !floor(g0[y + 1][x])) continue;
       for (const d of [-1, 1]) {
         const far = x + 3 * d;
-        if (far < 1 || far > w - 2) continue;
+        if (far < 1 || far > w - 2 || Math.max(x, far) >= xMax) continue;
         let room = true;
         for (let k = 1; k <= 3 && room; k++) {
           if (!floor(g0[y + 1][x + k * d])) room = false;
@@ -78,7 +79,7 @@
   // you're within 3 tiles of it).
   function farSpot(lv) {
     const g = LF.normalize(lv.map).map(row => row.split('')), h = g.length, w = g[0].length;
-    const seen = LF.analyze(lv).seen, P = find(g, 'P'), D = find(g, 'D');
+    const seen = LF.analyze(lv).seen, P = find(g, 'P'), D = find(g, 'D') || lastDoor(g);
     if (!P || !D) return false;
     let best = null;
     for (let y = 2; y < h - 1; y++) for (let x = 2; x < w - 2; x++) {
@@ -94,6 +95,8 @@
     lv.map = g.map(row => row.join(''));
     return true;
   }
+  // A tower has no door: measure from its last passage door (the one into the boss's arena).
+  function lastDoor(g) { let best = null; g.forEach((row, y) => row.forEach((c, x) => { if (c === 'j' && (!best || x > best.x)) best = { x, y }; })); return best; }
   function find(g, c) { for (let y = 0; y < g.length; y++) { const x = g[y].indexOf(c); if (x >= 0) return { x, y }; } return null; }
 
   WORLDS.forEach((world, k) => {
@@ -109,6 +112,10 @@
         if (lv.secretTo == null && (hideRoom(lv) || buildRoom(lv))) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; placed = true; }
       }
       if (!placed && L[regular[at]].secretTo == null && farSpot(L[regular[at]])) { L[regular[at]].secretTo = WORLDS[to].first; L[regular[at]].secretWorld = to; }
+    }
+    // Every tower, too (if two worlds on is still somewhere new).
+    if (to > k) for (const lv of L.filter(l => l.world === k && l.boss && !l.finalFight)) {
+      if (hideRoom(lv, lv.arenaX - 2) || buildRoom(lv, lv.arenaX - 2)) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; }
     }
   });
 })();

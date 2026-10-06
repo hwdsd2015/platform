@@ -303,13 +303,123 @@
     };
   };
 
+  // ---- Towers and the castle ----
+  // Every boss fight is a tower in three parts, joined by passage doors (j, walked into,
+  // lets out at the matching n): first a climb up the tower's shaft (a lantern part way up),
+  // then a run along its battlements (another lantern), then the boss's arena. Beating the
+  // boss ends the level (bossEnds), so the arena loses its door and boss gate. The castle,
+  // the final boss's, is a long brutal climb instead: floor after floor of a switchback,
+  // each crossed end to end past spikes, crumbling stretches and enemies, then a run along
+  // the walls, with three lanterns in all. The parts sit side by side in one map, walled
+  // apart with rock, bottom-aligned.
+  const GAP = 10;
+  const grid = (w, h, c = '.') => Array.from({ length: h }, () => Array(w).fill(c));
+  const put = (g, x0, y0, x1, y1, c) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (g[y] && x >= 0 && x < g[0].length) g[y][x] = c; };
+  // The tower's shaft: zigzag ledges three rows apart, a lantern half way, the door at the top.
+  function shaft(R) {
+    const w = 22, h = 34, g = grid(w, h);
+    put(g, 0, 0, w - 1, 0, '#'); put(g, 0, 0, 0, h - 1, '#'); put(g, w - 1, 0, w - 1, h - 1, '#'); put(g, 0, h - 2, w - 1, h - 1, '#');
+    g[h - 3][3] = 'P'; g[h - 3][6] = 'q';
+    const A = [3, 8], M = [9, 13], C = [14, 19], cycle = [C, M, A, M];
+    let k = 0;
+    for (let y = h - 5; y >= 7; y -= 3, k++) {
+      const [x0, x1] = cycle[k % 4];
+      put(g, x0, y, x1, y, R() < .25 ? '=' : '#');
+      if (k === 3) g[y - 1][x0 + 2] = 'L';
+      else if (R() < .35) g[y - 1][x0 + 1 + Math.floor(R() * (x1 - x0 - 1))] = R() < .5 ? 'q' : 'a';
+      if (k > 1 && R() < .4) g[y - 2][Math.floor((x0 + x1) / 2)] = R() < .5 ? 'F' : 'Z';
+    }
+    // The top floor (a plank where the last ledge comes up through it) with the door.
+    const [m0, m1] = cycle[(k - 1) % 4];
+    put(g, 1, 5, w - 2, 5, '#'); put(g, m0, 5, m1, 5, '=');
+    g[4][m0 > 10 ? 2 : w - 3] = 'j';
+    return g;
+  }
+  // The battlements: a run with pits and a few guards, a lantern in the middle, the door at the end.
+  function battlements(R) {
+    const w = 46, h = 14, g = grid(w, h);
+    put(g, 0, 0, w - 1, 0, '#'); put(g, 0, 0, 0, h - 1, '#'); put(g, w - 1, 0, w - 1, h - 1, '#'); put(g, 1, h - 3, w - 2, h - 2, '#'); put(g, 0, h - 1, w - 1, h - 1, '#');
+    g[h - 4][2] = 'n'; g[h - 4][22] = 'L'; g[h - 4][w - 3] = 'j'; g[h - 4][7] = 'q';
+    for (const px of [12, 30]) { const lava = R() < .5; put(g, px, h - 3, px + 2, h - 2, lava ? '!' : '#'); if (!lava) put(g, px, h - 3, px + 2, h - 3, '^'); put(g, px - 1, h - 6, px + 3, h - 6, '='); }
+    g[h - 4][17] = 'B'; g[h - 4][37] = R() < .5 ? 'K' : 'R'; g[h - 7][26] = 'W';
+    return g;
+  }
+  // The castle's climb: floors four rows apart, each with one hole up at the end opposite
+  // the last, so every floor is crossed end to end; a step under each hole; spikes, crumbling
+  // stretches and enemies along the way; lanterns a third and two thirds of the way up.
+  function castleClimb(R) {
+    const w = 40, h = 74, g = grid(w, h), FOES = ['B', 'K', 'R', 'S', 'A', 'J'];
+    put(g, 0, 0, w - 1, 0, '#'); put(g, 0, 0, 0, h - 1, '#'); put(g, w - 1, 0, w - 1, h - 1, '#'); put(g, 0, h - 4, w - 1, h - 1, '#');
+    g[h - 5][3] = 'P'; g[h - 5][5] = '$';
+    const floors = [];
+    for (let y = h - 8; y >= 6; y -= 4) floors.push(y);
+    let below = h - 4;
+    floors.forEach((y, f) => {
+      const holeRight = f % 2 === 0, hx = holeRight ? w - 5 : 3;
+      put(g, 1, y, w - 2, y, '#'); put(g, hx, y, hx + 1, y, '.');
+      g[below - 1][hx] = '#';                                // a step under the hole
+      // Along the floor below: a spike or two to hop and somebody in the way.
+      const from = holeRight ? 6 : 8, to = holeRight ? w - 9 : w - 7;
+      for (let n = 0; n < 2; n++) { const sx = from + Math.floor(R() * (to - from)); if (g[below][sx] === '#' && g[below - 1][sx] === '.') g[below][sx] = '^'; }
+      const ex = from + Math.floor(R() * (to - from));
+      if (g[below - 1][ex] === '.') g[below - 1][ex] = FOES[Math.floor(R() * FOES.length)];
+      if (f % 3 === 2) { const cx = from + Math.floor(R() * (to - from - 5)); put(g, cx, y, cx + 4, y, 'C'); }
+      if (f % 4 === 1 && g[below - 3][20] === '.') g[below - 3][20] = R() < .5 ? 'W' : 'Z';
+      if (f === Math.floor(floors.length / 3) || f === Math.floor(floors.length * 2 / 3)) g[y - 1][holeRight ? 6 : w - 7] = 'L';
+      else if (f % 2 === 1) g[y - 1][holeRight ? 8 : w - 9] = R() < .5 ? 'q' : 'a';
+      below = y;
+    });
+    // The top floor's door, at the end away from where you come up.
+    const lastRight = (floors.length - 1) % 2 === 0;
+    g[floors[floors.length - 1] - 1][lastRight ? 2 : w - 3] = 'j';
+    return g;
+  }
+  // The castle's walls: a long run of pits, thorny pendulums and fire bars, one lantern.
+  function castleWalls(R) {
+    const w = 72, h = 16, g = grid(w, h);
+    put(g, 0, 0, w - 1, 0, '#'); put(g, 0, 0, 0, h - 1, '#'); put(g, w - 1, 0, w - 1, h - 1, '#'); put(g, 1, h - 3, w - 2, h - 1, '#');
+    g[h - 4][2] = 'n'; g[h - 4][36] = 'L'; g[h - 4][w - 3] = 'j'; g[h - 4][6] = 'Q';
+    for (const px of [10, 24, 46, 58]) put(g, px, h - 3, px + 2, h - 2, '!');
+    for (const ax of [17, 31, 52, 64]) g[h - 7][ax] = R() < .7 ? 'e' : 'E';
+    g[h - 8][40] = 'f'; g[h - 6][28] = 'W'; g[h - 4][43] = 'K';
+    return g;
+  }
+  // Put the parts side by side and wire up the arena: its start becomes the last entry,
+  // its door and boss gate go, and anything it measured in columns or rows moves with it.
+  function tower(def, seed, castle) {
+    const R = LF.rng(seed);
+    const arenaRows = def.map.map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
+    const parts = castle ? [castleClimb(R), castleWalls(R), arenaRows] : [shaft(R), battlements(R), arenaRows];
+    const h = Math.max(...parts.map(p => p.length));
+    const w = parts.reduce((s, p) => s + p[0].length, 0) + GAP * (parts.length - 1);
+    const g = grid(w, h, '#'), at = [];
+    let x0 = 0;
+    for (const p of parts) {
+      const y0 = h - p.length;
+      at.push({ x: x0, y: y0 });
+      p.forEach((row, y) => row.forEach((c, x) => { g[y0 + y][x0 + x] = c; }));
+      x0 += p[0].length + GAP;
+    }
+    const arena = at[at.length - 1], climbAt = at[0], runAt = at[1];
+    const out = {
+      ...def, map: g.map(row => row.join('')), noDoor: true, bossEnds: true, arenaX: arena.x,
+      signs: [
+        { x: climbAt.x + 2, y: climbAt.y + parts[0].length - 4.6, t: castle ? 'THE CASTLE · climb, floor after floor' : 'CLIMB THE TOWER ↑' },
+        { x: runAt.x + 2, y: runAt.y + parts[1].length - 6.6, t: 'along the battlements →' },
+        ...(def.signs || []).map(s => ({ ...s, x: s.x + arena.x, y: s.y + arena.y })),
+      ],
+    };
+    if (def.hordeStop != null) out.hordeStop = def.hordeStop + (def.map.join('').includes('%') ? arena.y : arena.x);
+    return out;
+  }
+
   // Lay the fights in: a boss fight after every 10th level and a giant halfway between.
   const L = LF.LEVELS, regular = L.slice(), out = [];
   regular.forEach((lv, i) => {
     out.push(lv);
     const n = i + 1, chapter = lv.chapter;
-    if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), chapter, boss: true });
-    else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...giantArena((n - 5) / 10), chapter, boss: true });
+    if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...tower(arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), 300 + n), chapter, boss: true });
+    else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...tower(giantArena((n - 5) / 10), 300 + n), chapter, boss: true });
   });
   // ---- The final boss ----
   // The very last level, a chapter of its own: the Last Dark, which takes 50 hits.
@@ -322,8 +432,9 @@
     s(30, 9, '0'); r(56, 1, 56, 16, 'g'); s(57, 16, 'D');
   });
   out.push({
-    chapter: 'The Last Night', name: 'Final Bossfight', dark: .82, map: easeAccess(finalMap), giant: 'Ω', boss: true, finalFight: true,
-    signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 50 hits · stomp it when it dives to the floor' }],
+    ...tower({ name: 'Final Bossfight', dark: .82, map: easeAccess(finalMap), giant: 'Ω',
+      signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 50 hits · stomp it when it dives to the floor' }] }, 999, true),
+    chapter: 'The Last Night', boss: true, finalFight: true,
   });
   L.length = 0; L.push(...out);
 })();

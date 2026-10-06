@@ -175,6 +175,9 @@
   let mapAt = Math.min(store.get('mapAt', 0), LF.LEVELS.length - 1);
   let secrets = store.get('secrets', {});
   let mapBusy = false;   // while the cannon's doing its thing
+  // Practice mode: every level open, nothing counts (no progress, awards or carried items),
+  // and in a level Z sets a checkpoint where you stand and X takes the latest one away.
+  let practice = store.get('practice', false);
   // Fruit houses: beside about one level in seven stands a little house; once that level's
   // cleared you can walk in for a Fruit Grove minigame (once per house) whose fruit goes in
   // your inventory. mapHouse is the house the lamplighter's standing at, if any.
@@ -194,7 +197,7 @@
   const near = i => mapLayout().adj[i];
   const landedBySecret = i => (secretInto[i] || []).some(j => secrets[j]);
   const unlocked = i => {
-    if (i === 0 || progress[i] || landedBySecret(i)) return true;
+    if (practice || i === 0 || progress[i] || landedBySecret(i)) return true;
     const L = LF.LEVELS, k = L[i].world;
     if (i === LF.WORLDS[k].first && k > 0 && progress[LF.WORLDS[k - 1].last]) return true;
     // Next to a cleared level, or to where a secret cannon lands you.
@@ -413,7 +416,7 @@
       if (!unlocked(i)) return flash('Clear the levels before it first');
       // A new world is reached by its cannon the first time.
       const wd = LF.WORLDS[L[i].world];
-      if (i === wd.first && L[i].world > 0 && !progress[i] && !landedBySecret(i) && L[mapAt].world < L[i].world) return flash('Take the cannon to get there');
+      if (!practice && i === wd.first && L[i].world > 0 && !progress[i] && !landedBySecret(i) && L[mapAt].world < L[i].world) return flash('Take the cannon to get there');
       if (i === mapAt && !mapCannon && mapHouse == null) ACTIONS.story({ i });
       else { mapAt = i; mapCannon = null; mapHouse = null; store.set('mapAt', i); renderMap(); }
     });
@@ -440,6 +443,8 @@
     $('map-stats').textContent = `World ${L[mapAt].world + 1} of ${LF.WORLDS.length} · ${lit} of ${n} lit · secret exits ${found} of ${total}${hardcore ? ` · hardcore ${Object.keys(progressHC).length} lit` : ''}`;
     $('map-awards').textContent = `Awards · ${LF.awards.count().earned}/${LF.awards.count().total}`;
     $('map-hc').textContent = `Hardcore: ${hardcore ? 'on' : 'off'}`; $('map-hc').classList.toggle('hc-on', hardcore);
+    $('map-practice').textContent = `Practice: ${practice ? 'on' : 'off'}`; $('map-practice').classList.toggle('pr-on', practice);
+    $('map').classList.toggle('practicing', practice);
     mapInfo();
     if (scroll !== false) mapScroll(m.y, scroll === true);
   }
@@ -452,7 +457,7 @@
     }
     const here = LF.LEVELS[mapAt].world;
     bar.innerHTML = LF.WORLDS.map((wd, k) => {
-      const reached = LF.LEVELS.some((lv, i) => lv.world === k && (progress[i] || i === mapAt));
+      const reached = practice || LF.LEVELS.some((lv, i) => lv.world === k && (progress[i] || i === mapAt));
       return `<button class="mini${k === here ? ' here' : ''}" data-world="${k}" ${reached ? '' : 'disabled'} title="World ${k + 1} · ${esc(wd.name)}">W${k + 1}</button>`;
     }).join('');
     for (const b of bar.querySelectorAll('button')) b.addEventListener('click', () => {
@@ -601,13 +606,13 @@
       if (mapCannon.secret != null) return [{ ...pos[mapCannon.secret], level: mapCannon.secret }];
       const k = mapCannon.world;
       out.push({ ...pos[W[k].last], level: W[k].last });
-      if (progress[W[k + 1].first]) out.push({ ...pos[W[k + 1].first], level: W[k + 1].first });
+      if (practice || progress[W[k + 1].first]) out.push({ ...pos[W[k + 1].first], level: W[k + 1].first });
       return out;
     }
     for (const j of near(mapAt)) if (unlocked(j)) out.push({ ...pos[j], level: j });
     const k = LF.LEVELS[mapAt].world;
-    if (mapAt === W[k].last && worlds[k].cannon && progress[mapAt]) out.push({ ...worlds[k].cannon, cannon: { world: k } });
-    if (mapAt === W[k].first && k > 0 && progress[mapAt]) out.push({ ...worlds[k - 1].cannon, cannon: { world: k - 1 } });
+    if (mapAt === W[k].last && worlds[k].cannon && (progress[mapAt] || practice)) out.push({ ...worlds[k].cannon, cannon: { world: k } });
+    if (mapAt === W[k].first && k > 0 && (progress[mapAt] || practice)) out.push({ ...worlds[k - 1].cannon, cannon: { world: k - 1 } });
     if (secrets[mapAt]) out.push({ ...secretCannons[mapAt], cannon: { secret: mapAt } });
     if (houseSpots[mapAt] && progress[mapAt]) out.push({ ...houseSpots[mapAt], house: mapAt });
     return out;
@@ -707,6 +712,9 @@
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · powers last until you die; powers and leftover ammo carry on to the next level</li>
+        <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): die before you've lit one and it's back to the map to start over</li>
+        <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>
+        <li>Practice mode (on the map): every level open, nothing counts · <kbd>Z</kbd> set a checkpoint · <kbd>X</kbd> remove the latest · <kbd>C</kbd> explosive round</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
@@ -735,6 +743,7 @@
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
     if (playCtx.kind === 'cannon') return `Cannon Yard · to World ${cannonDest(playCtx.how) + 1}`;
     if (playCtx.kind === 'house') return 'Fruit house · 25 seconds';
+    if (playCtx.kind === 'practice') return `Practice · level ${playCtx.index + 1} · Z checkpoint · X remove it · C explosive`;
     if (playCtx.kind === 'shared') return 'Shared level';
     const key = keyFor(playCtx);
     return key ? `Your level · key ${key}` : 'Your level';
@@ -746,7 +755,10 @@
     if (ctx.kind !== 'shared') setHash(keyFor(ctx));
     // Fruit powers and ammo you're carrying come with you into story levels (not in Hardcore).
     const carrying = ctx.kind === 'story' && !hardcore;
-    const withPowers = carrying ? { ...def, ...(carry ? { powers: carry } : {}), carryAmmo: store.get('ammo', 0) } : def;
+    let withPowers = carrying ? { ...def, ...(carry ? { powers: carry } : {}), carryAmmo: store.get('ammo', 0) } : def;
+    // Story: die before you've lit a lantern and it's back to the map. Practice: plenty of ammo.
+    if (ctx.kind === 'story') withPowers = { ...withPowers, toMapOnDeath: true };
+    if (ctx.kind === 'practice') withPowers = { ...withPowers, carryAmmo: 40 };
     W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(withPowers) : withPowers);
     for (const k in input) input[k] = false;
     syncBig(false);
@@ -796,6 +808,16 @@
       card(`<p class="eyebrow">Fruit Grove · time’s up</p><h2>${got.length ? 'A good haul' : 'Nothing this time'}</h2>
         <p class="lede">${got.length ? 'Into your inventory: ' + got.map(([t, n]) => `${FRUIT_ICON[t]} ×${n}`).join(' · ') : 'The fruit got away.'} Press <kbd>Tab</kbd> any time to use it.</p>
         <div class="menu"><button class="go" data-act="menu">Back to the map</button></div>`);
+      return;
+    }
+    // A practice run: well done, but nothing's kept.
+    if (playCtx.kind === 'practice') {
+      screen = 'clear';
+      setVisible({ hud: true, overlay: true });
+      card(`<p class="eyebrow">Practice · level ${playCtx.index + 1}</p><h2>${esc(W.name)}</h2>
+        <dl class="tally"><div><dt>Time</dt><dd>${fmt(W.time)}</dd></div><div><dt>Falls</dt><dd>${W.falls}</dd></div></dl>
+        <p class="lede">Practice runs don't count toward progress or awards.</p>
+        <div class="menu"><button class="go" data-act="restart">Again</button><button class="alt" data-act="menu">Back to the map</button></div>`);
       return;
     }
     // Out of the Cannon Yard: straight back to the map, mid-flight.
@@ -977,7 +999,11 @@
 
   // ---------- actions ----------
   const ACTIONS = {
-    story: d => { story = +d.i === 0 ? { time: 0, falls: 0 } : story; play(LF.LEVELS[+d.i], { kind: 'story', index: +d.i }); },
+    story: d => {
+      if (practice) return play(LF.LEVELS[+d.i], { kind: 'practice', index: +d.i });
+      story = +d.i === 0 ? { time: 0, falls: 0 } : story; play(LF.LEVELS[+d.i], { kind: 'story', index: +d.i });
+    },
+    togglePractice: () => { practice = !practice; store.set('practice', practice); mapCannon = null; mapHouse = null; renderMap(false); flash(practice ? 'Practice on: every level open · Z/X set and clear checkpoints · nothing counts' : 'Practice off'); },
     select: showMap,
     yours: showYours,
     help: showHelp,
@@ -1018,7 +1044,7 @@
   $('sel-back').addEventListener('click', showMap);
 
   // ---------- input ----------
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyQ: 'grenade' };
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyC: 'rocket', KeyQ: 'grenade' };
   // Big shots: hold Shift, or on a phone tap BIG to switch them on until tapped again.
   let bigLock = false;
   const syncBig = shift => { input.big = shift || bigLock; };
@@ -1030,6 +1056,12 @@
     if (screen === 'editor') { if (e.code === 'Escape') showMap(); return; }
     if (e.code === 'Tab' && (screen === 'map' || screen === 'play' || screen === 'inv')) { e.preventDefault(); initAudio(); showInventory(); return; }
     if (screen === 'inv') { if (e.code === 'Escape') closeInventory(); return; }
+    // In practice, Z sets a checkpoint and X removes the latest (C fires explosive rounds).
+    if (screen === 'play' && playCtx.kind === 'practice' && (e.code === 'KeyZ' || e.code === 'KeyX')) {
+      e.preventDefault();
+      if (!e.repeat) { if (e.code === 'KeyZ') { if (!LF.setMark(W)) flash('Stand on solid ground to set a checkpoint'); } else if (!LF.dropMark(W)) flash('No checkpoints to remove'); }
+      return;
+    }
     const k = KEYMAP[e.code];
     if (screen === 'play') {
       if (k) {
@@ -1111,7 +1143,7 @@
   }
 
   // ---------- loop ----------
-  let last = performance.now(), acc = 0, clearTimer = 0;
+  let last = performance.now(), acc = 0, clearTimer = 0, lostTimer = 0;
   function frame(now) {
     const dt = Math.min(.1, (now - last) / 1000); last = now;
     if (screen === 'editor') editor.frame(dt);
@@ -1126,10 +1158,14 @@
         if (playCtx.kind === 'story') LF.awards.event(ev);
         if (ev.type === 'door') flash('The door is open');
         if (ev.type === 'clear') clearTimer = .7;
+        if (ev.type === 'warp') LF.followCamera(W, cam, 0, true);
+        if (ev.type === 'lost') lostTimer = .9;
         if (ev.type === 'die' && playCtx.kind === 'story' && carry) { carry = null; store.set('powers', null); }
       }
       W.events.length = 0;
       if (clearTimer > 0 && screen === 'play') { clearTimer -= dt; if (clearTimer <= 0) cleared(); }
+      // Died with no lantern lit: back to the map; the level starts over next time.
+      if (lostTimer > 0 && screen === 'play') { lostTimer -= dt; if (lostTimer <= 0) { showMap(); flash('Back to the map: light a lantern to save your place'); } }
       LF.followCamera(W, cam, dt);
       R.render(W, cam, {}, dt);
       hud();

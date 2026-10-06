@@ -964,6 +964,7 @@
       for (const e of W.enemies) if (e.alive && e.type === 'f+') { out.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, r: 200 }); for (const b of LF.wheelBalls(e).filter((_, k) => k % 3 === 2)) out.push({ x: b.x, y: b.y, r: 70 }); }
       for (const l of W.lanterns) if (l.lit) out.push({ x: l.x, y: l.y, r: (200 + l.pop * 60) * flick(l.f, .04) });
       if (W.door && W.door.glow > 0) out.push({ x: W.door.x + 16, y: W.door.y + 30, r: 130 * W.door.glow });
+      for (const pd of W.passages) out.push({ x: pd.x + 16, y: pd.y + 30, r: 120 });
       if (W.secret && W.secretSeen) out.push({ x: W.secret.x + 16, y: W.secret.y + 30, r: 90 });
       for (const b of W.projectiles) out.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, r: 60 * Math.max(1, b.w / 10) });
       for (const e of W.enemies) if (e.alive && e.type === 'S') out.push({ x: e.x + 12, y: e.y + 2, r: 34 });
@@ -1169,6 +1170,12 @@
         g.addColorStop(0, 'rgba(159,216,255,.8)'); g.addColorStop(1, 'rgba(46,78,130,.6)');
         ctx.globalAlpha = .5 + (reduced ? 0 : Math.sin(clock * 2) * .2); ctx.fillStyle = g; doorPath(s, 3); ctx.fill(); ctx.globalAlpha = 1;
       }
+      // Passage doors glow like an open door.
+      for (const pd of W.passages) {
+        const g = ctx.createLinearGradient(0, pd.y, 0, pd.y + pd.h);
+        g.addColorStop(0, '#FFE2A8'); g.addColorStop(1, '#FF6B3D');
+        ctx.fillStyle = g; doorPath(pd, 3); ctx.fill();
+      }
       const d = W.door;
       if (d && d.glow > 0) {
         ctx.globalAlpha = d.glow;
@@ -1284,6 +1291,12 @@
       drawTiles(W, cam, opts);
       drawPlats(W);
       drawDoor(W.door); if (W.secretSeen || opts.edit) drawDoor(W.secret);
+      for (const d of W.passages) drawDoor(d);
+      // Practice checkpoints: little blue flags.
+      for (const m of W.marks) {
+        ctx.strokeStyle = '#D9D0F0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(m.x + 9, m.y + 26); ctx.lineTo(m.x + 9, m.y - 6); ctx.stroke();
+        ctx.fillStyle = '#9FD8FF'; ctx.beginPath(); ctx.moveTo(m.x + 9, m.y - 6); ctx.lineTo(m.x + 21, m.y - 2); ctx.lineTo(m.x + 9, m.y + 2); ctx.fill();
+      }
       drawCannon(W, opts);
       for (const l of W.lanterns) drawLantern(l);
       for (const e of W.enemies) LF.ENEMIES[e.type].special ? drawGiant(e) : scaled(e, drawEnemy);

@@ -158,7 +158,7 @@
     const tiles = rows.map(r => r.split('').map(c => (c === '.' ? ' ' : c)));
     const W = {
       def, name: def.name || 'Untitled', dark: def.dark ?? .6, w, h, tiles,
-      lanterns: [], fruits: [], ammo: [], ammoFly: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
+      lanterns: [], fruits: [], ammo: [], ammoFly: [], passages: [], entries: [], marks: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
       door: null, start: { tx: 1, ty: h - 2 }, clock: 0, time: 0, falls: 0, shake: 0,
       deadTimer: 0, cleared: false, events: [],
     };
@@ -179,6 +179,10 @@
       else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
       else if (c === 'D') { W.door = { tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: false, glow: 0 }; tiles[y][x] = ' '; }
+      // j is a passage door: walk into it and you come out at the matching n (the k-th j,
+      // counting left to right, leads to the k-th n). They join the parts of a tower.
+      else if (c === 'j') { W.passages.push({ tx: x, ty: y, x: x * TS, y: (y - 1) * TS + 4, w: 32, h: 60, open: true, glow: 1 }); tiles[y][x] = ' '; }
+      else if (c === 'n') { W.entries.push({ tx: x, ty: y }); tiles[y][x] = ' '; }
       // + is a cannon: climb in with ↓ and it fires you out of the level (that finishes it).
       else if (c === '+') { W.cannon = { x: x * TS + 16, y: (y + 1) * TS, state: 'idle', t: 0 }; tiles[y][x] = ' '; }
       // ? is a secret exit: a second door, always open, tucked away somewhere.
@@ -236,6 +240,7 @@
       e.minY = top * TS + 10; e.maxY = Math.max(e.minY, (bot + 1) * TS - e.h);
     }
     if (W.giantAt) W.enemies.push(makeGiant(W, def.giant, W.giantAt.x, W.giantAt.y));
+    W.passages.sort((a, b) => a.tx - b.tx); W.entries.sort((a, b) => a.tx - b.tx);
     // Shot doors: each patch of touching blocks of the same kind is one door with one counter.
     W.shotDoors = []; W.shotDoorAt = {};
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -273,7 +278,9 @@
     // def.noSpawnInv (Hardcore): no invincible second at the start or after respawning.
     if (def.noSpawnInv) W.player.inv = 0;
     // The horde begins HORDE_BACK behind the start, the same distance it falls back to after a death.
+    // (In a tower its arena comes last, and the horde sleeps till you get there.)
     if (W.horde) W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK;
+    if (W.horde && def.arenaX) W.horde.dormant = true;
     W.emit = (type, data) => W.events.push({ type, data });
     return W;
   };
@@ -434,6 +441,20 @@
   }
 
   LF.kill = kill;
+  // Practice: set a checkpoint where you stand (Z), or take the latest one away (X).
+  LF.setMark = W => {
+    const p = W.player;
+    if (p.dead || !p.onGround) return false;
+    W.marks.push({ x: p.x, y: p.y });
+    W.floaters.push({ x: p.x + p.w / 2, y: p.y - 12, t: `checkpoint ${W.marks.length}`, life: 1, c: '#9FD8FF' });
+    W.emit('key');
+    return true;
+  };
+  LF.dropMark = W => {
+    const m = W.marks.pop();
+    if (m) W.floaters.push({ x: m.x + 9, y: m.y - 12, t: 'checkpoint removed', life: 1, c: '#D9D0F0' });
+    return !!m;
+  };
 
   // A hit: the apple shield soaks it (with a short grace period), otherwise the player dies.
   function hurt(W) {
@@ -448,8 +469,13 @@
   }
 
   function respawn(W) {
+    // In the story, dying before you've lit a lantern sends you back to the map.
+    if (W.def.toMapOnDeath && !W.lanternLit) { W.lost = true; W.emit('lost'); return; }
     const { ammo, keys } = W.player;
     Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
+    // Practice: back at the latest checkpoint you set, if any.
+    const mark = W.marks[W.marks.length - 1];
+    if (mark) { W.player.x = mark.x; W.player.y = mark.y; }
     if (W.def.noSpawnInv) W.player.inv = 0;
     // In a boss fight you can't fire until your spawn protection is over (and at least
     // SPAWN_HOLD seconds), so you can't spam shots from safety at a boss beside your spawn.
@@ -469,6 +495,7 @@
     // After a death the horde falls back so the respawn is fair.
     if (W.horde) {
       W.horde.f = playerAlong(W.horde, W.player) - HORDE_BACK; W.horde.wait = HORDE_WAIT;
+      if (W.def.arenaX && W.player.x < W.def.arenaX * TS) W.horde.dormant = true;
       if (W.def.hordeStop != null) W.horde.f = Math.min(W.horde.f, hordeLimit(W, W.horde));
     }
     W.emit('respawn');
@@ -509,11 +536,13 @@
     if (W.door) W.door.glow = approach(W.door.glow, W.door.open ? 1 : 0, dt * 1.5);
 
     const p = W.player;
+    // A boss level ends a moment after its boss falls.
+    if (W.endTimer > 0 && !W.cleared && (W.endTimer -= dt) <= 0) { W.cleared = true; W.clearedBy = 'boss'; W.emit('clear'); }
     // A timed level (def.timeLimit, in seconds) ends when the time is up.
     if (playing && !W.cleared && W.def.timeLimit && W.time >= W.def.timeLimit) { W.cleared = true; W.clearedBy = 'time'; W.emit('clear'); }
     if (playing && !W.cleared) {
       W.time += dt;
-      if (p.dead) { W.deadTimer -= dt; if (W.deadTimer <= 0) respawn(W); }
+      if (p.dead) { if (!W.lost) { W.deadTimer -= dt; if (W.deadTimer <= 0) respawn(W); } }
       else if (p.inCannon) stepCannon(W, p, dt);
       else stepPlayer(W, p, input, dt);
     }
@@ -812,6 +841,10 @@
   function stepHorde(W, dt, playing) {
     const h = W.horde, p = W.player;
     if (!h || !playing || W.cleared || p.dead) return;
+    if (h.dormant) {
+      if (p.x < W.def.arenaX * TS) return;
+      h.dormant = false; h.f = playerAlong(h, p) - HORDE_BACK; h.wait = HORDE_WAIT;
+    }
     if ((h.wait -= dt) > 0) return;
     h.f += LF.HORDES[h.c].speed * tune(W.def.tuning, h.c).speed * dt;
     // In a boss level the horde stops at hordeStop (a column, or a row for a rising horde),
@@ -1150,6 +1183,7 @@
       W.horde = null;
     }
     W.emit('bossdown', { type: e.type });
+    if (W.def.bossEnds && !W.enemies.some(b => b.alive && isBoss(b))) W.endTimer = 1.6;
     // With the last boss down, the boss gates (g) crumble.
     if (!W.enemies.some(b => b.alive && isBoss(b))) {
       for (let ty = 0; ty < W.h; ty++) for (let tx = 0; tx < W.w; tx++) {
@@ -2157,7 +2191,7 @@
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
     for (const l of W.lanterns) {
       if (l.lit || Math.abs(cx - l.x) > 22 || Math.abs(cy - l.y) > 26) continue;
-      l.lit = true; l.pop = 1;
+      l.lit = true; l.pop = 1; W.lanternLit = true;
       const cpY = findFloorBelow(W, l);
       if (cpY !== null) W.checkpoint = { tx: l.tx, ty: cpY };
       burst(W, l.x, l.y, 22, WARM, 150, 120, 2.5);
@@ -2206,6 +2240,15 @@
       W.emit('fruit', { type: f.type });
     }
 
+    // A passage door takes you through to the next part of the level.
+    for (const [k, d] of W.passages.entries()) {
+      const to = W.entries[k];
+      if (!to || !overlap(p, { x: d.x + 8, y: d.y + 10, w: 16, h: d.h - 10 })) continue;
+      p.x = to.tx * TS + (TS - p.w) / 2; p.y = (to.ty + 1) * TS - p.h; p.vx = p.vy = 0;
+      burst(W, p.x + p.w / 2, p.y + p.h / 2, 20, ['#FFE2A8', '#FFB547'], 160, 100, 2.5);
+      W.emit('warp');
+      break;
+    }
     // The secret exit shows itself when you step into its hidden room (through a false
     // wall), or, if it isn't in one, when you come within 3 tiles of it.
     const sd = W.secret;
