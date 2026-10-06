@@ -194,23 +194,24 @@
   function mapLayout() {
     if (layout) return layout;
     const pos = [], worlds = [], right = PAD + (COLS - 1) * CW;
-    let y = PAD + 80;
+    let y = PAD + 110;
     LF.WORLDS.forEach((wd, k) => {
-      const top = y - 100;
+      const top = y - 130;
       let row = 0;
       for (let i = wd.first, c = 0; i <= wd.last; i++, c++) {
         if (c === COLS) { c = 0; row++; y += RH; }
-        pos[i] = { x: PAD + (row % 2 ? COLS - 1 - c : c) * CW, y, row };
+        // A little wobble, so the path looks walked rather than ruled.
+        pos[i] = { x: PAD + (row % 2 ? COLS - 1 - c : c) * CW + Math.sin(i * 1.9) * 10, y: y + Math.sin(i * 1.1 + row) * 12, row };
       }
       const last = pos[wd.last], dir = last.row % 2 ? -1 : 1, cx = last.x + dir * CW;
-      const cannon = k === LF.WORLDS.length - 1 ? null : cx >= PAD && cx <= right ? { x: cx, y: last.y, dir } : { x: last.x, y: last.y + RH * .7, dir };
+      const cannon = k === LF.WORLDS.length - 1 ? null : cx >= PAD - 20 && cx <= right + 20 ? { x: cx, y: last.y, dir } : { x: last.x, y: last.y + RH * .7, dir };
       worlds.push({ top, bottom: (cannon ? Math.max(cannon.y, y) : y) + 50, cannon });
-      y = (cannon ? Math.max(cannon.y, y) : y) + RH + 90;
+      y = (cannon ? Math.max(cannon.y, y) : y) + RH + 120;
     });
     // Secret cannons sit just below and beside their level's stop.
     const secretCannons = {};
     LF.LEVELS.forEach((lv, i) => { if (lv.secretTo != null) secretCannons[i] = { x: Math.min(right + 30, pos[i].x + 34), y: pos[i].y + 46, dir: 1 }; });
-    return layout = { pos, worlds, secretCannons, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 90 + PAD + 20 };
+    return layout = { pos, worlds, secretCannons, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 120 + PAD + 20 };
   }
   const arcPoint = (a, b, u) => {
     const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 170;
@@ -244,17 +245,44 @@
   function renderMap(scroll) {
     const L = LF.LEVELS, n = L.length, { pos, worlds, secretCannons, w, h } = mapLayout();
     let out = '';
-    // The worlds: a tinted region each, with its name.
-    worlds.forEach((wl, k) => {
-      out += `<rect class="world${k % 2 ? ' alt' : ''}" x="12" y="${wl.top}" width="${w - 24}" height="${wl.bottom - wl.top}" rx="18"/>`;
-      out += `<text class="wname" x="${PAD - 30}" y="${wl.top + 34}">World ${k + 1} · ${esc(LF.WORLDS[k].name)}</text>`;
-    });
-    // The path within each world, lit up to the furthest stop you can reach.
+    // The worlds: each its own landscape (see mapart.js): a sky, its scenery scattered
+    // wherever the path and stops leave room, and a couple of creatures wandering about.
+    const art = LF.mapArt;
+    let defs = '';
+    const segs = [];   // the path's segments, as SVG path data, by the index they lead to
     for (let i = 0; i < n - 1; i++) {
       if (L[i].world !== L[i + 1].world) continue;
-      const a = pos[i], b = pos[i + 1], cls = unlocked(i + 1) ? 'seg open' : 'seg';
-      if (a.y === b.y) out += `<line class="${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
-      else { const side = a.x > w / 2 ? 1 : -1; out += `<path class="${cls}" d="M${a.x} ${a.y} C${a.x + side * 60} ${a.y} ${b.x + side * 60} ${b.y} ${b.x} ${b.y}"/>`; }
+      const a = pos[i], b = pos[i + 1];
+      segs[i + 1] = a.row === b.row
+        ? `M${a.x} ${a.y} C${(a.x * 2 + b.x) / 3} ${a.y + 10} ${(a.x + b.x * 2) / 3} ${b.y - 10} ${b.x} ${b.y}`
+        : `M${a.x} ${a.y} C${a.x + (a.x > w / 2 ? 60 : -60)} ${a.y} ${b.x + (a.x > w / 2 ? 60 : -60)} ${b.y} ${b.x} ${b.y}`;
+    }
+    // Spots the scenery has to stay off: stops, points along the path, cannons, labels.
+    const keepOff = [];
+    pos.forEach((p, i) => {
+      keepOff.push({ x: p.x, y: p.y, r: 40 }, { x: p.x + 60, y: p.y - 34, r: 34 });
+      const q = pos[i + 1];
+      if (q && L[i].world === L[i + 1].world) for (let u = .25; u < 1; u += .25) keepOff.push({ x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u, r: 30 });
+    });
+    worlds.forEach(wl => {
+      if (wl.cannon) keepOff.push({ x: wl.cannon.x, y: wl.cannon.y, r: 46 });
+      for (let x = PAD - 20; x < PAD + 380; x += 30) keepOff.push({ x, y: wl.top + 40, r: 30 });   // the world's title
+    });
+    Object.values(secretCannons).forEach(c => keepOff.push({ x: c.x, y: c.y, r: 34 }));
+    const clear = (x, y) => keepOff.every(o => Math.hypot(x - o.x, y - o.y) > o.r);
+    worlds.forEach((wl, k) => {
+      const th = art.theme(k), rect = { x0: 12, y0: wl.top, x1: w - 12, y1: wl.bottom };
+      defs += `<linearGradient id="sky${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${th.sky[0]}"/><stop offset="1" stop-color="${th.sky[1]}"/></linearGradient>`;
+      out += `<rect class="world" x="12" y="${wl.top}" width="${w - 24}" height="${wl.bottom - wl.top}" rx="22" fill="url(#sky${k})"/>`;
+      out += art.scenery(k, rect, clear, 1000 + k * 77);
+      out += `<text class="wname" x="${PAD - 30}" y="${wl.top + 36}">World ${k + 1} · ${esc(LF.WORLDS[k].name)}</text>`;
+    });
+    // The path: a worn trail in each world's color, dotted down the middle; brighter where
+    // it's open to you.
+    for (let i = 1; i < n; i++) {
+      if (!segs[i]) continue;
+      const open = unlocked(i), color = art.theme(L[i].world).trail;
+      out += `<path class="trail${open ? ' open' : ''}" d="${segs[i]}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" d="${segs[i]}"/>`;
     }
     // Forks: a short arc over the path to the stop after next.
     L.forEach((lv, i) => {
@@ -282,28 +310,39 @@
     L.forEach((lv, i) => {
       if (i && L[i - 1].chapter === lv.chapter) return;
       const p = pos[i], forward = p.row % 2 === 0, right = p.x < 230 || (forward && p.x < w - 230);
-      out += `<text class="ch" x="${p.x + (right ? 22 : -22)}" y="${p.y - 30}" text-anchor="${right ? 'start' : 'end'}">${roman(chapterIndex(i))} · ${esc(lv.chapter)}</text>`;
+      out += `<text class="ch" x="${p.x + (right ? 24 : -24)}" y="${p.y - 60}" text-anchor="${right ? 'start' : 'end'}">${roman(chapterIndex(i))} · ${esc(lv.chapter)}</text>`;
     });
-    // The stops: dim if locked, outlined if open, lit if cleared. A star marks a secret exit
-    // you've found; a blue ? one still hiding in a level you've cleared.
+    // Creatures wandering each world, in clear spots between its rows.
+    worlds.forEach((wl, k) => {
+      const R = LF.rng(500 + k), spots = [];
+      for (let tries = 0; tries < 60 && spots.length < 3; tries++) {
+        const x = 60 + R() * (w - 120), y = wl.top + 70 + R() * (wl.bottom - wl.top - 90);
+        if (clear(x, y) && spots.every(s => Math.hypot(s.x - x, s.y - y) > 120)) spots.push({ x, y });
+      }
+      out += art.wanderers(k, spots);
+    });
+    // The stops: lamp posts (unlit until cleared), towers for boss fights, a castle at the
+    // end. A star marks a secret exit you've found; a blue ? one still hiding in a level
+    // you've cleared.
     L.forEach((lv, i) => {
-      const p = pos[i], r = stopR(lv);
-      const cls = ['stop', !unlocked(i) ? 'locked' : progress[i] ? 'lit' : 'open', lv.boss ? 'boss' : '', i === mapAt ? 'at' : ''].join(' ');
+      const p = pos[i], r = stopR(lv), state = !unlocked(i) ? 'locked' : progress[i] ? 'lit' : 'open';
+      const cls = ['stop', state, lv.boss ? 'boss' : '', i === mapAt && !mapCannon ? 'at' : ''].join(' ');
       let badge = '';
-      if (secrets[i]) badge = `<text class="badge found" x="${r}" y="${-r + 2}">★</text>`;
-      else if (lv.secretTo != null && progress[i]) badge = `<text class="badge hint" x="${r}" y="${-r + 2}">?</text>`;
-      out += `<g class="${cls}" data-i="${i}" transform="translate(${p.x} ${p.y})"><title>${i + 1}. ${esc(lv.name)}</title><circle r="${r}"/><text y="4">${i + 1}</text>${badge}</g>`;
+      if (secrets[i]) badge = `<text class="badge found" x="${r + 2}" y="${-r - 14}">★</text>`;
+      else if (lv.secretTo != null && progress[i]) badge = `<text class="badge hint" x="${r + 2}" y="${-r - 14}">?</text>`;
+      out += `<g class="${cls}" data-i="${i}" transform="translate(${p.x} ${p.y})"><title>${i + 1}. ${esc(lv.name)}</title>${art.stop(lv, state)}<text class="num" y="${lv.finalFight ? 22 : lv.boss ? 20 : 18}">${i + 1}</text>${badge}</g>`;
     });
     // The lamplighter, standing over the current stop (or beside the cannon it's at).
     const at = mapCannon ? (mapCannon.secret != null ? secretCannons[mapCannon.secret] : worlds[mapCannon.world].cannon) : null;
     const m = at || pos[mapAt], mr = at ? 14 : stopR(L[mapAt]);
-    out += `<g class="marker" transform="translate(${m.x} ${m.y - mr - 16})">${markerSvg}</g>`;
-    $('map-board').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="World map: ${n} levels in ${LF.WORLDS.length} worlds">${out}</svg>`;
+    out += `<g class="marker" transform="translate(${m.x} ${m.y - mr - 30})"><g class="bob">${markerSvg}</g></g>`;
+    $('map-board').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="World map: ${n} levels in ${LF.WORLDS.length} worlds"><defs>${defs}</defs>${out}</svg>`;
+    renderWorldBar();
     // A chapter name that runs into the one before it on its row drops under the path.
     const boxes = [];
     for (const t of $('map-board').querySelectorAll('.ch')) {
       const b = t.getBBox();
-      if (boxes.some(o => Math.abs(o.y - b.y) < 2 && o.x < b.x + b.width + 10 && b.x < o.x + o.width + 10)) t.setAttribute('y', +t.getAttribute('y') + 68);
+      if (boxes.some(o => Math.abs(o.y - b.y) < 2 && o.x < b.x + b.width + 10 && b.x < o.x + o.width + 10)) t.setAttribute('y', +t.getAttribute('y') + 104);
       boxes.push(t.getBBox());
     }
     for (const g of $('map-board').querySelectorAll('.stop')) g.addEventListener('click', () => {
@@ -334,6 +373,24 @@
     mapInfo();
     if (scroll !== false) mapScroll(m.y, scroll === true);
   }
+  // W1…W8 along the top: jump the view to any world you've reached.
+  function renderWorldBar() {
+    let bar = $('map-worlds');
+    if (!bar) {
+      bar = document.createElement('nav'); bar.id = 'map-worlds'; bar.className = 'map-worlds';
+      $('map').querySelector('.map-bar').appendChild(bar);
+    }
+    const here = LF.LEVELS[mapAt].world;
+    bar.innerHTML = LF.WORLDS.map((wd, k) => {
+      const reached = LF.LEVELS.some((lv, i) => lv.world === k && (progress[i] || i === mapAt));
+      return `<button class="mini${k === here ? ' here' : ''}" data-world="${k}" ${reached ? '' : 'disabled'} title="World ${k + 1} · ${esc(wd.name)}">W${k + 1}</button>`;
+    }).join('');
+    for (const b of bar.querySelectorAll('button')) b.addEventListener('click', () => {
+      const svg = $('map-board').querySelector('svg'), k = svg.getBoundingClientRect().width / mapLayout().w;
+      $('map-board').scrollTo({ top: mapLayout().worlds[+b.dataset.world].top * k - 10, behavior: 'smooth' });
+    });
+  }
+
   // Keep a point (in map units) in view, centred if asked.
   function mapScroll(y, center) {
     const svg = $('map-board').querySelector('svg'), board = $('map-board');
@@ -428,8 +485,22 @@
   // Move the lamplighter to stop i if it's open.
   function mapMove(i) {
     if (mapBusy || i < 0 || i >= LF.LEVELS.length || !unlocked(i)) return;
-    mapAt = i; mapCannon = null; store.set('mapAt', i); renderMap();
+    // Walk there: a short stroll along the path, then settle at the new stop.
+    const { pos } = mapLayout(), marker = $('map-board').querySelector('.marker');
+    const a = mapCannon ? null : pos[mapAt], b = pos[i];
+    mapAt = i; mapCannon = null; store.set('mapAt', i);
+    if (!a || !marker || reducedMotion) return renderMap();
+    mapBusy = true;
+    const t0 = performance.now(), ra = stopR(LF.LEVELS[i]) + 30;
+    const step = now => {
+      const u = Math.min(1, (now - t0) / 220), e = u * (2 - u);
+      marker.setAttribute('transform', `translate(${a.x + (b.x - a.x) * e} ${a.y + (b.y - a.y) * e - ra - Math.sin(u * Math.PI) * 8})`);
+      if (u < 1) return requestAnimationFrame(step);
+      mapBusy = false; renderMap();
+    };
+    requestAnimationFrame(step);
   }
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // → from a world's last level (once it's done) steps onto the world's cannon; → again walks
   // on into the next world only once you've cleared a level there (the first time, the way
   // on is the cannon); ← steps back off a cannon.

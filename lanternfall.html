@@ -153,11 +153,11 @@
   .map-nav .hc-on { background: #8A2F1E; color: #FFE2A8; }
   .map-board { overflow: auto; padding: 0 16px; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
   .map-board svg { display: block; margin: 0 auto; width: 100%; max-width: 900px; height: auto; }
-  .map-board .seg { fill: none; stroke: #3A3350; stroke-width: 4; stroke-dasharray: 2 8; stroke-linecap: round; }
-  .map-board .seg.open { stroke: #8A6A3E; stroke-dasharray: none; }
+  .map-board .trail { fill: none; stroke-width: 16; stroke-linecap: round; opacity: .14; }
+  .map-board .trail.open { opacity: .42; }
+  .map-board .seg { fill: none; stroke: rgba(217,208,240,.22); stroke-width: 3; stroke-dasharray: 1 9; stroke-linecap: round; }
+  .map-board .seg.open { stroke: #FFE2A8; stroke-dasharray: 1 7; }
   .map-board .warp { fill: none; stroke: var(--wick); stroke-width: 3; stroke-dasharray: 10 7; opacity: .85; }
-  .map-board .world { fill: rgba(58,42,85,.28); stroke: rgba(217,208,240,.08); }
-  .map-board .world.alt { fill: rgba(42,35,72,.42); }
   .map-board .wname { font-family: var(--display); font-size: 24px; fill: var(--wick); }
   .map-board .fork { fill: none; stroke: #3A3350; stroke-width: 3; stroke-dasharray: 2 6; stroke-linecap: round; }
   .map-board .fork.open { stroke: #8A6A3E; stroke-dasharray: none; }
@@ -179,15 +179,54 @@
   .map-board .arc.secret { stroke: rgba(159,216,255,.6); }
   .map-board .ch { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; fill: var(--ember); text-transform: uppercase; }
   .map-board .stop { cursor: pointer; }
-  .map-board .stop circle { fill: #211C3F; stroke: #4C4062; stroke-width: 3; }
+  .map-board .stop .hit { fill: transparent; }
   .map-board .stop text { font-family: var(--mono); font-size: 10px; fill: var(--mist-dim); text-anchor: middle; pointer-events: none; }
-  .map-board .stop.open circle { stroke: var(--wick); fill: #2A2348; }
-  .map-board .stop.lit circle { fill: var(--wick); stroke: #FFE2A8; }
-  .map-board .stop.lit text { fill: var(--ink); font-weight: 600; }
-  .map-board .stop.boss circle { stroke-width: 4; }
-  .map-board .stop.boss.open circle, .map-board .stop.boss.locked circle { stroke: var(--ember); }
-  .map-board .stop.locked { cursor: default; opacity: .45; }
-  .map-board .stop.at circle { filter: drop-shadow(0 0 8px rgba(255,181,71,.9)); }
+  .map-board .stop .num { font-size: 9px; font-weight: 600; fill: rgba(217,208,240,.75); paint-order: stroke; stroke: rgba(14,12,34,.8); stroke-width: 3px; }
+  .map-board .stop.locked { cursor: default; opacity: .4; }
+  .map-board .stop.at .post, .map-board .stop.at .tower, .map-board .stop.at .castle { filter: drop-shadow(0 0 6px rgba(255,226,168,.9)); }
+  /* lamp posts */
+  .map-board .post line { stroke: #2A2348; stroke-width: 3; }
+  .map-board .post .lamp { fill: #3A3350; stroke: #8F81AB; stroke-width: 1.5; }
+  .map-board .post .cap { fill: #2A2348; }
+  .map-board .post .base { fill: rgba(14,12,34,.5); }
+  .map-board .stop.open .post .lamp { stroke: var(--wick); }
+  .map-board .post.lit .lamp { fill: var(--wick); stroke: #FFE2A8; }
+  .map-board .post .halo { fill: rgba(255,181,71,.28); animation: mp-flicker 2.4s ease-in-out infinite; }
+  /* towers and the castle */
+  .map-board .tower rect, .map-board .castle rect { fill: #4C4062; stroke: #2A2348; stroke-width: 2; }
+  .map-board .tower .crenel, .map-board .castle .crenel { fill: none; stroke: #2A2348; stroke-width: 2; }
+  .map-board .tower .gate, .map-board .castle .gate { fill: #0E0C22; }
+  .map-board .tower line, .map-board .castle line { stroke: #2A2348; stroke-width: 2; }
+  .map-board .tower .flag, .map-board .castle .flag { fill: var(--ember); }
+  .map-board .tower.won .flag, .map-board .castle.won .flag { fill: var(--wick); }
+  .map-board .tower.won .gate, .map-board .castle.won .gate { fill: #FFB547; }
+  .map-board .castle rect { fill: #2A2348; stroke: #8F81AB; }
+  /* scenery and creatures */
+  .map-board .world { stroke: rgba(217,208,240,.1); }
+  .map-board .mp-puff { fill: rgba(217,208,240,.35); animation: mp-puff 3.2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  .map-board .mp-puff.late { animation-delay: 1.6s; }
+  .map-board .mp-glow { animation: mp-flicker 3s ease-in-out infinite; }
+  .map-board .mp-wave { animation: mp-sway 3s ease-in-out infinite; }
+  .map-board .mp-bob { animation: mp-bobbing 2.6s ease-in-out infinite; }
+  .map-board .mp-spin { animation: mp-turn 9s linear infinite; }
+  .map-board .mp-spin.rev { animation-direction: reverse; }
+  .map-board .mp-star { animation: mp-twinkle 3s ease-in-out infinite; }
+  .map-board .mp-wander.walk { animation: mp-walk 9s ease-in-out infinite; }
+  .map-board .mp-wander.fly { animation: mp-fly 7s ease-in-out infinite; }
+  .map-board .marker .bob { animation: mp-bobbing 1.4s ease-in-out infinite; }
+  @keyframes mp-puff { 0% { opacity: 0; transform: translateY(0) scale(.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px) scale(1.6); } }
+  @keyframes mp-flicker { 0%, 100% { opacity: .85; } 50% { opacity: 1; } 70% { opacity: .7; } }
+  @keyframes mp-sway { 0%, 100% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
+  @keyframes mp-bobbing { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes mp-turn { to { transform: rotate(360deg); } }
+  @keyframes mp-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  @keyframes mp-walk { 0%, 100% { transform: translateX(-36px) scaleX(1); } 49% { transform: translateX(36px) scaleX(1); } 51% { transform: translateX(36px) scaleX(-1); } 99% { transform: translateX(-36px) scaleX(-1); } }
+  @keyframes mp-fly { 0% { transform: translate(-40px, 0); } 25% { transform: translate(0, -14px); } 50% { transform: translate(40px, 0); } 75% { transform: translate(0, 10px); } 100% { transform: translate(-40px, 0); } }
+  @media (prefers-reduced-motion: reduce) { .map-board * { animation: none !important; } }
+  .map-worlds { display: flex; gap: 4px; flex-wrap: wrap; width: 100%; }
+  .map-worlds .mini { padding: 5px 9px; }
+  .map-worlds .mini.here { background: var(--wick); color: var(--ink); }
+  .map-worlds .mini:disabled { opacity: .35; cursor: default; }
   .map-board .badge { font-family: var(--mono); font-size: 13px; font-weight: 700; text-anchor: middle; pointer-events: none; }
   .map-board .stop .badge.found { fill: var(--wick); }
   .map-board .stop .badge.hint { fill: #9FD8FF; }
@@ -496,23 +535,24 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=79"></script>
-<script src="js/render.js?v=79"></script>
-<script src="js/gen.js?v=79"></script>
-<script src="js/levels-1.js?v=79"></script>
-<script src="js/levels-2.js?v=79"></script>
-<script src="js/levels-3.js?v=79"></script>
-<script src="js/levels-4.js?v=79"></script>
-<script src="js/levels-5.js?v=79"></script>
-<script src="js/levels-6.js?v=79"></script>
-<script src="js/levels-7.js?v=79"></script>
-<script src="js/levels-8.js?v=79"></script>
-<script src="js/levels-9.js?v=79"></script>
-<script src="js/levels-10.js?v=79"></script>
-<script src="js/levels-11.js?v=79"></script>
-<script src="js/bosses.js?v=79"></script>
-<script src="js/worlds.js?v=79"></script>
-<script src="js/secrets.js?v=79"></script>
-<script src="js/awards.js?v=79"></script>
-<script src="js/editor.js?v=79"></script>
-<script src="js/ui.js?v=79"></script>
+<script src="js/engine.js?v=80"></script>
+<script src="js/render.js?v=80"></script>
+<script src="js/gen.js?v=80"></script>
+<script src="js/levels-1.js?v=80"></script>
+<script src="js/levels-2.js?v=80"></script>
+<script src="js/levels-3.js?v=80"></script>
+<script src="js/levels-4.js?v=80"></script>
+<script src="js/levels-5.js?v=80"></script>
+<script src="js/levels-6.js?v=80"></script>
+<script src="js/levels-7.js?v=80"></script>
+<script src="js/levels-8.js?v=80"></script>
+<script src="js/levels-9.js?v=80"></script>
+<script src="js/levels-10.js?v=80"></script>
+<script src="js/levels-11.js?v=80"></script>
+<script src="js/bosses.js?v=80"></script>
+<script src="js/worlds.js?v=80"></script>
+<script src="js/secrets.js?v=80"></script>
+<script src="js/awards.js?v=80"></script>
+<script src="js/editor.js?v=80"></script>
+<script src="js/mapart.js?v=80"></script>
+<script src="js/ui.js?v=80"></script>
