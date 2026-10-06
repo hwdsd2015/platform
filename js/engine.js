@@ -275,6 +275,15 @@
       W.player.shield = Math.min(2, pw.shield || 0); W.player.boost = pw.boost ? 1 : 0; W.player.dbl = pw.dbl ? 1 : 0;
     }
     W.got = {};   // fruit picked up, by type
+    // Back into a level whose lanterns you'd lit last time (def.resume = { lit: [lantern
+    // indexes], cp: { tx, ty } }): they're still lit, and you start at the last one.
+    if (def.resume) {
+      for (const k of def.resume.lit) if (W.lanterns[k]) W.lanterns[k].lit = true;
+      W.lanternLit = true; W.checkpoint = { ...def.resume.cp };
+      const { ammo } = W.player;
+      Object.assign(W.player, makePlayer(W.checkpoint), { ammo, shield: W.player.shield, boost: W.player.boost, dbl: W.player.dbl });
+      if (W.door && W.lanterns.every(l => l.lit) && !W.enemies.some(isBoss)) W.door.open = true;
+    }
     // def.noSpawnInv (Hardcore): no invincible second at the start or after respawning.
     if (def.noSpawnInv) W.player.inv = 0;
     // The horde begins HORDE_BACK behind the start, the same distance it falls back to after a death.
@@ -469,8 +478,9 @@
   }
 
   function respawn(W) {
-    // In the story, dying before you've lit a lantern sends you back to the map.
-    if (W.def.toMapOnDeath && !W.lanternLit) { W.lost = true; W.emit('lost'); return; }
+    // In the story, dying always sends you back to the map (the lanterns you lit are kept
+    // for your next go at this level: see def.resume).
+    if (W.def.toMapOnDeath) { W.lost = true; W.emit('lost'); return; }
     const { ammo, keys } = W.player;
     Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
     // Practice: back at the latest checkpoint you set, if any.

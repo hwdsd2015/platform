@@ -651,6 +651,13 @@
   }
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // A story level's lit lanterns, remembered when you leave it uncleared (by dying, or from
+  // the pause menu) so you start at the last one next time, unless you play another first.
+  function saveMidway() {
+    if (playCtx.kind !== 'story' || !W || W.cleared || !W.lanternLit) return;
+    store.set('midway', { index: playCtx.index, lit: W.lanterns.map((l, k) => (l.lit ? k : -1)).filter(k => k >= 0), cp: W.checkpoint });
+  }
+
   // ---------- inventory ----------
   // Fruit you've gathered (in Fruit Groves), up to INV_MAX of each. Tab opens it on the map
   // or in a level (which waits while it's open). Using a fruit in a level gives you its
@@ -712,7 +719,7 @@
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · powers last until you die; powers and leftover ammo carry on to the next level</li>
-        <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): die before you've lit one and it's back to the map to start over</li>
+        <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
         <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>
         <li>Practice mode (on the map): every level open, nothing counts · <kbd>Z</kbd> set a checkpoint · <kbd>X</kbd> remove the latest · <kbd>C</kbd> explosive round</li>
         <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
@@ -756,8 +763,13 @@
     // Fruit powers and ammo you're carrying come with you into story levels (not in Hardcore).
     const carrying = ctx.kind === 'story' && !hardcore;
     let withPowers = carrying ? { ...def, ...(carry ? { powers: carry } : {}), carryAmmo: store.get('ammo', 0) } : def;
-    // Story: die before you've lit a lantern and it's back to the map. Practice: plenty of ammo.
-    if (ctx.kind === 'story') withPowers = { ...withPowers, toMapOnDeath: true };
+    // Story: dying sends you back to the map. Lanterns you lit stay lit for your next go at
+    // the same level; playing any other level puts them out. Practice: plenty of ammo.
+    if (ctx.kind === 'story') {
+      const mw = store.get('midway', null);
+      withPowers = { ...withPowers, toMapOnDeath: true, ...(mw && mw.index === ctx.index ? { resume: mw } : {}) };
+      if (!mw || mw.index !== ctx.index) store.set('midway', null);
+    }
     if (ctx.kind === 'practice') withPowers = { ...withPowers, carryAmmo: 40 };
     W = LF.createWorld(hardcore && ctx.kind !== 'test' ? hardcoreDef(withPowers) : withPowers);
     for (const k in input) input[k] = false;
@@ -794,7 +806,9 @@
   }
 
   function cleared() {
-    // Clearing a story level carries your fruit powers and leftover ammo on to the next.
+    // Clearing a story level carries your fruit powers and leftover ammo on to the next
+    // (and its lanterns are done with).
+    if (playCtx.kind === 'story') store.set('midway', null);
     if (playCtx.kind === 'story' && !hardcore) { saveCarry(W.player); store.set('ammo', W.player.ammo); }
     // Out of the Fruit Grove: everything picked goes in the inventory.
     if (playCtx.kind === 'house') {
@@ -1020,7 +1034,7 @@
     cannon: how => { if (how && cannonOpen(how)) play(cannonLevel(how), { kind: 'cannon', how: { world: how.world, secret: how.secret } }); },
     random: () => app.openGenerator('menu'),
     editor: () => openEditor(),
-    menu: showMap,
+    menu: () => { if (screen === 'paused') saveMidway(); showMap(); },
     awards: showAwards,
     toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); renderMap(false); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
@@ -1159,13 +1173,13 @@
         if (ev.type === 'door') flash('The door is open');
         if (ev.type === 'clear') clearTimer = .7;
         if (ev.type === 'warp') LF.followCamera(W, cam, 0, true);
-        if (ev.type === 'lost') lostTimer = .9;
+        if (ev.type === 'lost') { lostTimer = .9; saveMidway(); }
         if (ev.type === 'die' && playCtx.kind === 'story' && carry) { carry = null; store.set('powers', null); }
       }
       W.events.length = 0;
       if (clearTimer > 0 && screen === 'play') { clearTimer -= dt; if (clearTimer <= 0) cleared(); }
       // Died with no lantern lit: back to the map; the level starts over next time.
-      if (lostTimer > 0 && screen === 'play') { lostTimer -= dt; if (lostTimer <= 0) { showMap(); flash('Back to the map: light a lantern to save your place'); } }
+      if (lostTimer > 0 && screen === 'play') { lostTimer -= dt; if (lostTimer <= 0) { showMap(); flash(W.lanternLit ? 'Back to the map: go in again to start at your lantern' : 'Back to the map: the level starts over'); } }
       LF.followCamera(W, cam, dt);
       R.render(W, cam, {}, dt);
       hud();
