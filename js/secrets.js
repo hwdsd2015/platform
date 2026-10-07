@@ -13,10 +13,54 @@
   const LF = window.LF, L = LF.LEVELS, WORLDS = LF.WORLDS;
   const floor = c => c === '#' || c === '=';
 
-  // Try to hide a secret door in level lv (left of column xMax); true if it found a room for it.
-  function hideRoom(lv, xMax = Infinity) {
+  // Doors, passages, the start and lanterns: places everyone passes, so no secret goes
+  // within NEAR tiles of one.
+  const NEAR = 8;
+  const landmarks = g => { const out = []; g.forEach((row, y) => row.forEach((c, x) => { if ('PDjnL'.includes(c)) out.push({ x, y, c }); })); return out; };
+  // ...and never within FAR_START tiles of the start, where everyone pokes about first.
+  const FAR_START = 16;
+  const nearAny = (marks, x, y) => marks.some(m => Math.hypot(m.x - x, m.y - y) < (m.c === 'P' ? FAR_START : NEAR));
+
+  // A room up in the ceiling: where you stand under a low roof of solid rock, one block of
+  // it is false. Jump up through it into a little room with the door, on the ledge beside.
+  function ceilingRoom(lv, xMax = Infinity) {
     const g = LF.normalize(lv.map).map(row => row.split('')), h = g.length, w = g[0].length;
-    const seen = LF.analyze(lv).seen, P = find(g, 'P'), D = find(g, 'D') || lastDoor(g);
+    const a0 = LF.analyze(lv), seen = a0.seen, P = find(g, 'P'), D = find(g, 'D') || lastDoor(g), marks = landmarks(g);
+    if (!P || !D) return false;
+    // The roof can be thick rock, or a thin slab with open air above: then the room is built
+    // on top of it as a block of stone (as long as the level can still be finished).
+    const spots = [];
+    for (let y = 7; y < h - 1; y++) for (let x = 2; x < w - 2; x++) {
+      if (!seen[y * w + x] || g[y][x] !== '.' || g[y - 1][x] !== '.' || !floor(g[y + 1][x]) || x >= xMax) continue;
+      if (nearAny(marks, x, y)) continue;
+      for (const d of [-1, 1]) {
+        const cols = [x - d, x, x + d, x + 2 * d];
+        if (cols.some(c => g[y - 2][c] !== '#')) continue;
+        let fits = true;
+        for (let r = y - 5; r <= y - 3 && fits; r++) for (const c of cols) if (g[r]?.[c] !== '#' && g[r]?.[c] !== '.') { fits = false; break; }
+        if (!fits) continue;
+        spots.push({ x, y, d, score: Math.hypot(x - P.x, y - P.y) + Math.hypot(x - D.x, y - D.y) + ((x * 7 + y * 13) % 11) });
+      }
+    }
+    spots.sort((a, b) => b.score - a.score);
+    for (const { x, y, d } of spots.slice(0, 40)) {
+      const t = g.map(row => row.slice());
+      for (let r = y - 5; r <= y - 3; r++) for (const c of [x - d, x, x + d, x + 2 * d]) t[r][c] = '#';
+      t[y - 2][x] = t[y - 3][x] = t[y - 4][x] = 'l';
+      t[y - 4][x + d] = 'l'; t[y - 3][x + d] = '?';
+      const tryLv = { ...lv, map: t.map(row => row.join('')) }, a = LF.analyze(tryLv);
+      if (!a.ok || a.litOk !== a0.litOk) continue;
+      lv.map = tryLv.map;
+      return true;
+    }
+    return false;
+  }
+
+  // Try to hide a secret door in level lv (left of column xMax); true if it found a room for it.
+  // (minUp: only spots at least that many rows above the start, for towers.)
+  function hideRoom(lv, xMax = Infinity, minUp = -Infinity) {
+    const g = LF.normalize(lv.map).map(row => row.split('')), h = g.length, w = g[0].length;
+    const seen = LF.analyze(lv).seen, P = find(g, 'P'), D = find(g, 'D') || lastDoor(g), marks = landmarks(g);
     if (!P || !D) return false;
     let best = null;
     for (let y = 3; y < h - 2; y++) for (let x = 1; x < w - 1; x++) {
@@ -28,8 +72,8 @@
         let rock = true;
         for (let k = 1; k <= 3 && rock; k++) for (let r = -2; r <= 1; r++) if (g[y + r][x + k * d] !== '#') { rock = false; break; }
         if (!rock) continue;
-        const score = Math.hypot(x - P.x, y - P.y) + Math.hypot(x - D.x, y - D.y);
-        if (Math.hypot(x - D.x, y - D.y) < 6 || Math.hypot(x - P.x, y - P.y) < 6) continue;
+        const score = Math.hypot(x - P.x, y - P.y) + Math.hypot(x - D.x, y - D.y) + ((x * 7 + y * 13) % 11);
+        if (nearAny(marks, x, y) || P.y - y < minUp) continue;
         if (!best || score > best.score) best = { x, y, d, score };
       }
     }
@@ -57,7 +101,7 @@
           for (let r = -3; r <= 0; r++) if (g0[y + r][x + k * d] !== '.') { room = false; break; }
         }
         if (!room) continue;
-        if (Math.hypot(x - D.x, y - D.y) < 6 || Math.hypot(x - P.x, y - P.y) < 6) continue;
+        if (nearAny(landmarks(g0), x, y)) continue;
         spots.push({ x, y, d, score: Math.hypot(x - P.x, y - P.y) + Math.hypot(x - D.x, y - D.y) });
       }
     }
@@ -109,7 +153,8 @@
       let placed = false;
       for (let n = at; n < regular.length && !placed; n++) {
         const lv = L[regular[n]];
-        if (lv.secretTo == null && (hideRoom(lv) || buildRoom(lv))) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; placed = true; }
+        const first = n % 2 ? ceilingRoom : hideRoom, second = n % 2 ? hideRoom : ceilingRoom;
+        if (lv.secretTo == null && (first(lv) || second(lv) || buildRoom(lv))) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; placed = true; }
       }
       if (!placed && L[regular[at]].secretTo == null && farSpot(L[regular[at]])) { L[regular[at]].secretTo = WORLDS[to].first; L[regular[at]].secretWorld = to; }
     }
@@ -118,7 +163,8 @@
     if (to > k && k % 4 === 1) {
       const towers = L.filter(l => l.world === k && l.boss && !l.finalFight);
       for (const lv of [...towers.slice(towers.length >> 1), ...towers.slice(0, towers.length >> 1)]) {
-        if (hideRoom(lv, lv.arenaX - 2) || buildRoom(lv, lv.arenaX - 2)) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; break; }
+        // In a tower: up the shaft, off a ledge, never down by the start or along the floor.
+        if (ceilingRoom(lv, lv.arenaX - 2) || hideRoom(lv, lv.arenaX - 2, 8) || buildRoom(lv, lv.arenaX - 2)) { lv.secretTo = WORLDS[to].first; lv.secretWorld = to; break; }
       }
     }
   });

@@ -803,6 +803,12 @@
         ctx.fillStyle = '#FFC47A'; ctx.fillRect(-4, -3, 2.5, 2.5);
         ctx.fillStyle = '#C96A12'; ctx.fillRect(2, 3, 1.2, 1.2); ctx.fillRect(-1, 5, 1.2, 1.2); ctx.fillRect(3, -1, 1.2, 1.2);
         ctx.fillStyle = '#5FBF5A'; ctx.beginPath(); ctx.ellipse(2.5, -6, 3.5, 1.8, -.4, 0, TAU); ctx.fill();
+      } else if (f.type === 'm') {
+        // A watermelon slice: green rind, red flesh, black seeds.
+        ctx.fillStyle = '#2E7D32'; ctx.beginPath(); ctx.arc(0, -2, 8.5, 0, Math.PI); ctx.fill();
+        ctx.fillStyle = '#A5D6A7'; ctx.beginPath(); ctx.arc(0, -2, 7, 0, Math.PI); ctx.fill();
+        ctx.fillStyle = '#E5484D'; ctx.beginPath(); ctx.arc(0, -2, 6, 0, Math.PI); ctx.fill();
+        ctx.fillStyle = '#211C3F'; ctx.fillRect(-3, 0, 1.4, 2); ctx.fillRect(0, 1.5, 1.4, 2); ctx.fillRect(3, 0, 1.4, 2);
       } else {
         ctx.strokeStyle = '#FFE066'; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.arc(1, -7, 10, Math.PI * .6, Math.PI * 1.15); ctx.stroke();
@@ -1273,6 +1279,14 @@
           ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();
           const blink = reduced || Math.floor(b.life * (b.life < .8 ? 16 : 6)) % 2;
           ctx.fillStyle = blink ? '#FF6B3D' : '#7A2E1C'; ctx.beginPath(); ctx.arc(b.x + 1.5, b.y - 5, 1.8, 0, TAU); ctx.fill();
+          return;
+        }
+        if (b.kill) {
+          // The kill shot: a long red streak with a white-hot tip.
+          const d = Math.sign(b.vx) || 1;
+          ctx.fillStyle = 'rgba(229,72,77,.45)'; ctx.fillRect(b.x - d * 22, b.y - 3, d * 20, 6);
+          ctx.fillStyle = '#E5484D'; ctx.fillRect(b.x - d * 14, b.y - 2, d * 12, 4);
+          ctx.fillStyle = '#FFF1CF'; ctx.fillRect(b.x - 3, b.y - 2, 6, 4);
           return;
         }
         ctx.fillStyle = '#FFB547'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);

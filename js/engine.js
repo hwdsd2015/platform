@@ -3,6 +3,7 @@
   const LF = window.LF = window.LF || {};
   const TS = LF.TS = 32;
   const G = 2100, MAXFALL = 900, RUN = 250, JUMP = 700, SPRING = 1080;
+  const FAST = 1.4;
   const WALL_SLIDE = 110, WALL_KICK = 330, BOOST = 1.22, REGROW = 12, SINK = 55;
 
   // Per-level player settings, set in the editor's Player dialog (def.player).
@@ -30,7 +31,9 @@
     rocket: { cost: 2, name: 'explosive round' },
     grenade: { cost: 3, name: 'grenade' },
   };
-  const SLOWFALL = 150;
+  // A: the kill shot. 3 ammo, and whatever it hits dies at once: golems, TNT carts, armor
+  // and all (a boss just takes it as one hit). It doesn't splash.
+  const KILL_COST = LF.KILL_COST = 3;
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10, $: 25 };
   const TAU = Math.PI * 2;
 
@@ -38,8 +41,9 @@
   // level). Picked fruit grows back after REGROW seconds.
   LF.FRUITS = {
     a: { name: 'Apple', power: 'Shield', color: '#E5484D', note: 'shield: blocks one hit (a second apple doubles it, no more)' },
-    o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', note: 'higher jumps, until you die (a second orange: slow falling too)' },
-    b: { name: 'Banana', power: 'Double jump', color: '#FFE066', note: 'jump again in mid-air, until you die (a second banana: triple jump)' },
+    o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', note: 'higher jumps, until you die' },
+    b: { name: 'Banana', power: 'Double jump', color: '#FFE066', note: 'jump again in mid-air, until you die' },
+    m: { name: 'Watermelon', power: 'Speed', color: '#4CAF50', note: 'run faster, until you die' },
   };
 
   // drop: ammo an enemy leaves behind when you kill it — the harder it is to kill, the more.
@@ -70,16 +74,14 @@
     9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, drop: 10, hits: 18, note: 'boss: lobs bombs and sends TNT carts' },
   };
   // A fruit's power on the player: apple adds a shield layer (up to 2), orange the jump
-  // boost (a second one: slow falling too), banana the double jump (a second one: triple
-  // jump). False if it would add nothing.
+  // boost, banana the double jump, watermelon speed. False if it would add nothing.
   LF.applyFruit = (p, type) => {
     if (type === 'a') { if (p.shield >= 2) return false; p.shield++; return true; }
-    if (type === 'o') { if (p.boost >= 2) return false; p.boost = (p.boost ? 1 : 0) + 1; return true; }
-    if (type === 'b') { if (p.dbl >= 2) return false; p.dbl = (p.dbl ? 1 : 0) + 1; p.airJumps = Math.max(p.airJumps, p.dbl); return true; }
+    if (type === 'o') { if (p.boost) return false; p.boost = 1; return true; }
+    if (type === 'b') { if (p.dbl) return false; p.dbl = 1; p.airJumps = Math.max(p.airJumps, 1); return true; }
+    if (type === 'm') { if (p.fast) return false; p.fast = 1; return true; }
     return false;
   };
-  // What a fruit power is called at each level (1 or 2).
-  LF.powerName = (type, n) => type === 'o' ? (n > 1 ? 'slow fall' : 'jump boost') : type === 'b' ? (n > 1 ? 'triple jump' : 'double jump') : n > 1 ? 'shield ×2' : 'shield';
 
   // Giant bosses: one for every enemy and hazard without a boss of its own. They only come
   // from boss arenas, whose map marks the spot with 0 and whose def.giant names the giant.
@@ -290,7 +292,7 @@
     // Powers brought from the last level (or the inventory): def.powers = { shield, boost, dbl }.
     if (def.powers) {
       const pw = def.powers;
-      W.player.shield = Math.min(2, pw.shield || 0); W.player.boost = Math.min(2, +pw.boost || 0); W.player.dbl = Math.min(2, +pw.dbl || 0);
+      W.player.shield = Math.min(2, pw.shield || 0); W.player.boost = pw.boost ? 1 : 0; W.player.dbl = pw.dbl ? 1 : 0; W.player.fast = pw.fast ? 1 : 0;
     }
     W.got = {};   // fruit picked up, by type
     // Back into a level whose lanterns you'd lit last time (def.resume = { lit: [lantern
@@ -299,7 +301,7 @@
       for (const k of def.resume.lit) if (W.lanterns[k]) W.lanterns[k].lit = true;
       W.lanternLit = true; W.checkpoint = { ...def.resume.cp };
       const { ammo } = W.player;
-      Object.assign(W.player, makePlayer(W.checkpoint), { ammo, shield: W.player.shield, boost: W.player.boost, dbl: W.player.dbl });
+      Object.assign(W.player, makePlayer(W.checkpoint), { ammo, shield: W.player.shield, boost: W.player.boost, dbl: W.player.dbl, fast: W.player.fast });
       if (W.door && W.lanterns.every(l => l.lit) && !W.enemies.some(isBoss)) W.door.open = true;
     }
     // def.noSpawnInv (Hardcore): no invincible second at the start or after respawning.
@@ -380,7 +382,7 @@
       coyote: 0, buffer: 0, jumping: false, drop: 0, sx: 1, sy: 1, anim: 0, dead: false,
       wall: 0, wallDir: 0, wallCoyote: 0, sliding: false, lock: 0, wet: false,
       // One second of invincibility at the start of a level and after every respawn.
-      shield: 0, boost: 0, dbl: 0, airJumps: 0, inv: 1, conv: 0, cool: 0, flash: 0,
+      shield: 0, boost: 0, dbl: 0, fast: 0, airJumps: 0, inv: 1, conv: 0, cool: 0, flash: 0,
     };
   }
 
@@ -747,7 +749,7 @@
       e.hitBy[shot] = hits + 1;
     }
     if (boss) { if (e.fury > 0) return; dmg = 1; wakeBoss(W, e); }
-    if (e.armored) {
+    if (e.armored && how !== 'KO') {
       W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'armored', life: .6, c: '#CFC6E8' });
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 6, ['#CFC6E8'], 100, 300, 2); W.emit('clank');
       return;
@@ -785,12 +787,13 @@
       if (isSolid(tile(W, btx, bty)) || tile(W, btx, bty) === 'l') {
         const d = W.shotDoorAt[bty * W.w + btx];
         if (d && !d.open) hitShotDoor(W, d, b.id);
-        b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s, b.id); continue; }
+        b.life = 0; burst(W, b.x, b.y, 5, ['#FFE2A8', '#FFB547'], 80, 200, 2); if (!b.kill) splash(W, b.x - Math.sign(b.vx) * 4, b.y, Math.sign(b.vx), null, b.s, b.id); continue; }
       // Bullets just vanish into the horde.
       if (W.horde && along(W.horde, b.x, b.y) < W.horde.f) { b.life = 0; burst(W, b.x, b.y, 4, ['#463C6B'], 60, 0, 2); continue; }
       for (const e of W.enemies) {
         if (!e.alive || e.phased || !overlap({ x: b.x - 4 * b.s, y: b.y - 2 * b.s, w: 8 * b.s, h: 4 * b.s }, e)) continue;
         b.life = 0;
+        if (b.kill) { shootEnemy(W, e, Math.sign(b.vx), b.id, 'KO', 999); ring(W, e.x + e.w / 2, e.y + e.h / 2, 40, '229,72,77', .3); break; }
         shootEnemy(W, e, Math.sign(b.vx), b.id);
         splash(W, e.x + e.w / 2, e.y + e.h / 2, Math.sign(b.vx), e, b.s, b.id);
         break;
@@ -2051,7 +2054,8 @@
       W.emit('splash');
     }
     p.wet = wet;
-    const T = playerTune(W.def), grav = G * T.gravity, run = RUN * T.run;
+    // (A watermelon makes you FAST times quicker on your feet.)
+    const T = playerTune(W.def), grav = G * T.gravity, run = RUN * T.run * (p.fast > 0 ? FAST : 1);
     const accel = p.onGround ? (p.ice ? (dir ? 450 : 120) : dir ? 2600 : 2200) : p.lock > 0 ? 250 : (dir ? 1700 : 700) * T.air;
     p.vx = approach(p.vx, dir * run * (wet ? .65 : 1), accel * dt);
 
@@ -2063,7 +2067,7 @@
 
     // Walls: touching one in the air allows a wall jump; pushing into it while falling slides slowly.
     p.wall = p.onGround ? 0 : wallBeside(W, p, -1) ? -1 : wallBeside(W, p, 1) ? 1 : 0;
-    const airJumps = T.airJumps + Math.min(2, p.dbl > 0 ? Math.ceil(p.dbl) : 0);
+    const airJumps = T.airJumps + (p.dbl > 0 ? 1 : 0);
     if (p.wall) { p.wallDir = p.wall; p.wallCoyote = .1; p.airJumps = airJumps; }
     else p.wallCoyote -= dt;
     if (p.onGround || wet) p.airJumps = airJumps;
@@ -2104,16 +2108,13 @@
     if (wet) {
       p.vy = Math.min(SINK, p.vy + grav * .45 * dt);
       if (Math.random() < .05) W.particles.push({ x: p.x + p.w / 2 + p.face * 4, y: p.y + 4, vx: 0, vy: -40, life: .6, max: .6, c: '#9FD8FF', size: 2, g: -60 });
-    } else if (p.boost >= 2 && p.vy > 0) {
-      // Two oranges: you float down slowly.
-      p.vy = Math.min(SLOWFALL * Math.sqrt(T.gravity), p.vy + grav * dt * .5);
-      if (Math.random() < .15) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y, vx: 0, vy: -30, life: .35, max: .35, c: '#FFD08A', size: 2, g: -20 });
     } else p.vy = Math.min(MAXFALL * Math.sqrt(T.gravity), p.vy + grav * dt * (p.vy > 0 ? 1.15 : 1));
     if (p.sliding) {
       p.vy = Math.min(p.vy, WALL_SLIDE * T.wallSlide);
       if (Math.random() < .12) W.particles.push({ x: p.wall > 0 ? p.x + p.w : p.x, y: p.y + p.h - 4, vx: -p.wall * 20, vy: -30, life: .35, max: .35, c: '#9A8FBF', size: 2, g: 200 });
     }
     if (p.boost > 0 && Math.random() < .08) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y + p.h, vx: 0, vy: -40, life: .4, max: .4, c: '#FFB547', size: 2, g: -40 });
+    if (p.fast > 0 && p.onGround && Math.abs(p.vx) > RUN && Math.random() < .3) W.particles.push({ x: p.x + p.w / 2 - Math.sign(p.vx) * 8, y: p.y + p.h - 2, vx: -p.vx * .2, vy: -20, life: .3, max: .3, c: '#7FD87A', size: 2, g: 0 });
     if (p.dbl > 0 && Math.random() < .08) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y + p.h * Math.random(), vx: 0, vy: -20, life: .4, max: .4, c: '#FFE066', size: 2, g: 0 });
 
     if (p.onPlat && !dropping) { moveX(W, p, p.onPlat.dx); p.y += p.onPlat.dy; }
@@ -2125,8 +2126,8 @@
     p.cool -= dt; p.flash -= dt;
     if (p.hold > 0) {
       p.hold -= dt;
-      if (input.firePressed || input.rocketPressed || input.grenadePressed) {
-        input.firePressed = input.rocketPressed = input.grenadePressed = false;
+      if (input.firePressed || input.rocketPressed || input.grenadePressed || input.killPressed) {
+        input.firePressed = input.rocketPressed = input.grenadePressed = input.killPressed = false;
         if (!W.floaters.some(f => f.t === 'steady…')) W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: 'steady…', life: .8, c: '#D9D0F0' });
       }
     }
@@ -2143,6 +2144,19 @@
       } else if (tapped) {
         p.cool = .5; W.emit('empty');
         W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: W.def.noAmmo ? 'no guns in a tower: stomp!' : p.ammo > 0 ? `big shot needs ${s} ammo` : 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
+      }
+    }
+    if (input.killPressed && p.cool <= 0) {
+      input.killPressed = false;
+      if (p.ammo >= KILL_COST) {
+        p.ammo -= KILL_COST; p.cool = .35; p.flash = .12;
+        const g = LF.gunPos(p);
+        W.bullets.push({ id: newShot(W), x: g.x, y: g.y, vx: p.face * BULLET * 1.25, life: 1.1, s: 1, kill: true });
+        p.vx -= p.face * 60;
+        W.emit('rocket');
+      } else {
+        p.cool = .3; W.emit('empty');
+        W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: W.def.noAmmo ? 'no guns in a tower: stomp!' : `kill shot needs ${KILL_COST} ammo`, life: 1, c: '#D9D0F0' });
       }
     }
     // X and Q work like E: tap for one, hold to keep firing while there's ammo for it.
@@ -2314,7 +2328,7 @@
       LF.applyFruit(p, f.type);
       W.got[f.type] = (W.got[f.type] || 0) + 1;
       burst(W, f.x, f.y, 16, [spec.color, '#FFF6C2'], 130, 150, 2.5);
-      W.floaters.push({ x: f.x, y: f.y - 20, t: LF.powerName(f.type, f.type === 'a' ? p.shield : f.type === 'o' ? p.boost : p.dbl), life: 1.1, c: spec.color });
+      W.floaters.push({ x: f.x, y: f.y - 20, t: f.type === 'a' && p.shield > 1 ? 'shield ×2' : spec.power.toLowerCase(), life: 1.1, c: spec.color });
       W.emit('fruit', { type: f.type });
     }
 

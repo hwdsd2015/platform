@@ -278,7 +278,7 @@
       map: () => B(130, 16, ({ r, s, walls }) => {
         walls(); r(0, 0, 129, 0); r(1, 13, 128, 14);
         s(1, 12, '&'); s(3, 12, '0'); s(8, 12, 'P'); s(10, 12, 'Q'); s(12, 12, '$');
-        for (let x = 20; x < 110; x += 15) { r(x, 10, x + 4, 10, '='); s(x + 2, 9, 'aob'[(x / 15) % 3 | 0]); s(x + 9, 12, 'q'); }
+        for (let x = 20; x < 110; x += 15) { r(x, 10, x + 4, 10, '='); s(x + 2, 9, 'aobm'[(x / 15) % 4 | 0]); s(x + 9, 12, 'q'); }
         r(126, 1, 126, 12, 'g'); s(127, 12, 'D');
       }) },
     { giant: '%', name: 'Rising Horde Bossfight', dark: .74, hordeStop: 12, hordeSpeed: .55, sign: 'CLIMB ↑ and strike the heart when it surges',

@@ -101,7 +101,7 @@
   // ---------- state ----------
   let screen = 'title', W = null, playDef = null, playCtx = null;
   const cam = { x: 0, y: 0, zoom: 1 };
-  const input = { left: false, right: false, jump: false, down: false, jumpPressed: false, fire: false, firePressed: false, rocket: false, rocketPressed: false, grenade: false, grenadePressed: false, big: false };
+  const input = { left: false, right: false, jump: false, down: false, jumpPressed: false, fire: false, firePressed: false, rocket: false, rocketPressed: false, grenade: false, grenadePressed: false, kill: false, killPressed: false, big: false };
   let attract = LF.createWorld(LF.LEVELS[0]);
   let story = { time: 0, falls: 0 };
 
@@ -134,7 +134,7 @@
   // it was underwater) and any starting ammo, then turn the water and anything swimming in it
   // into lava, unless the level needs swimming.
   // Shot doors (v, w, z) go too: with no ammo they could never open.
-  const HARDCORE_GONE = new Set(['L', 'q', 'Q', '$', 'a', 'o', 'b', 'v', 'w', 'z']);
+  const HARDCORE_GONE = new Set(['L', 'q', 'Q', '$', 'a', 'o', 'b', 'm', 'v', 'w', 'z']);
   function hardcoreDef(def) {
     const rows = LF.normalize(def.map).map(r => r.split(''));
     rows.forEach((r, y) => r.forEach((c, x) => { if (HARDCORE_GONE.has(c)) r[x] = rows[y - 1]?.[x] === '~' ? '~' : '.'; }));
@@ -520,7 +520,7 @@
       $('map-info').innerHTML = `<div>
           <small>Fruit house · beside level ${mapHouse + 1}</small>
           <strong>Fruit Grove</strong>
-          <em>${houses[mapHouse] ? 'You’ve been in here: the fruit’s all gathered' : '25 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
+          <em>${houses[mapHouse] ? 'You’ve been in here: the fruit’s all gathered' : '5 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
         </div>
         <div class="map-actions">${houses[mapHouse] ? '' : '<button class="go" data-act="house">Go in</button>'}</div>`;
       const b = $('map-info').querySelector('[data-act]');
@@ -557,22 +557,22 @@
   // web fonts (which are wider than the fallback) have loaded.
   if (document.fonts) document.fonts.ready.then(() => { if (screen === 'map' && !mapBusy) renderMap(false); });
 
-  // The Fruit Grove: 25 seconds on a little hillside of ledges strewn with fruit (different
+  // The Fruit Grove: 5 seconds on a little hillside of ledges strewn with fruit (different
   // for every house). Whatever you pick goes in your inventory.
   function fruitGrove(i) {
-    const R = LF.rng(4242 + i * 31), kinds = 'aob';
+    const R = LF.rng(4242 + i * 31), kinds = 'aobm';
     return {
-      name: 'Fruit Grove', dark: .3, timeLimit: 25, noRegrow: true,
-      signs: [{ x: 2, y: 9.4, t: '25 seconds: grab all the fruit you can!' }],
+      name: 'Fruit Grove', dark: .3, timeLimit: 5, noRegrow: true,
+      signs: [{ x: 2, y: 9.4, t: '5 seconds: grab all the fruit you can!' }],
       map: LF.build(44, 14, ({ r, s }) => {
         r(0, 12, 43, 13); s(2, 11, 'P');
         for (let k = 0; k < 6; k++) {
           const x = 5 + k * 6 + Math.floor(R() * 3), y = 7 + Math.floor(R() * 3), len = 3 + Math.floor(R() * 2);
           r(x, y, x + len, y, R() < .5 ? '=' : '#');
-          s(x + 1 + Math.floor(R() * (len - 1)), y - 1, kinds[Math.floor(R() * 3)]);
-          if (R() < .6) s(x + Math.floor(len / 2), y - 4, kinds[Math.floor(R() * 3)]);
+          s(x + 1 + Math.floor(R() * (len - 1)), y - 1, kinds[Math.floor(R() * 4)]);
+          if (R() < .6) s(x + Math.floor(len / 2), y - 4, kinds[Math.floor(R() * 4)]);
         }
-        for (let x = 6; x < 42; x += 5) if (R() < .7) s(x, 11, kinds[Math.floor(R() * 3)]);
+        for (let x = 6; x < 42; x += 5) if (R() < .7) s(x, 11, kinds[Math.floor(R() * 4)]);
         s(20, 11, 'B'); s(34, 11, 'B');
       }),
     };
@@ -662,18 +662,24 @@
     store.set('midway', { index: playCtx.index, lit: W.lanterns.map((l, k) => (l.lit ? k : -1)).filter(k => k >= 0), cp: W.checkpoint });
   }
 
+  function giveUp() {
+    if (playCtx.kind === 'story' && !hardcore) { carry = null; store.set('powers', null); store.set('ammo', 0); }
+    LF.kill(W);
+    if (playCtx.kind === 'story') flash('You gave up: your powers and ammo are gone');
+  }
+
   // ---------- inventory ----------
   // Fruit you've gathered (in Fruit Groves), up to INV_MAX of each. Tab opens it on the map
   // or in a level (which waits while it's open). Using a fruit in a level gives you its
   // power at once; on the map it gets you ready for your next level. Powers last until you
   // die, and carry on from level to level (carry: { shield, boost, dbl }). Not in Hardcore.
-  const INV_MAX = 9, FRUIT_ICON = { a: '🍎', o: '🍊', b: '🍌' };
-  let inventory = store.get('inventory', { a: 0, o: 0, b: 0 }), carry = store.get('powers', null), invFrom = null;
+  const INV_MAX = 9, FRUIT_ICON = { a: '🍎', o: '🍊', b: '🍌', m: '🍉' };
+  let inventory = { a: 0, o: 0, b: 0, m: 0, ...store.get('inventory', {}) }, carry = store.get('powers', null), invFrom = null;
   function saveCarry(p) {
-    carry = p.shield || p.boost || p.dbl ? { shield: p.shield, boost: Math.min(2, +p.boost || 0), dbl: Math.min(2, +p.dbl || 0) } : null;
+    carry = p.shield || p.boost || p.dbl || p.fast ? { shield: p.shield, boost: !!p.boost, dbl: !!p.dbl, fast: !!p.fast } : null;
     store.set('powers', carry);
   }
-  const powersText = p => [p.shield ? `🍎 shield${p.shield > 1 ? ' ×2' : ''}` : '', p.boost ? `🍊 jump boost${p.boost > 1 ? ' + slow fall' : ''}` : '', p.dbl ? `🍌 ${p.dbl > 1 ? 'triple' : 'double'} jump` : ''].filter(Boolean).join(' · ') || 'none';
+  const powersText = p => [p.shield ? `🍎 shield${p.shield > 1 ? ' ×2' : ''}` : '', p.boost ? '🍊 jump boost' : '', p.dbl ? '🍌 double jump' : '', p.fast ? '🍉 speed' : ''].filter(Boolean).join(' · ') || 'none';
   function showInventory() {
     if (screen !== 'map' && screen !== 'play' && screen !== 'inv') return;
     if (screen === 'inv') return closeInventory();
@@ -700,7 +706,7 @@
   }
   function useItem(t) {
     if (hardcore || !(inventory[t] > 0)) return;
-    const target = invFrom === 'play' ? W.player : { shield: 0, boost: 0, dbl: 0, airJumps: 0, ...(carry || {}) };
+    const target = invFrom === 'play' ? W.player : { shield: 0, boost: 0, dbl: 0, fast: 0, airJumps: 0, ...(carry || {}) };
     if (!LF.applyFruit(target, t)) return flash('You already have that power');
     inventory[t]--; store.set('inventory', inventory);
     if (invFrom !== 'play') saveCarry(target);
@@ -719,16 +725,16 @@
         <li>Map: <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> walk along the paths (the little arrows show the ways on) · <kbd>Enter</kbd> play · crossroads open more than one level</li>
         <li><kbd>←</kbd><kbd>→</kbd> walk · <kbd>Space</kbd> jump (hold for height) · <kbd>↓</kbd> drop through planks</li>
         <li>Push into a wall to slide down it · jump off walls to climb</li>
-        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
+        <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · <kbd>A</kbd> kill shot (3 ammo): kills whatever it hits in one go, golems and carts too (a boss takes it as one hit) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
-        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost (a second orange: slow falling too) · 🍌 double jump (a second banana: triple jump) · powers last until you die; powers and leftover ammo carry on to the next level</li>
+        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · 🍉 speed · powers last until you die; powers and leftover ammo carry on to the next level</li>
         <li>Towers have no guns: the boss falls to 3 stomps, but each stomp throws it into a fury (it glows red, lashes out and moves faster) and you can't stomp it again until it calms down · your ammo waits for you outside</li>
         <li>Wheels turn their platforms round and round: ride one to the top · in the Sky Roads there's no floor at all, just the long drop</li>
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
         <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>
         <li>Practice mode (on the map): every level open, nothing counts · <kbd>Z</kbd> set a checkpoint · <kbd>X</kbd> remove the latest · <kbd>C</kbd> explosive round</li>
-        <li><kbd>R</kbd> give up (back to last lantern) · <kbd>Shift</kbd>+<kbd>R</kbd> restart level · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
+        <li><kbd>R</kbd> give up: you die (back to the map; lit lanterns are kept) and lose your fruit powers and ammo · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
       <div class="menu"><button class="go" data-act="menu">Back to the map</button></div>`);
@@ -755,7 +761,7 @@
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
     if (playCtx.kind === 'cannon') return `Cannon Yard · to World ${cannonDest(playCtx.how) + 1}`;
-    if (playCtx.kind === 'house') return 'Fruit house · 25 seconds';
+    if (playCtx.kind === 'house') return 'Fruit house · 5 seconds';
     if (playCtx.kind === 'practice') return `Practice · level ${playCtx.index + 1} · Z checkpoint · X remove it · C explosive`;
     if (playCtx.kind === 'shared') return 'Shared level';
     const key = keyFor(playCtx);
@@ -802,7 +808,7 @@
       ${keyFor(playCtx) ? `<p class="lede">Level key <b class="lvl-key">${keyFor(playCtx)}</b> · <span class="key-link">${esc(keyLink(keyFor(playCtx)))}</span>${playCtx.kind === 'custom' ? '<br><small>Your own levels’ keys only work in this browser. To share one, use Copy play link in the editor’s Share code.</small>' : ''}</p>` : ''}
       <div class="menu">
         <button class="go" data-act="resume">Resume</button>
-        <button class="alt" data-act="restart">Restart level</button>
+        <button class="alt" data-act="giveUp">Give up · R</button>
         ${playCtx.kind === 'story' ? '<button class="alt" data-act="itemsFromPause">Items · Tab</button>' : ''}
         ${playCtx.kind === 'test' ? '<button class="alt" data-act="backToEditor">Back to editor</button>' : ''}
         ${playCtx.kind === 'random' ? '<button class="alt" data-act="editRandom">Open in editor</button>' : ''}
@@ -1046,6 +1052,7 @@
     toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); renderMap(false); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
     resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
     restart: () => play(playDef, playCtx),
+    giveUp: () => { ACTIONS.resume(); giveUp(); },
     backToEditor: () => { screen = 'editor'; setVisible({}); editor.resume(); },
     editRandom: () => openEditor({ ...playDef }),
     rerollRandom: () => { const o = { ...playCtx.opts, seed: Math.floor(Math.random() * 1e6) }; play(LF.generate(o), { kind: 'random', opts: o }); },
@@ -1065,7 +1072,9 @@
   $('sel-back').addEventListener('click', showMap);
 
   // ---------- input ----------
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyS: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyC: 'rocket', KeyQ: 'grenade' };
+  // (No WASD: A is the kill shot.)
+  const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'jump', Space: 'jump', KeyZ: 'jump', ArrowDown: 'down', KeyE: 'fire', KeyF: 'fire', KeyX: 'rocket', KeyC: 'rocket', KeyQ: 'grenade', KeyA: 'kill' };
+  const SHOTS = ['fire', 'rocket', 'grenade', 'kill'];
   // Big shots: hold Shift, or on a phone tap BIG to switch them on until tapped again.
   let bigLock = false;
   const syncBig = shift => { input.big = shift || bigLock; };
@@ -1088,11 +1097,12 @@
       if (k) {
         e.preventDefault();
         if (k === 'jump' && !input.jump && !e.repeat) input.jumpPressed = true;
-        if ((k === 'fire' || k === 'rocket' || k === 'grenade') && !input[k] && !e.repeat) input[k + 'Pressed'] = true;
+        if (SHOTS.includes(k) && !input[k] && !e.repeat) input[k + 'Pressed'] = true;
         input[k] = true;
       }
-      // R is instant death: respawn at the last lit lantern. Shift+R restarts the whole level.
-      if (e.code === 'KeyR' && !e.repeat) { if (e.shiftKey) ACTIONS.restart(); else LF.kill(W); }
+      // R gives up: it's a death like any other (back to the map, your lit lanterns kept), and
+      // in the story you lose everything you were carrying too: fruit powers and ammo.
+      if (e.code === 'KeyR' && !e.repeat && !W.player.dead && !W.cleared) giveUp();
       if (e.code === 'Escape' && playCtx.kind === 'test') ACTIONS.backToEditor();
       else if (e.code === 'Escape' || e.code === 'KeyP') pause();
       if (e.code === 'KeyM') { muted = !muted; store.set('muted', muted); flash(muted ? 'Sound off' : 'Sound on'); }
@@ -1104,7 +1114,7 @@
     if (screen === 'map') {
       if (mapBusy) { e.preventDefault(); return; }
       if (e.code === 'ArrowRight' && e.shiftKey && secrets[mapAt] && !mapCannon) { e.preventDefault(); mapCannon = { secret: mapAt }; renderMap(); return; }
-      const dirs = { ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0], ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] };
+      const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
       if (dirs[e.code]) { e.preventDefault(); mapGo(...dirs[e.code]); return; }
       if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); initAudio(); if (mapHouse != null) ACTIONS.house({ i: mapHouse }); else if (mapCannon) ACTIONS.cannon(mapCannon); else ACTIONS.story({ i: mapAt }); return; }
     }
@@ -1116,12 +1126,12 @@
 
   function bindTouch(id, k) {
     const el = $(id);
-    const on = e => { e.preventDefault(); initAudio(); if (k === 'jump' && !input.jump) input.jumpPressed = true; if ((k === 'fire' || k === 'rocket' || k === 'grenade') && !input[k]) input[k + 'Pressed'] = true; input[k] = true; el.classList.add('on'); };
+    const on = e => { e.preventDefault(); initAudio(); if (k === 'jump' && !input.jump) input.jumpPressed = true; if (SHOTS.includes(k) && !input[k]) input[k + 'Pressed'] = true; input[k] = true; el.classList.add('on'); };
     const off = e => { e.preventDefault(); input[k] = false; el.classList.remove('on'); };
     el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
     el.addEventListener('pointercancel', off); el.addEventListener('pointerleave', off);
   }
-  bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down'); bindTouch('t-fire', 'fire'); bindTouch('t-rocket', 'rocket'); bindTouch('t-grenade', 'grenade');
+  bindTouch('t-left', 'left'); bindTouch('t-right', 'right'); bindTouch('t-jump', 'jump'); bindTouch('t-down', 'down'); bindTouch('t-fire', 'fire'); bindTouch('t-rocket', 'rocket'); bindTouch('t-grenade', 'grenade'); bindTouch('t-kill', 'kill');
   $('t-pause').addEventListener('click', () => pause());
   $('t-big').addEventListener('pointerdown', e => {
     e.preventDefault(); initAudio();
@@ -1135,7 +1145,7 @@
     const lit = W.lanterns.filter(l => l.lit).length, open = W.door && W.door.open;
     const p = W.player;
     const boss = W.enemies.find(e => e.alive && e.awake && LF.isBoss(e));
-    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.ammo}|${JSON.stringify(p.keys)}|${boss ? boss.type + boss.hp : ''}`;
+    const key = `${lit}|${Math.floor(W.time * 10)}|${W.falls}|${open}|${p.shield}|${Math.ceil(p.boost)}|${Math.ceil(p.dbl)}|${p.fast}|${p.ammo}|${JSON.stringify(p.keys)}|${boss ? boss.type + boss.hp : ''}`;
     if (key === hudCache) return;
     hudCache = key;
     // With no lanterns (a boss arena, or Hardcore) the door is all there is to show.
@@ -1152,8 +1162,9 @@
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push(`<i class="pw-a">Shield${p.shield > 1 ? ' ×2' : ''}</i>`);
-    if (p.boost > 0) powers.push(`<i class="pw-o">${p.boost > 1 ? 'Boost + glide' : 'Boost'}</i>`);
-    if (p.dbl > 0) powers.push(`<i class="pw-b">${p.dbl > 1 ? 'Triple' : 'Double'}</i>`);
+    if (p.boost > 0) powers.push('<i class="pw-o">Boost</i>');
+    if (p.dbl > 0) powers.push('<i class="pw-b">Double</i>');
+    if (p.fast > 0) powers.push('<i class="pw-m">Speed</i>');
     $('hud-powers-wrap').hidden = !powers.length;
     $('hud-powers').innerHTML = powers.join('');
     $('boss-bar').hidden = !boss;
