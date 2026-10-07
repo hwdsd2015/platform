@@ -1296,11 +1296,9 @@
           return;
         }
         if (b.kill) {
-          // The kill shot: a long red streak with a white-hot tip.
-          const d = Math.sign(b.vx) || 1;
-          ctx.fillStyle = 'rgba(229,72,77,.45)'; ctx.fillRect(b.x - d * 22, b.y - 3, d * 20, 6);
-          ctx.fillStyle = '#E5484D'; ctx.fillRect(b.x - d * 14, b.y - 2, d * 12, 4);
-          ctx.fillStyle = '#FFF1CF'; ctx.fillRect(b.x - 3, b.y - 2, 6, 4);
+          // The kill shot: a regular bullet's size, in red.
+          ctx.fillStyle = '#E5484D'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);
+          ctx.fillStyle = '#FFD0D2'; ctx.fillRect(b.x - 2, b.y - 1.5, 4, 3);
           return;
         }
         ctx.fillStyle = '#FFB547'; ctx.fillRect(b.x - (b.vx > 0 ? 10 : -2), b.y - 1.5, 8, 3);
