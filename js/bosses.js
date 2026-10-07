@@ -425,6 +425,8 @@
     if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...tower(arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), 300 + n), chapter, boss: true });
     else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...tower(giantArena((n - 5) / 10), 300 + n), chapter, boss: true });
     if (chapter === 'The Powder Works' && regular[i + 1] && regular[i + 1].chapter !== chapter) out.push(...(LF.SKY_LEVELS || []));
+    // And the Melon Patch (levels-13.js) closes the Garden Market.
+    if (chapter === 'The Ember Gardens' && regular[i + 1] && regular[i + 1].chapter !== chapter) out.push(...(LF.MELON_LEVELS || []));
   });
   // ---- The final boss ----
   // The very last level, a chapter of its own: the Last Dark.

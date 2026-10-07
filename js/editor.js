@@ -416,17 +416,27 @@
     function loadDraft() { try { const d = JSON.parse(localStorage.getItem('lanternfall.draft')); return d && d.map ? d : null; } catch (e) { return null; } }
 
     // ---------- lifecycle ----------
+    // A level that can't be opened (a broken draft or save) gives way to a blank one, so
+    // the editor always opens.
+    function safeLoad(d) {
+      try { load(d); LF.createWorld(def()); return true; } catch (e) { console.error('Editor: could not open level', e); load(blank()); return false; }
+    }
     E.open = d => {
-      if (d) load(d); else if (!grid.length) load(loadDraft() || blank());
+      let ok = true;
+      if (d) ok = safeLoad(d); else if (!grid.length) ok = safeLoad(loadDraft() || blank());
+      if (!ok) try { localStorage.removeItem('lanternfall.draft'); } catch (e) {}
       E.active = true;
       $('editor').hidden = false;
       selectTool(tool);
-      status(`${counts()} · paint with the mouse, right-click erases, space-drag or wheel pans, ⌘/Ctrl-wheel zooms, T test plays.`);
+      status(ok ? `${counts()} · paint with the mouse, right-click erases, space-drag or wheel pans, ⌘/Ctrl-wheel zooms, T test plays.` : 'That level couldn’t be opened, so here’s a new blank one.');
     };
     E.resume = () => { E.active = true; $('editor').hidden = false; selectTool(tool); };
     E.close = () => { E.active = false; $('editor').hidden = true; cvs.style.cursor = ''; closeInspect(); };
     E.frame = dt => {
-      if (dirty) { world = LF.createWorld(def()); dirty = false; }
+      if (dirty) {
+        dirty = false;
+        try { world = LF.createWorld(def()); } catch (e) { console.error('Editor: could not build the level', e); if (!world) { load(blank()); world = LF.createWorld(def()); } }
+      }
       world.clock += dt;
       if (selected && grid[selected.ty]?.[selected.tx] !== selected.c) closeInspect();
       R.render(world, cam, { edit: true, hover, selected }, dt);
