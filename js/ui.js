@@ -707,6 +707,7 @@
   }
   function useItem(t) {
     if (hardcore || !(inventory[t] > 0)) return;
+    if (invFrom === 'play' && W.stripped) return flash('No fruit in a boss arena');
     const target = invFrom === 'play' ? W.player : { shield: 0, boost: 0, dbl: 0, fast: 0, airJumps: 0, ...(carry || {}) };
     if (!LF.applyFruit(target, t)) return flash('You already have that power');
     inventory[t]--; store.set('inventory', inventory);
@@ -730,8 +731,8 @@
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · 🍉 speed · powers last until you die; powers and leftover ammo carry on to the next level</li>
-        <li>Stepping into a tower's boss arena, you lose every fruit power you brought (fruit in the arena still works)</li>
-        <li>Towers have no guns: the boss falls to 3 stomps, but each stomp throws it into a fury (it glows red, lashes out and moves faster) and you can't stomp it again until it calms down · your ammo waits for you outside</li>
+        <li>Stepping into a tower's boss arena, you lose every fruit power you brought, and there's no fruit in there (nor can you use your inventory)</li>
+        <li>Towers have no guns: the boss falls to 3 stomps, but each stomp throws it into a 10-second fury (it glows red, attacks over and over and moves faster) and you can't stomp it again until it calms down · your ammo waits for you outside</li>
         <li>Wheels turn their platforms round and round: ride one to the top · in the Sky Roads there's no floor at all, just the long drop</li>
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
         <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>

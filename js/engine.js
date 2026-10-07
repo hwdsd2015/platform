@@ -123,8 +123,9 @@
   // moment lasts DAZE times as long as it would otherwise.
   const BOSS_HITS = 20, DAZE = 1.75, SPAWN_HOLD = 1.5;
   // In a tower (def.bossFury) a stomped boss flies into a fury for FURY seconds: it lashes
-  // out, moves faster, and can't be stomped (you bounce off) or hurt until it calms down.
-  const FURY = 3;
+  // out every FURY_EVERY seconds the whole time, moves faster, and can't be stomped (you
+  // bounce off) or hurt until it calms down.
+  const FURY = 10, FURY_EVERY = 1.1;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
@@ -540,6 +541,8 @@
     stepCrumbles(W, dt);
     for (const e of W.enemies) {
       if (!e.alive) { e.dead += dt; continue; }
+      // (A boss's fury runs on the real clock: FURY is in seconds you live through.)
+      if (e.fury > 0 && e.alive) stepFury(W, e, dt);
       stepEnemy(W, e, dt * ENEMY_SPEED * tune(W.def.tuning, e.type).speed, playing);
     }
     stepProjectiles(W, dt, playing);
@@ -959,7 +962,7 @@
   function stepEnemy(W, e, dt, playing) {
     e.t += dt;
     if (isBoss(e)) {
-      if (e.fury > 0) { stepFury(W, e, dt); if (e.alive) stepBoss(W, e, dt * .6, playing); }
+      if (e.fury > 0) stepBoss(W, e, dt * .6, playing);
       return stepBoss(W, e, dt, playing);
     }
     if (WALKERS.has(e.type)) {
@@ -1203,24 +1206,24 @@
 
   // ---------- bosses ----------
   function startFury(W, e) {
-    e.fury = FURY; e.furyHit = .5; e.dazed = 0;
+    e.fury = FURY; e.furyHit = .5; e.furyN = 0; e.dazed = 0;
     if (e.wait > .3) e.wait = .3;
     W.floaters.push({ x: e.x + e.w / 2, y: e.y - 22, t: 'FURY!', life: 1.4, c: '#FF4D3D' });
     W.shake = Math.max(W.shake, .3); W.emit('roar');
   }
-  // Half a second into its fury the boss lashes out: shockwaves along the floor if it's
-  // standing, else a ring of embers (with a gap where you are). It keeps flaring as it rages.
+  // Raging, the boss lashes out every FURY_EVERY seconds for as long as the fury lasts:
+  // shockwaves along the floor if it's standing (and every third time a ring of embers as
+  // well), else a ring of embers, always with a gap where you are.
   function stepFury(W, e, dt) {
     e.fury -= dt; e.dazed = 0;
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     if (Math.random() < dt * 30) burst(W, ex + (Math.random() - .5) * e.w, ey + (Math.random() - .5) * e.h, 1, ['#FF4D3D', '#FFB547'], 60, -80, 2.5);
-    if (e.furyHit == null) return;
     e.furyHit -= dt;
-    if (e.furyHit > 0) return;
-    e.furyHit = null;
+    if (e.furyHit > 0 || e.fury <= 0) return;
+    e.furyHit = FURY_EVERY; e.furyN++;
     const grounded = e.ground && !LF.ENEMIES[e.type].fly;
     if (grounded) shock(W, e, [[-1, 250], [1, 250]]);
-    else {
+    if (!grounded || e.furyN % 3 === 0) {
       const p = W.player, toP = Math.atan2(p.y + p.h / 2 - ey, p.x + p.w / 2 - ex);
       for (let k = 0; k < 10; k++) {
         const a = k / 10 * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
@@ -1541,13 +1544,16 @@
     }
   }
 
+  // A boss's left wall: the level's edge, or in a tower the arena's own left wall.
+  const arenaLeft = W => ((W.def.arenaX || 0) + 1) * TS;
+
   // The giants. Each has an attack or two and a moment where it's dazed (stompable whatever
   // it is); most call in a few of their small cousins.
   function stepGiant(W, e, dt, live, px, py, rage, toward) {
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     const daze = (t, state = 'dazed') => { e.state = state; e.dazed = e.wait = t * DAZE; };
     // Keep inside the level.
-    const clampIn = () => { e.x = Math.max(TS, Math.min((W.w - 1) * TS - e.w, e.x)); e.y = Math.max(TS, Math.min((W.h - 1) * TS - e.h, e.y)); };
+    const clampIn = () => { e.x = Math.max(arenaLeft(W), Math.min((W.w - 1) * TS - e.w, e.x)); e.y = Math.max(TS, Math.min((W.h - 1) * TS - e.h, e.y)); };
     switch (e.type) {
       case 'B+': {
         // The Wick Matriarch: plods after you, rears up and slams, and hatches beetles.
@@ -1848,7 +1854,7 @@
           }
         } else if (e.state === 'stuck') { if ((e.wait -= dt) <= 0) e.state = 'rise'; }
         else { e.y -= 150 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = rage ? .6 : 1; } }
-        e.x = Math.max(TS, Math.min((W.w - 1) * TS - e.w, e.x));
+        e.x = Math.max(arenaLeft(W), Math.min((W.w - 1) * TS - e.w, e.x));
         break;
       }
       case 'Ω+': {
@@ -1876,7 +1882,7 @@
         if (e.state === 'floor') { if ((e.wait -= dt) <= 0) e.state = 'rise'; break; }
         if (e.state === 'rise') { e.y -= 220 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = 1 / fast; } break; }
         // Hover over you.
-        const tx = Math.max(TS * 2, Math.min((W.w - 3) * TS - e.w, px - e.w / 2));
+        const tx = Math.max(arenaLeft(W) + TS, Math.min((W.w - 3) * TS - e.w, px - e.w / 2));
         e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), 90 * fast * dt);
         e.y += (e.oy + Math.sin(e.t * 2) * 10 - e.y) * Math.min(1, dt * 3);
         e.face = toward;
@@ -1904,7 +1910,7 @@
           for (let k = 0; k < 2; k++) {
             const type = WAVE[(e.wave = ((e.wave ?? -1) + 1) % WAVE.length)];
             const fly = 'FGWZ'.includes(type), x = px + (k ? 1 : -1) * TS * 6;
-            spawnMinion(W, type, Math.max(TS * 2, Math.min((W.w - 4) * TS, x)), fly ? e.y + e.h : type === 'X' ? TS * 1.5 : (W.h - 4) * TS + 16);
+            spawnMinion(W, type, Math.max(arenaLeft(W) + TS, Math.min((W.w - 4) * TS, x)), fly ? e.y + e.h : type === 'X' ? TS * 1.5 : (W.h - 4) * TS + 16);
           }
           W.floaters.push({ x: ex, y: e.y - 10, t: 'rise, my dark!', life: 1.2, c: '#FF6B3D' });
         }
