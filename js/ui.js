@@ -731,7 +731,7 @@
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · 🍉 speed · powers last until you die; powers and leftover ammo carry on to the next level</li>
-        <li>Stepping into a tower's boss arena, you lose every fruit power but your apple shield, and there's no fruit in there (from your inventory, only apples work)</li>
+        <li>Stepping into a tower's boss arena, you lose every fruit power but your apple shield, and the only fruit in there is apples (from your inventory too, only apples work)</li>
         <li>Towers have no guns: the boss falls to 3 stomps, but each stomp throws it into a 10-second fury: it glows red and rampages round the arena, leaping (with a slam where it lands) or darting about dropping bombs, and throwing rings of embers, rocks from the ceiling and fire round your feet and you can't stomp it again until it calms down · your ammo waits for you outside</li>
         <li>Wheels turn their platforms round and round: ride one to the top · in the Sky Roads there's no floor at all, just the long drop</li>
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>

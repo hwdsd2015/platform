@@ -388,9 +388,9 @@
   // its door and boss gate go, and anything it measured in columns or rows moves with it.
   function tower(def, seed, castle) {
     const R = LF.rng(seed);
-    // (No fruit in the arena: fighting the boss, you're on your own.)
+    // (The only fruit in an arena is apples: every bit of fruit there becomes one.)
     const arenaRows = def.map.map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
-    arenaRows.forEach((row, y) => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = arenaRows[y - 1]?.[x] === '~' ? '~' : '.'; }));
+    arenaRows.forEach(row => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = 'a'; }));
     const parts = castle ? [castleClimb(R), castleWalls(R), arenaRows] : [shaft(R), battlements(R), arenaRows];
     const h = Math.max(...parts.map(p => p.length));
     const w = parts.reduce((s, p) => s + p[0].length, 0) + GAP * (parts.length - 1);
