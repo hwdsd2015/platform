@@ -1247,6 +1247,16 @@
           continue;
         }
         if (b.kind === 'bomb') {
+          // Where it'll land: a red oval the size of its blast, pulsing faster and pulling
+          // tighter as it falls, with a "!".
+          if (b.land) {
+            const left = Math.max(0, b.land.t - (b.flown || 0)), u = Math.max(0, Math.min(1, 1 - left / Math.max(.3, b.land.t))), pulse = .5 + .5 * Math.sin(clock * (8 + u * 24));
+            ctx.strokeStyle = `rgba(229,72,77,${.35 + .5 * u})`; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+            ctx.beginPath(); ctx.ellipse(b.land.x, b.land.y - 2, 52 * (1.25 - .25 * u), 9, 0, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = `rgba(229,72,77,${(.12 + .25 * u) * (.6 + .4 * pulse)})`; ctx.beginPath(); ctx.ellipse(b.land.x, b.land.y - 2, 52, 9, 0, 0, TAU); ctx.fill();
+            ctx.fillStyle = `rgba(255,208,210,${.5 + .5 * pulse})`; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('!', b.land.x, b.land.y - 12); ctx.textAlign = 'start';
+          }
           const x = b.x + b.w / 2, y = b.y + b.h / 2;
           ctx.fillStyle = '#1A1530'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
           ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();

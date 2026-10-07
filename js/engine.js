@@ -2098,10 +2098,23 @@
     if (b.life <= 0) enemyBlast(W, x, y, TS * 3, true, playing);
   }
 
+  // Where a falling bomb will hit (the point it first meets solid ground), or null.
+  function bombLanding(W, b) {
+    let x = b.x + b.w / 2, y = b.y + b.h / 2, vx = b.vx, vy = b.vy || 0, t = 0;
+    const dt = 1 / 60;
+    for (let k = 0; k < 60 * Math.min(4, b.life); k++) {
+      vy += (b.g || 0) * dt; x += vx * dt; y += vy * dt; t += dt;
+      if (y > W.h * TS + 40) return null;
+      if (isSolid(tile(W, Math.floor(x / TS), Math.floor(y / TS)))) return { x, y: Math.floor(y / TS) * TS, t };
+    }
+    return null;
+  }
   function stepProjectiles(W, dt, playing) {
     const p = W.player;
     for (const b of W.projectiles) {
       if (b.kind === 'kgrenade') { stepKingGrenade(W, b, dt, playing); continue; }
+      // A bomb works out where it'll land the moment it's thrown, so that spot can be marked.
+      if (b.kind === 'bomb') { if (b.land === undefined) { b.land = bombLanding(W, b); b.flown = 0; } b.flown += dt; }
       // A warning mark is harmless; when it runs out, what it warned of appears.
       if (b.kind === 'warn') { b.life -= dt; if (b.life <= 0) { W.projectiles.push({ ...b.then }); burst(W, b.x + b.w / 2, b.y + b.h, 8, ['#FF6B3D', '#FFE2A8'], 90, -60, 2); } continue; }
       if (b.g) b.vy += b.g * dt;
@@ -2114,7 +2127,7 @@
       // A cluster bomb splits in three at the top of its arc.
       if (b.kind === 'bomb' && b.cluster && b.vy > 0) {
         b.cluster = false;
-        for (const d of [-1, 1]) W.projectiles.push({ ...b, x: b.x + d * 4, vx: b.vx + d * 130 });
+        for (const d of [-1, 1]) W.projectiles.push({ ...b, x: b.x + d * 4, vx: b.vx + d * 130, land: undefined });
       }
       if (isSolid(tile(W, Math.floor(bx / TS), Math.floor(by / TS)))) {
         b.life = 0; burst(W, bx, by, 6, WARM, 90, 200, 2);
