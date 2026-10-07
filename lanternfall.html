@@ -223,6 +223,18 @@
   @keyframes mp-sway { 0%, 100% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
   @keyframes mp-bobbing { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
   @keyframes mp-turn { to { transform: rotate(360deg); } }
+  /* Back on the map after a win: the level you lit flares, then what it opened pops up. */
+  .map-board .stop.just-lit > g { animation: mp-lit .9s ease-out both; }
+  .map-board .stop.fresh > g { animation: mp-unlock .8s cubic-bezier(.3, 1.6, .5, 1) both; }
+  .map-board .stop.fresh .num { animation: mp-fade .5s ease-out both; animation-delay: inherit; }
+  .map-board .unlock-ring { fill: none; stroke: #FFB547; stroke-width: 3; opacity: 0; animation: mp-ring 1s ease-out both; }
+  .map-board .trail.fresh, .map-board .seg.fresh { animation: mp-fade .8s ease-out both; }
+  .map-board .cannon.fresh, .map-board .arc.fresh { animation: mp-fade 1s ease-out both; }
+  @keyframes mp-lit { 0% { transform: scale(1); filter: brightness(1); } 35% { transform: scale(1.4); filter: brightness(2.2); } 100% { transform: scale(1); filter: brightness(1); } }
+  @keyframes mp-unlock { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes mp-ring { 0% { opacity: .9; transform: scale(.5); } 100% { opacity: 0; transform: scale(4); } }
+  @keyframes mp-fade { from { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .map-board .stop.fresh > g, .map-board .stop.just-lit > g, .map-board .unlock-ring { animation-duration: .01s; } }
   @keyframes mp-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
   @keyframes mp-walk { 0%, 100% { transform: translateX(-36px) scaleX(1); } 49% { transform: translateX(36px) scaleX(1); } 51% { transform: translateX(36px) scaleX(-1); } 99% { transform: translateX(-36px) scaleX(-1); } }
   @keyframes mp-fly { 0% { transform: translate(-40px, 0); } 25% { transform: translate(0, -14px); } 50% { transform: translate(40px, 0); } 75% { transform: translate(0, 10px); } 100% { transform: translate(-40px, 0); } }
@@ -568,27 +580,27 @@
   </div>
 </div>
 
-<script src="js/engine.js?v=94"></script>
-<script src="js/render.js?v=94"></script>
-<script src="js/gen.js?v=94"></script>
-<script src="js/levels-1.js?v=94"></script>
-<script src="js/levels-2.js?v=94"></script>
-<script src="js/levels-3.js?v=94"></script>
-<script src="js/levels-4.js?v=94"></script>
-<script src="js/levels-5.js?v=94"></script>
-<script src="js/levels-6.js?v=94"></script>
-<script src="js/levels-7.js?v=94"></script>
-<script src="js/levels-8.js?v=94"></script>
-<script src="js/levels-9.js?v=94"></script>
-<script src="js/levels-10.js?v=94"></script>
-<script src="js/levels-11.js?v=94"></script>
-<script src="js/levels-12.js?v=94"></script>
-<script src="js/levels-13.js?v=94"></script>
-<script src="js/checkpoints.js?v=94"></script>
-<script src="js/bosses.js?v=94"></script>
-<script src="js/worlds.js?v=94"></script>
-<script src="js/secrets.js?v=94"></script>
-<script src="js/awards.js?v=94"></script>
-<script src="js/editor.js?v=94"></script>
-<script src="js/mapart.js?v=94"></script>
-<script src="js/ui.js?v=94"></script>
+<script src="js/engine.js?v=95"></script>
+<script src="js/render.js?v=95"></script>
+<script src="js/gen.js?v=95"></script>
+<script src="js/levels-1.js?v=95"></script>
+<script src="js/levels-2.js?v=95"></script>
+<script src="js/levels-3.js?v=95"></script>
+<script src="js/levels-4.js?v=95"></script>
+<script src="js/levels-5.js?v=95"></script>
+<script src="js/levels-6.js?v=95"></script>
+<script src="js/levels-7.js?v=95"></script>
+<script src="js/levels-8.js?v=95"></script>
+<script src="js/levels-9.js?v=95"></script>
+<script src="js/levels-10.js?v=95"></script>
+<script src="js/levels-11.js?v=95"></script>
+<script src="js/levels-12.js?v=95"></script>
+<script src="js/levels-13.js?v=95"></script>
+<script src="js/checkpoints.js?v=95"></script>
+<script src="js/bosses.js?v=95"></script>
+<script src="js/worlds.js?v=95"></script>
+<script src="js/secrets.js?v=95"></script>
+<script src="js/awards.js?v=95"></script>
+<script src="js/editor.js?v=95"></script>
+<script src="js/mapart.js?v=95"></script>
+<script src="js/ui.js?v=95"></script>

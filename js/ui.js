@@ -289,12 +289,38 @@
     LF.followCamera(attract, cam, 0, true);
     setVisible({ map: true });
     renderMap(true);
+    showUnlocks();
     // Just finished a world, or left by a secret exit? Into the cannon.
     const go = store.get('launch', null);
     store.set('launch', null);
     if (typeof go === 'number' && LF.WORLDS[go + 1]) launch({ world: go });
     else if (go && go.world != null && LF.WORLDS[go.world + 1]) launch(go);
     else if (go && go.secret != null && LF.LEVELS[go.secret] && LF.LEVELS[go.secret].secretTo != null) launch(go);
+  }
+
+  // Back on the map after a win: the level you lit flares up, then each level (and cannon)
+  // it opened pops up in turn, its path fading in. (unlockShow: { lit, fresh: [indexes],
+  // cannons: [world indexes], msg }, set by cleared().)
+  let unlockShow = null;
+  const openSet = () => new Set(LF.LEVELS.map((_, k) => k).filter(k => unlocked(k)));
+  const openCannons = () => LF.WORLDS.map((_, k) => k).filter(k => LF.WORLDS[k + 1] && cannonOpen({ world: k }));
+  function showUnlocks() {
+    const u = unlockShow;
+    unlockShow = null;
+    if (!u) return;
+    const svg = $('map-board'), at = (sel, delay, cls) => { for (const el of svg.querySelectorAll(sel)) { el.classList.add(cls); el.style.animationDelay = `${delay}s`; } };
+    at(`.stop[data-i="${u.lit}"]`, 0, 'just-lit');
+    u.fresh.forEach((k, n) => {
+      const d = .7 + n * .35;
+      at(`.stop[data-i="${k}"]`, d, 'fresh');
+      at(`.trail[data-b="${k}"], .seg[data-b="${k}"], .trail[data-a="${k}"], .seg[data-a="${k}"]`, d - .25, 'fresh');
+    });
+    u.cannons.forEach((k, n) => at(`.cannon[data-world="${k}"]`, .7 + (u.fresh.length + n) * .35, 'fresh'));
+    for (const k of u.fresh) {
+      const g = svg.querySelector(`.stop[data-i="${k}"]`);
+      if (g) g.insertAdjacentHTML('beforeend', `<circle class="unlock-ring" r="12" style="animation-delay:${g.style.animationDelay}"/>`);
+    }
+    if (u.msg) flash(u.msg);
   }
 
   function renderMap(scroll) {
@@ -339,13 +365,13 @@
     for (let i = 1; i < n; i++) {
       if (!segs[i]) continue;
       const open = unlocked(i), color = art.theme(L[i].world).trail;
-      out += `<path class="trail${open ? ' open' : ''}" d="${segs[i]}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" d="${segs[i]}"/>`;
+      out += `<path class="trail${open ? ' open' : ''}" data-a="${i - 1}" data-b="${i}" d="${segs[i]}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" data-a="${i - 1}" data-b="${i}" d="${segs[i]}"/>`;
     }
     // The links between rows: more paths, the same trail.
     for (const [i, j] of links) {
       const a = pos[i], b = pos[j], my = (a.y + b.y) / 2, open = unlocked(i) && unlocked(j), color = art.theme(L[i].world).trail;
       const d = `M${a.x} ${a.y} C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`;
-      out += `<path class="trail${open ? ' open' : ''}" d="${d}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" d="${d}"/>`;
+      out += `<path class="trail${open ? ' open' : ''}" data-a="${i}" data-b="${j}" d="${d}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" data-a="${i}" data-b="${j}" d="${d}"/>`;
     }
     // Each world's cannon, aimed along the dotted arc to the next world's first stop.
     worlds.forEach((wl, k) => {
@@ -522,7 +548,7 @@
       $('map-info').innerHTML = `<div>
           <small>Fruit house · beside level ${mapHouse + 1}</small>
           <strong>Fruit Grove</strong>
-          <em>${houses[mapHouse] ? 'You’ve been in here: the fruit’s all gathered' : '5 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
+          <em>${houses[mapHouse] ? 'You’ve been in here: the fruit’s all gathered' : '10 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
         </div>
         <div class="map-actions">${houses[mapHouse] ? '' : '<button class="go" data-act="house">Go in</button>'}</div>`;
       const b = $('map-info').querySelector('[data-act]');
@@ -559,13 +585,13 @@
   // web fonts (which are wider than the fallback) have loaded.
   if (document.fonts) document.fonts.ready.then(() => { if (screen === 'map' && !mapBusy) renderMap(false); });
 
-  // The Fruit Grove: 5 seconds on a little hillside of ledges strewn with fruit (different
+  // The Fruit Grove: 10 seconds on a little hillside of ledges strewn with fruit (different
   // for every house). Whatever you pick goes in your inventory.
   function fruitGrove(i) {
     const R = LF.rng(4242 + i * 31), kinds = 'aobm';
     return {
-      name: 'Fruit Grove', dark: .3, timeLimit: 5, noRegrow: true,
-      signs: [{ x: 2, y: 9.4, t: '5 seconds: grab all the fruit you can!' }],
+      name: 'Fruit Grove', dark: .3, timeLimit: 10, noRegrow: true,
+      signs: [{ x: 2, y: 9.4, t: '10 seconds: grab all the fruit you can!' }],
       map: LF.build(44, 14, ({ r, s }) => {
         r(0, 12, 43, 13); s(2, 11, 'P');
         for (let k = 0; k < 6; k++) {
@@ -765,7 +791,7 @@
     if (playCtx.kind === 'random') return `Random · ${playCtx.opts.shape === 'mixed' ? 'up & across' : playCtx.opts.shape === 'up' ? 'upward' : 'across'} · seed ${playCtx.opts.seed}`;
     if (playCtx.kind === 'test') return 'Test play · Esc to edit';
     if (playCtx.kind === 'cannon') return `Cannon Yard · to World ${cannonDest(playCtx.how) + 1}`;
-    if (playCtx.kind === 'house') return 'Fruit house · 5 seconds';
+    if (playCtx.kind === 'house') return 'Fruit house · 10 seconds';
     if (playCtx.kind === 'practice') return `Practice · level ${playCtx.index + 1} · Z checkpoint · X remove it · C explosive`;
     if (playCtx.kind === 'shared') return 'Shared level';
     const key = keyFor(playCtx);
@@ -862,6 +888,7 @@
     let eyebrow = 'Every lamp lit', title = W.name, stats = '', buttons = '';
     const tally = (extra = '') => `<dl class="tally"><div><dt>Time</dt><dd>${fmt(t)}</dd></div><div><dt>Falls</dt><dd>${falls}</dd></div>${extra}</dl>`;
     if (playCtx.kind === 'story') {
+      const openBefore = openSet(), cannonsBefore = new Set(openCannons());
       // Hardcore runs keep their own best times; a hardcore clear also counts the level as lit.
       const book = hardcore ? progressHC : progress, i = playCtx.index, prev = book[i], wasLit = !!progress[i];
       const isBest = !prev || t < prev.best;
@@ -877,6 +904,17 @@
       // The first time you finish a world, the map fires you out of its cannon to the next.
       const world = LF.WORLDS[LF.LEVELS[i].world], worldDone = !secret && !wasLit && world.last === i && LF.WORLDS[LF.LEVELS[i].world + 1];
       if (worldDone) { mapAt = i; mapCannon = { world: LF.LEVELS[i].world }; store.set('mapAt', i); }
+      // Won: straight back to the map, to watch what it opened (the very last level gets
+      // its ending instead).
+      if (!last) {
+        const fresh = [...openSet()].filter(k => !openBefore.has(k)), cannons = openCannons().filter(k => !cannonsBefore.has(k));
+        const opened = fresh.length ? ` · ${fresh.length === 1 ? `level ${fresh[0] + 1} open` : `${fresh.length} new levels open`}` : '';
+        const msg = worldDone ? `${world.name} complete! Press Enter to climb into the cannon`
+          : secret ? 'Secret exit found! Press Enter to climb into the secret cannon'
+          : `${esc(W.name)} lit · ${fmt(t)}${isBest && prev ? ' · new best!' : ''}${opened}`;
+        unlockShow = { lit: i, fresh, cannons, msg };
+        return showMap();
+      }
       eyebrow = secret ? `Level ${i + 1} · secret exit found!` : `Level ${i + 1} of ${LF.LEVELS.length} · ${hardcore ? 'hardcore clear' : 'every lamp lit'}`;
       stats = tally(`<div class="best"><dt>${isBest ? 'New best' : 'Best'}</dt><dd>${fmt(isBest ? t : prev.best)}</dd></div>`);
       if (worldDone) {
