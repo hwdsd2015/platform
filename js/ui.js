@@ -209,7 +209,7 @@
     // Next to a cleared level, or to where a secret cannon lands you.
     return near(i).some(j => progress[j] || landedBySecret(j));
   };
-  const COLS = 8, CW = 104, RH = 120, PAD = 70;
+  const COLS = 8, CW = 104, RH = 150, PAD = 70;
   const stopR = lv => lv.finalFight ? 22 : lv.boss ? 17 : 12;
 
   // Where everything goes: each world starts a new block of rows under its title, snaking
@@ -218,41 +218,48 @@
   function mapLayout() {
     if (layout) return layout;
     const pos = [], worlds = [], right = PAD + (COLS - 1) * CW;
-    let y = PAD + 110;
+    let y = PAD + 140;
     LF.WORLDS.forEach((wd, k) => {
-      const top = y - 130;
+      const top = y - 160;
       let row = 0;
       for (let i = wd.first, c = 0; i <= wd.last; i++, c++) {
         if (c === COLS) { c = 0; row++; y += RH; }
-        // A little wobble, so the path looks walked rather than ruled.
-        pos[i] = { x: PAD + (row % 2 ? COLS - 1 - c : c) * CW + Math.sin(i * 1.9) * 10, y: y + Math.sin(i * 1.1 + row) * 12, row };
+        // A good wobble, so the road winds about rather than running ruled.
+        pos[i] = { x: PAD + (row % 2 ? COLS - 1 - c : c) * CW + Math.sin(i * 1.9) * 14, y: y + Math.sin(i * 1.1 + row) * 10, base: y, row };
       }
       const last = pos[wd.last], dir = last.row % 2 ? -1 : 1, cx = last.x + dir * CW;
       const cannon = k === LF.WORLDS.length - 1 ? null : cx >= PAD - 20 && cx <= right + 20 ? { x: cx, y: last.y, dir } : { x: last.x, y: last.y + RH * .7, dir };
       worlds.push({ top, bottom: (cannon ? Math.max(cannon.y, y) : y) + 50, cannon });
-      y = (cannon ? Math.max(cannon.y, y) : y) + RH + 120;
+      y = (cannon ? Math.max(cannon.y, y) : y) + RH + 150;
     });
-    // More ways through each world, never around a boss fight:
-    // - Splits: every few stops the road forks round a stop that sits below it; go straight
-    //   on past it, or down and round through it.
-    // - Links down from one row to the next: from a stop to the one straight below it, as
-    //   long as the stretch of road it cuts out has no boss fight.
+    // Lots of ways through each world (so lots of crossroads), never around a boss fight
+    // and never out of the world:
+    // - Braids: between boss fights the road zigzags, its stops stepping up and down, and
+    //   two side lanes run along it, each joining every other stop: so most stops are
+    //   crossroads, and you can weave through any way you like. Boss fights sit on the
+    //   middle of the road, where every lane has to pass through them.
+    // - Links down from one row to the next: from a stop to the one straight below it.
+    // None may cut out a stretch of road with a boss fight on it.
     const links = [], adj = LF.LEVELS.map(() => []);
+    const bossBetween = (i, j) => { for (let t = Math.min(i, j) + 1; t < Math.max(i, j); t++) if (LF.LEVELS[t].boss) return true; return false; };
+    const sameRow = (i, j) => pos[i].row === pos[j].row;
     LF.WORLDS.forEach(wd => {
-      for (let i = wd.first + 1; i + 2 <= wd.last; i++) {
-        const col = (i - wd.first) % COLS;
-        if ((i - wd.first) % 5 !== 1 || col > COLS - 3 || LF.LEVELS[i + 1].boss) continue;
-        pos[i + 1].y += 54; pos[i + 1].dip = true;
-        links.push([i, i + 2]);
+      for (let i = wd.first; i <= wd.last; i++) {
+        const lv = LF.LEVELS[i];
+        if (lv.boss || lv.finalFight) continue;
+        pos[i].y += ((i - wd.first) % 2 ? 1 : -1) * 30;
+      }
+      for (let i = wd.first; i + 2 <= wd.last; i++) {
+        if (!sameRow(i, i + 2) || bossBetween(i, i + 2) || LF.LEVELS[i].boss || LF.LEVELS[i + 2].boss) continue;
+        links.push([i, i + 2, 'lane']);
       }
       for (let r = 0; wd.first + (r + 1) * COLS <= wd.last; r++) {
-        for (const c of [2 + (r % 3) * 2, 3, 5, 1, 6, 4]) {
+        const used = [];
+        for (const c of [1 + (r % 2), 4, 6 - (r % 2), 3, 5, 2, 0, 7]) {
+          if (used.length >= 3 || used.some(u => Math.abs(u - c) < 2)) continue;
           const i = wd.first + r * COLS + c, j = wd.first + (r + 1) * COLS + (COLS - 1 - c);
-          if (j > wd.last || j - i < 3 || pos[i].dip || pos[j].dip) continue;
-          let boss = false;
-          for (let t = i + 1; t < j; t++) if (LF.LEVELS[t].boss) boss = true;
-          if (boss) continue;
-          links.push([i, j]); break;
+          if (j > wd.last || j - i < 3 || bossBetween(i, j)) continue;
+          links.push([i, j]); used.push(c);
         }
       }
     });
@@ -266,7 +273,7 @@
     // Fruit houses sit just below and to the left of their level's stop.
     const houseSpots = {};
     for (const i of HOUSE_LEVELS) houseSpots[i] = { x: Math.max(PAD - 40, pos[i].x - 36), y: pos[i].y + 48 };
-    return layout = { pos, worlds, secretCannons, houseSpots, links, adj, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 120 + PAD + 20 };
+    return layout = { pos, worlds, secretCannons, houseSpots, links, adj, w: PAD * 2 + (COLS - 1) * CW, h: y - RH - 150 + PAD + 20 };
   }
   const arcPoint = (a, b, u) => {
     const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 170;
@@ -368,9 +375,12 @@
       out += `<path class="trail${open ? ' open' : ''}" data-a="${i - 1}" data-b="${i}" d="${segs[i]}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" data-a="${i - 1}" data-b="${i}" d="${segs[i]}"/>`;
     }
     // The links between rows: more paths, the same trail.
-    for (const [i, j] of links) {
+    for (const [i, j, kind] of links) {
       const a = pos[i], b = pos[j], my = (a.y + b.y) / 2, open = unlocked(i) && unlocked(j), color = art.theme(L[i].world).trail;
-      const d = `M${a.x} ${a.y} C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`;
+      // (A lane bows a little outwards, away from the road's middle.)
+      const bow = kind === 'lane' ? Math.sign(a.y + b.y - 2 * pos[i + 1].y) * 16 : 0;
+      const d = kind === 'lane' ? `M${a.x} ${a.y} Q${(a.x + b.x) / 2} ${(a.y + b.y) / 2 + bow} ${b.x} ${b.y}`
+        : `M${a.x} ${a.y} C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`;
       out += `<path class="trail${open ? ' open' : ''}" data-a="${i}" data-b="${j}" d="${d}" stroke="${color}"/><path class="seg${open ? ' open' : ''}" data-a="${i}" data-b="${j}" d="${d}"/>`;
     }
     // Each world's cannon, aimed along the dotted arc to the next world's first stop.
@@ -401,7 +411,7 @@
     L.forEach((lv, i) => {
       if (i && L[i - 1].chapter === lv.chapter) return;
       const p = pos[i], forward = p.row % 2 === 0, right = p.x < 230 || (forward && p.x < w - 230);
-      out += `<text class="ch" x="${p.x + (right ? 24 : -24)}" y="${p.y - 60}" text-anchor="${right ? 'start' : 'end'}">${roman(chapterIndex(i))} · ${esc(lv.chapter)}</text>`;
+      out += `<text class="ch" x="${p.x + (right ? 24 : -24)}" y="${p.base - 66}" text-anchor="${right ? 'start' : 'end'}">${roman(chapterIndex(i))} · ${esc(lv.chapter)}</text>`;
     });
     // Creatures wandering each world, in clear spots between its rows.
     worlds.forEach((wl, k) => {
@@ -412,6 +422,9 @@
       }
       out += art.wanderers(k, spots);
     });
+    // Crossroads: a cobbled ring under every stop where three or more roads meet.
+    const { adj } = mapLayout();
+    L.forEach((lv, i) => { if (adj[i].length >= 3) out += `<g class="xroad${unlocked(i) ? ' open' : ''}" transform="translate(${pos[i].x} ${pos[i].y})"><circle r="24"/><circle class="cobble" r="17"/></g>`; });
     // The stops: lamp posts (unlit until cleared), towers for boss fights, a castle at the
     // end. A star marks a secret exit you've found; a blue ? one still hiding in a level
     // you've cleared.
