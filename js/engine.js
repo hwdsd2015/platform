@@ -1337,7 +1337,7 @@
       if (d <= sp) {
         e.x = e.ft.x; e.y = e.ft.y; e.ft = null;
         // At the end of a dart it drops a bomb or three on you.
-        for (const vx of [-90, 0, 90]) W.projectiles.push({ kind: 'bomb', x: e.x + e.w / 2 - 6, y: e.y + e.h, w: 12, h: 12, vx, vy: 60, g: 900, life: 3 });
+        for (const vx of [-90, 0, 90]) W.projectiles.push({ kind: 'bomb', fury: true, x: e.x + e.w / 2 - 6, y: e.y + e.h, w: 12, h: 12, vx, vy: 60, g: 900, life: 3 });
       } else { e.x += dx / d * sp; e.y += dy / d * sp; }
     }
   }
@@ -2113,8 +2113,9 @@
     const p = W.player;
     for (const b of W.projectiles) {
       if (b.kind === 'kgrenade') { stepKingGrenade(W, b, dt, playing); continue; }
-      // A bomb works out where it'll land the moment it's thrown, so that spot can be marked.
-      if (b.kind === 'bomb') { if (b.land === undefined) { b.land = bombLanding(W, b); b.flown = 0; } b.flown += dt; }
+      // A raging boss's bomb works out where it'll land the moment it's dropped, so that
+      // spot can be marked. (The Powder King's bombs give no warning.)
+      if (b.kind === 'bomb' && b.fury) { if (b.land === undefined) { b.land = bombLanding(W, b); b.flown = 0; } b.flown += dt; }
       // A warning mark is harmless; when it runs out, what it warned of appears.
       if (b.kind === 'warn') { b.life -= dt; if (b.life <= 0) { W.projectiles.push({ ...b.then }); burst(W, b.x + b.w / 2, b.y + b.h, 8, ['#FF6B3D', '#FFE2A8'], 90, -60, 2); } continue; }
       if (b.g) b.vy += b.g * dt;
