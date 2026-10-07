@@ -168,7 +168,7 @@
     const tiles = rows.map(r => r.split('').map(c => (c === '.' ? ' ' : c)));
     const W = {
       def, name: def.name || 'Untitled', dark: def.dark ?? .6, w, h, tiles,
-      lanterns: [], fruits: [], ammo: [], ammoFly: [], passages: [], entries: [], marks: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
+      lanterns: [], spinners: [], fruits: [], ammo: [], ammoFly: [], passages: [], entries: [], marks: [], blinks: [], bullets: [], traps: [], rings: [], ghosts: [], keys: [], unlocking: [], freeze: 0, enemies: [], plats: [], projectiles: [], particles: [], floaters: [], crumbles: [],
       door: null, start: { tx: 1, ty: h - 2 }, clock: 0, time: 0, falls: 0, shake: 0,
       deadTimer: 0, cleared: false, events: [],
     };
@@ -205,6 +205,11 @@
       }
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
+        tiles[y][x] = ' ';
+      } else if (c === ':') {
+        // Turn block: a 3x3 square of stone centred here that turns a quarter turn about its
+        // middle, again and again (see stepSpinners).
+        W.spinners.push({ cx: x * TS + 16, cy: y * TS + 16, half: TS * 1.5, a: 0, da: 0, t: (x * 3 + y) % 5 * .3, dir: (x + y) % 2 ? 1 : -1, turns: 0 });
         tiles[y][x] = ' ';
       } else if (c === 'x') {
         // Wheel: WHEEL_CARS platforms turning around this spot (they stay level as they go).
@@ -538,6 +543,7 @@
     if (W.freeze > 0) { W.freeze -= dt; return; }
     W.clock += dt;
     stepPlats(W, dt);
+    stepSpinners(W, dt);
     stepCrumbles(W, dt);
     for (const e of W.enemies) {
       if (!e.alive) { e.dead += dt; continue; }
@@ -590,6 +596,38 @@
   const WHEEL_R = TS * 3, WHEEL_CARS = 4, WHEEL_SPIN = .75;
   LF.WHEEL_R = WHEEL_R;
   function wheelAt(pl) { pl.x = pl.cx + Math.cos(pl.a) * WHEEL_R - pl.w / 2; pl.y = pl.cy + Math.sin(pl.a) * WHEEL_R - pl.h / 2; }
+  // Turn blocks hold still for SPIN_HOLD seconds (shaking for the last SPIN_WARN of them),
+  // then turn a quarter turn over SPIN_TURN seconds.
+  const SPIN_HOLD = 1.8, SPIN_WARN = .45, SPIN_TURN = .6;
+  LF.SPIN = { HOLD: SPIN_HOLD, WARN: SPIN_WARN, TURN: SPIN_TURN };
+  function stepSpinners(W, dt) {
+    for (const s of W.spinners) {
+      const before = s.a;
+      s.t += dt;
+      const cycle = SPIN_HOLD + SPIN_TURN;
+      while (s.t >= cycle) { s.t -= cycle; s.turns++; }
+      const u = Math.max(0, (s.t - SPIN_HOLD) / SPIN_TURN), ease = u * u * (3 - 2 * u);
+      s.a = s.dir * (s.turns + ease) * Math.PI / 2;
+      s.da = s.a - before;
+      s.shake = s.t > SPIN_HOLD - SPIN_WARN && s.t < SPIN_HOLD;
+    }
+  }
+  // Push a box out of a turn block (a square turned by s.a), along the shortest way out.
+  // Returns that push, or null if they don't touch.
+  function spinnerPush(s, b) {
+    const c = Math.cos(s.a), sn = Math.sin(s.a), bx = b.x + b.w / 2, by = b.y + b.h / 2;
+    let best = null;
+    for (const [ax, ay] of [[1, 0], [0, 1], [c, sn], [-sn, c]]) {
+      // The box's half-width along this axis, and the square's.
+      const rb = Math.abs(ax) * b.w / 2 + Math.abs(ay) * b.h / 2;
+      const rs = s.half * (Math.abs(ax * c + ay * sn) + Math.abs(-ax * sn + ay * c));
+      const d = (bx - s.cx) * ax + (by - s.cy) * ay, over = rb + rs - Math.abs(d);
+      if (over <= 0) return null;
+      if (!best || over < best.over) best = { over, x: ax * Math.sign(d || 1) * over, y: ay * Math.sign(d || 1) * over };
+    }
+    return best;
+  }
+  LF.spinnerCorners = s => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => ({ x: s.cx + (u * Math.cos(s.a) - v * Math.sin(s.a)) * s.half, y: s.cy + (u * Math.sin(s.a) + v * Math.cos(s.a)) * s.half }));
   function stepPlats(W, dt) {
     for (const pl of W.plats) {
       pl.prevY = pl.y; pl.dx = 0; pl.dy = 0;
@@ -2214,6 +2252,11 @@
     if (p.dbl > 0 && Math.random() < .08) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y + p.h * Math.random(), vx: 0, vy: -20, life: .4, max: .4, c: '#FFE066', size: 2, g: 0 });
 
     if (p.onPlat && !dropping) { moveX(W, p, p.onPlat.dx); p.y += p.onPlat.dy; }
+    // Standing on a turn block, you turn with it (about its middle, from where your feet are).
+    if (p.spinOn && p.spinOn.da) {
+      const s = p.spinOn, fx = p.x + p.w / 2 - s.cx, fy = p.y + p.h - s.cy, c = Math.cos(s.da), sn = Math.sin(s.da);
+      moveX(W, p, fx * c - fy * sn - fx); p.y += fx * sn + fy * c - fy;
+    }
     if (p.onGround && p.conv) moveX(W, p, p.conv * CONVEY * dt);
 
     // Gun: finite ammo, kills anything it hits. Each press fires one shot;
@@ -2278,7 +2321,7 @@
     }
 
     const wasAir = !p.onGround, fallSpeed = p.vy;
-    p.onGround = false; p.onPlat = null; p.conv = 0; p.ice = false;
+    p.onGround = false; p.onPlat = null; p.spinOn = null; p.conv = 0; p.ice = false;
     if (moveX(W, p, p.vx * dt)) p.vx = 0;
     const pb = p.y + p.h;
     const hit = moveY(W, p, p.vy * dt, dropping);
@@ -2309,6 +2352,16 @@
           p.y = t.y - p.h; p.vy = 0; p.onGround = true; p.onPlat = t; break;
         }
       }
+    }
+    // Turn blocks: pushed out of the square the shortest way. Pushed up out of its top (a
+    // face no steeper than about 50°), you're standing on it.
+    for (const sp of W.spinners) {
+      const m = spinnerPush(sp, p);
+      if (!m) continue;
+      p.x += m.x; p.y += m.y;
+      if (m.y < 0 && -m.y > Math.abs(m.x) * .8) { if (p.vy > 0) p.vy = 0; p.onGround = true; p.spinOn = sp; }
+      else if (m.y > 0 && m.y > Math.abs(m.x)) { if (p.vy < 0) { p.vy = 0; p.jumping = false; } }
+      else if (Math.sign(m.x) !== Math.sign(p.vx)) p.vx = 0;
     }
     if (bounced) {
       p.vy = -SPRING * Math.sqrt(T.gravity); p.onGround = false; p.coyote = 0; p.jumping = false; p.sx = .7; p.sy = 1.35;

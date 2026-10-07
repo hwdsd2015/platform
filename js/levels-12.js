@@ -1,6 +1,7 @@
 // Lanternfall: the Sky Roads, a world of pure platforming. No enemies, no floor: islands
 // of stone hang in the night sky over a sea of cloud, and a fall is a fall all the way down.
-// Wheels (x) turn their platforms round and round. These levels aren't in LF.LEVELS when the
+// Wheels (x) turn their platforms round and round; turn blocks (:) turn a quarter turn at a
+// time, tipping off anyone still standing on them. These levels aren't in LF.LEVELS when the
 // boss fights are laid in (they'd shift every tower); bosses.js slots them in as their own
 // world, after the Clockwork Quarter. Load after levels-11.js and before bosses.js.
 (() => {
@@ -17,7 +18,7 @@
   LF.SKY_LEVELS = [
     sky('The Cloud Steps', 'Cloud Steps', 78, [{ x: 1, y: 10.4, t: 'THE SKY ROADS · no floor, no enemies · mind the drop' }], ({ s, isle }) => {
       isle(0, 14, 6); s(2, 13, 'P');
-      isle(9, 14, 4); isle(16, 12, 4); isle(23, 13, 3); isle(29, 11, 4);
+      isle(9, 14, 4); isle(16, 12, 4); s(24, 13, ':'); isle(29, 11, 4);
       isle(36, 11, 5); s(38, 10, 'L'); s(39, 10, 'o');
       isle(44, 13, 3);
       isle(50, 14, 4); s(52, 14, 'O');
@@ -52,7 +53,7 @@
     sky('The Cloud Steps', 'Shingle Sky', 80, [{ x: 1, y: 8.4, t: 'shingles fall · stone crumbles · springs fling' }], ({ r, s, isle }) => {
       isle(0, 12, 5); s(1, 11, 'P');
       for (const x of [7, 9, 11, 13]) s(x, 12, 'd');
-      isle(16, 12, 3);
+      s(17, 13, ':');
       r(21, 10, 28, 10, 'C');
       isle(31, 10, 4); s(33, 9, 'L'); s(32, 9, 'o');
       isle(37, 13, 3); s(38, 13, 'O');
@@ -67,7 +68,7 @@
       s(9, 12, 'x'); s(17, 10, 'x');
       isle(24, 9, 3); s(25, 8, 'L');
       s(32, 8, 'x'); s(41, 10, 'x');
-      isle(48, 11, 3);
+      s(49, 12, ':');
       isle(54, 9, 3); s(55, 8, 'b');
       s(63, 9, 'x');
       isle(70, 9, 10); s(77, 8, 'D');
@@ -78,7 +79,7 @@
       isle(27, 10, 4); s(29, 9, 'L');
       s(36, 10, 'x');
       r(43, 9, 45, 9, 'T'); r(48, 8, 50, 8, 'H');
-      isle(53, 8, 3);
+      s(54, 9, ':');
       isle(59, 12, 3); s(60, 12, 'O');
       isle(63, 5, 4); s(64, 4, 'o');
       isle(70, 7, 8); s(75, 6, 'D');
@@ -105,7 +106,7 @@
       s(25, 11, 'x'); s(34, 9, 'x');
       isle(38, 4, 4); s(40, 3, 'L'); s(39, 3, 'b');
       r(45, 5, 50, 5, 'C');
-      isle(53, 6, 3);
+      s(54, 7, ':');
       s(56, 9, '|'); s(57, 9, 'M'); s(69, 9, '|');
       isle(71, 9, 3);
       s(75, 10, 'd'); s(77, 11, 'd'); s(79, 12, 'd');

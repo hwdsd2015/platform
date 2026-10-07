@@ -304,6 +304,20 @@
     }
 
     function drawPlats(W) {
+      // Turn blocks: a square of stone on its pivot, shaking just before it turns.
+      for (const s of W.spinners) {
+        const j = s.shake && !reduced ? (Math.random() - .5) * 3 : 0, h = s.half;
+        ctx.save(); ctx.translate(s.cx + j, s.cy); ctx.rotate(s.a);
+        ctx.fillStyle = '#4C4062'; ctx.fillRect(-h, -h, h * 2, h * 2);
+        ctx.fillStyle = '#5E5173';
+        for (let gy = 0; gy < 3; gy++) for (let gx = 0; gx < 3; gx++) ctx.fillRect(-h + gx * TS + 2, -h + gy * TS + 2, TS - 4, TS - 4);
+        ctx.strokeStyle = s.shake ? '#FFB547' : '#8F81AB'; ctx.lineWidth = 3; ctx.strokeRect(-h + 1.5, -h + 1.5, h * 2 - 3, h * 2 - 3);
+        ctx.fillStyle = '#2A2348'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill();
+        ctx.fillStyle = s.shake ? '#FFB547' : '#C08A5C'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#2A2348'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 6); ctx.stroke();
+        ctx.restore();
+      }
       // Wheels: the hub and spokes behind their platforms.
       for (const p of W.plats) {
         if (p.kind !== 'wheel') continue;

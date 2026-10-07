@@ -35,6 +35,9 @@
         while (l - 1 >= 0 && !blocksPlat(T(l - 1, y))) l--;
         while (r + 1 < w && !blocksPlat(T(r + 1, y))) r++;
         for (let i = l; i <= r; i++) platStand.add(key(i, y - 1));
+      } else if (c === ':') {
+        // A turn block: stand on top of its 3x3 square (while it holds still).
+        for (const sx of [x - 1, x, x + 1]) if (sx >= 0 && sx < w && y - 2 >= 0) platStand.add(key(sx, y - 2));
       } else if (c === 'x') {
         // A wheel: its platforms pass over every spot round a circle 3 tiles from the hub.
         for (let k = 0; k < 48; k++) {
