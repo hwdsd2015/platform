@@ -840,7 +840,7 @@
         break;
       }
       // Bullets knock embers, arrows, bombs and shockwaves out of the air, but fly through fire.
-      for (const q of W.projectiles) if (b.life > 0 && q.kind !== 'flame' && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 * b.s && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 2 * b.s + 2) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
+      for (const q of W.projectiles) if (b.life > 0 && q.kind !== 'flame' && q.kind !== 'warn' && Math.abs(q.x + q.w / 2 - b.x) < q.w / 2 + 4 * b.s && Math.abs(q.y + q.h / 2 - b.y) < q.h / 2 + 2 * b.s + 2) { q.life = 0; b.life = 0; burst(W, b.x, b.y, 8, LF.WARM, 100, 200, 2); }
     }
     W.bullets = W.bullets.filter(b => b.life > 0);
   }
@@ -1282,9 +1282,11 @@
     for (const d of [-3, -1.5, 1.5, 3]) {
       const x = p.x + p.w / 2 + d * TS, fy = floorUnder(W, x, p.y);
       if (fy == null || x < arenaLeft(W) || x > arenaRight(W)) continue;
-      W.projectiles.push({ kind: 'flame', x: x - 7, y: fy - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.4 });
+      // A glowing warning on the floor first; the fire bursts up FLAME_WARN seconds later.
+      W.projectiles.push({ kind: 'warn', x: x - 7, y: fy - 18, w: 14, h: 18, vx: 0, vy: 0, life: FLAME_WARN, max: FLAME_WARN, then: { kind: 'flame', x: x - 7, y: fy - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.4 } });
     }
   }
+  const FLAME_WARN = .8;
   function emberRing(W, e) {
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2, p = W.player, toP = Math.atan2(p.y + p.h / 2 - ey, p.x + p.w / 2 - ex);
     for (let k = 0; k < 12; k++) {
@@ -2100,6 +2102,8 @@
     const p = W.player;
     for (const b of W.projectiles) {
       if (b.kind === 'kgrenade') { stepKingGrenade(W, b, dt, playing); continue; }
+      // A warning mark is harmless; when it runs out, what it warned of appears.
+      if (b.kind === 'warn') { b.life -= dt; if (b.life <= 0) { W.projectiles.push({ ...b.then }); burst(W, b.x + b.w / 2, b.y + b.h, 8, ['#FF6B3D', '#FFE2A8'], 90, -60, 2); } continue; }
       if (b.g) b.vy += b.g * dt;
       b.x += b.vx * dt; b.y += (b.vy || 0) * dt; b.life -= dt;
       const bx = b.x + b.w / 2, by = b.y + b.h / 2;

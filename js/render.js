@@ -1214,6 +1214,17 @@
           ctx.beginPath(); ctx.arc(x, y, 4.5, 0, TAU); ctx.stroke();
           continue;
         }
+        if (b.kind === 'warn') {
+          // Where fire's about to burst up: a glow on the floor that pulses faster and
+          // brighter as the moment nears, and a "!".
+          const x = b.x + b.w / 2, y = b.y + b.h, u = 1 - b.life / b.max, pulse = .5 + .5 * Math.sin(clock * (10 + u * 25));
+          const g = ctx.createRadialGradient(x, y, 0, x, y, 18);
+          g.addColorStop(0, `rgba(255,107,61,${.35 + .5 * u * pulse})`); g.addColorStop(1, 'rgba(255,107,61,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y - 1, 18, 7, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = `rgba(255,226,168,${.5 + .5 * pulse})`; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('!', x, y - 8 - u * 4); ctx.textAlign = 'start';
+          continue;
+        }
         if (b.kind === 'flame') {
           // A patch of fire left on the floor; it dies down as it burns out.
           const x = b.x + b.w / 2, y = b.y + b.h, k = Math.min(1, b.life / .6) * flick(x, .3);
