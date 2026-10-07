@@ -962,6 +962,9 @@
   function stepEnemy(W, e, dt, playing) {
     e.t += dt;
     if (isBoss(e)) {
+      // Raging walkers and flyers rampage round the arena instead of their usual routine;
+      // the rest keep to it, faster.
+      if (e.fury > 0 && furyKind(e)) return furyMove(W, e, dt);
       if (e.fury > 0) stepBoss(W, e, dt * .6, playing);
       return stepBoss(W, e, dt, playing);
     }
@@ -1211,26 +1214,113 @@
     W.floaters.push({ x: e.x + e.w / 2, y: e.y - 22, t: 'FURY!', life: 1.4, c: '#FF4D3D' });
     W.shake = Math.max(W.shake, .3); W.emit('roar');
   }
-  // Raging, the boss lashes out every FURY_EVERY seconds for as long as the fury lasts:
-  // shockwaves along the floor if it's standing (and every third time a ring of embers as
-  // well), else a ring of embers, always with a gap where you are.
+  // Raging, the boss rampages round its arena: every FURY_EVERY seconds it does the next
+  // thing in turn: a leap (walkers) or a dart (flyers) to somewhere new, a ring of embers,
+  // patches of fire round your feet, a shower of rocks from the ceiling. Walkers slam down
+  // where they land (shockwaves and falling rocks). Bosses fixed in place (pendulums, the
+  // wheel, the crusher, hearts, swimmers) keep to their spot but still do all the rest.
+  const FURY_FIXED = new Set(['E+', 'e+', 'f+', 'k+', '&+', '%+', '*+', 'U+', 'Y+', 'N+']);
+  const furyKind = e => FURY_FIXED.has(e.type) ? null : e.type === '6' || e.type === 'Ω+' || LF.ENEMIES[e.type].fly ? 'fly' : 'leap';
+  // The ceiling over a spot (the top of the open air above it), and the floor under it
+  // (null if the drop ends in lava or water, or not at all).
+  function ceilingOver(W, x, y) { const tx = Math.floor(x / TS); let ty = Math.floor(y / TS); while (ty > 0 && !isSolid(tile(W, tx, ty - 1))) ty--; return ty * TS; }
+  function floorUnder(W, x, y) {
+    const tx = Math.floor(x / TS);
+    for (let ty = Math.max(0, Math.floor(y / TS)); ty < W.h; ty++) { const c = tile(W, tx, ty); if (c === '!' || c === '~') return null; if (isFloor(c)) return ty * TS; }
+    return null;
+  }
+  const arenaRight = W => (W.w - 1) * TS;
+  function rockRain(W, n, spread) {
+    const p = W.player, px = p.x + p.w / 2;
+    for (let k = 0; k < n; k++) {
+      const x = Math.max(arenaLeft(W) + 8, Math.min(arenaRight(W) - 8, px + (k / Math.max(1, n - 1) * 2 - 1) * spread * TS + (Math.random() - .5) * TS));
+      const top = ceilingOver(W, x, p.y);
+      W.projectiles.push({ kind: 'rock', x: x - 7, y: top + 2, w: 14, h: 14, vx: 0, vy: 0, g: 600 + Math.random() * 400, life: 4 });
+      burst(W, x, top + 2, 4, ['#8F81AB', '#5E5173'], 40, 200, 2);
+    }
+  }
+  function fireAround(W) {
+    const p = W.player;
+    for (const d of [-3, -1.5, 1.5, 3]) {
+      const x = p.x + p.w / 2 + d * TS, fy = floorUnder(W, x, p.y);
+      if (fy == null || x < arenaLeft(W) || x > arenaRight(W)) continue;
+      W.projectiles.push({ kind: 'flame', x: x - 7, y: fy - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.4 });
+    }
+  }
+  function emberRing(W, e) {
+    const ex = e.x + e.w / 2, ey = e.y + e.h / 2, p = W.player, toP = Math.atan2(p.y + p.h / 2 - ey, p.x + p.w / 2 - ex);
+    for (let k = 0; k < 12; k++) {
+      const a = k / 12 * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
+      if (off < .45) continue;
+      W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, life: 4 });
+    }
+  }
+  // Leap somewhere new with floor under it: half the time near you, else across the arena.
+  function furyLeap(W, e) {
+    const p = W.player, px = p.x + p.w / 2, lo = arenaLeft(W) + TS, hi = arenaRight(W) - TS - e.w;
+    if (hi <= lo) return;
+    for (let k = 0; k < 16; k++) {
+      const near = (e.furyN + k) % 2 === 0;
+      const tx = Math.max(lo, Math.min(hi, near ? px - e.w / 2 + (Math.random() - .5) * TS * 6 : lo + Math.random() * (hi - lo)));
+      if (Math.abs(tx - e.x) < TS * 3 || floorUnder(W, tx + e.w / 2, e.y) == null) continue;
+      e.fjump = true; e.ground = false; e.vy = -1000; e.vx = Math.max(-650, Math.min(650, (tx - e.x) / .95));
+      burst(W, e.x + e.w / 2, e.y + e.h, 14, ['#FF4D3D', '#9A8FBF'], 160, 300, 3);
+      return;
+    }
+  }
+  function furyDart(W, e) {
+    const p = W.player, lo = arenaLeft(W) + TS, hi = arenaRight(W) - TS - e.w;
+    if (hi <= lo) return;
+    const top = ceilingOver(W, p.x + p.w / 2, p.y) + TS;
+    e.ft = { x: lo + Math.random() * (hi - lo), y: Math.max(top, Math.min(p.y - e.h - TS * 2, top + Math.random() * TS * 3)) };
+  }
+  function furySlam(W, e) {
+    shock(W, e, [[-1, 280], [1, 280]]);
+    rockRain(W, 4, 4);
+    ring(W, e.x + e.w / 2, e.y + e.h, e.w * 1.5, '255,77,61', .4);
+    burst(W, e.x + e.w / 2, e.y + e.h, 20, ['#FF4D3D', '#FFB547', '#9A8FBF'], 220, 400, 3);
+    W.shake = Math.max(W.shake, .45); W.emit('stomp', { type: e.type });
+  }
+  // Movement while raging, for bosses that leap or dart (instead of their usual routine).
+  function furyMove(W, e, dt) {
+    e.hurt = Math.max(0, e.hurt - dt); e.stompCool = Math.max(0, e.stompCool - dt);
+    const p = W.player;
+    e.face = Math.sign(p.x + p.w / 2 - (e.x + e.w / 2)) || e.face;
+    if (e.y > W.h * TS + 40) { e.x = e.ox; e.y = e.oy; e.vx = e.vy = 0; e.fjump = false; }
+    if (furyKind(e) === 'leap') {
+      if (e.fjump && moveX(W, e, e.vx * dt)) e.vx = 0;
+      e.x = Math.max(arenaLeft(W), Math.min(arenaRight(W) - e.w, e.x));
+      const landed = bossFall(W, e, dt);
+      if (e.fjump && landed) { e.fjump = false; e.vx = 0; furySlam(W, e); }
+    } else if (e.ft) {
+      const dx = e.ft.x - e.x, dy = e.ft.y - e.y, d = Math.hypot(dx, dy), sp = 560 * dt;
+      if (d <= sp) {
+        e.x = e.ft.x; e.y = e.ft.y; e.ft = null;
+        // At the end of a dart it drops a bomb or three on you.
+        for (const vx of [-90, 0, 90]) W.projectiles.push({ kind: 'bomb', x: e.x + e.w / 2 - 6, y: e.y + e.h, w: 12, h: 12, vx, vy: 60, g: 900, life: 3 });
+      } else { e.x += dx / d * sp; e.y += dy / d * sp; }
+    }
+  }
   function stepFury(W, e, dt) {
     e.fury -= dt; e.dazed = 0;
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
     if (Math.random() < dt * 30) burst(W, ex + (Math.random() - .5) * e.w, ey + (Math.random() - .5) * e.h, 1, ['#FF4D3D', '#FFB547'], 60, -80, 2.5);
-    e.furyHit -= dt;
-    if (e.furyHit > 0 || e.fury <= 0) return;
-    e.furyHit = FURY_EVERY; e.furyN++;
-    const grounded = e.ground && !LF.ENEMIES[e.type].fly;
-    if (grounded) shock(W, e, [[-1, 250], [1, 250]]);
-    if (!grounded || e.furyN % 3 === 0) {
-      const p = W.player, toP = Math.atan2(p.y + p.h / 2 - ey, p.x + p.w / 2 - ex);
-      for (let k = 0; k < 10; k++) {
-        const a = k / 10 * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
-        if (off < .5) continue;
-        W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, life: 4 });
-      }
+    if (e.fury <= 0) {
+      // Calming down: back to its usual routine, from the top.
+      if (furyKind(e)) { e.fjump = false; e.ft = null; e.vx = 0; e.state = 'idle'; e.wait = .8; }
+      return;
     }
+    e.furyHit -= dt;
+    if (e.furyHit > 0) return;
+    e.furyHit = FURY_EVERY; e.furyN++;
+    const kind = furyKind(e), step = e.furyN % 4;
+    if (step === 1) {
+      if (kind === 'leap' && e.ground) furyLeap(W, e);
+      else if (kind === 'fly') furyDart(W, e);
+      else rockRain(W, 6, 5);
+    } else if (step === 2) emberRing(W, e);
+    else if (step === 3) fireAround(W);
+    else rockRain(W, 6, 6);
     ring(W, ex, ey, Math.max(e.w, e.h), '255,77,61', .4);
     W.shake = Math.max(W.shake, .25);
   }
@@ -2287,19 +2377,19 @@
     }
 
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-    // Stepping into a tower's boss arena, the dark tears every fruit power off you (fruit
-    // you find in the arena still works).
+    // Stepping into a tower's boss arena, the dark tears every fruit power off you but the
+    // apple shield.
     if (W.def.arenaX && !W.stripped && p.x >= W.def.arenaX * TS) {
       W.stripped = true;
-      const had = [p.shield && 'a', p.boost && 'o', p.dbl && 'b', p.fast && 'm'].filter(Boolean);
+      const had = [p.boost && 'o', p.dbl && 'b', p.fast && 'm'].filter(Boolean);
       if (had.length) {
-        p.shield = p.boost = p.dbl = p.fast = 0; p.airJumps = Math.min(p.airJumps, playerTune(W.def).airJumps);
+        p.boost = p.dbl = p.fast = 0; p.airJumps = Math.min(p.airJumps, playerTune(W.def).airJumps);
         for (const t of had) for (let k = 0; k < 10; k++) {
           const a = Math.random() * TAU, sp = 120 + Math.random() * 160;
           W.particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: .9, max: .9, c: LF.FRUITS[t].color, size: 3, g: 500 });
         }
         ring(W, cx, cy, 60, '70,60,107', .5);
-        W.floaters.push({ x: cx, y: p.y - 18, t: 'the dark takes your fruit!', life: 1.8, c: '#CFC6E8' });
+        W.floaters.push({ x: cx, y: p.y - 18, t: 'the dark takes your fruit! (apples stay)', life: 1.8, c: '#CFC6E8' });
         W.shake = Math.max(W.shake, .25); W.emit('strip');
       }
     }
