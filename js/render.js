@@ -20,6 +20,9 @@
     { f: .15, color: '#231D44', win: .28, ...skyline(40, 90, 230, 11) },
     { f: .4, color: '#2D2552', win: .45, ...skyline(40, 50, 150, 23) },
   ];
+  // Sky levels: banks of cloud drifting far below and around you.
+  const cloudRand = LF.rng(31);
+  const clouds = Array.from({ length: 3 }, (_, k) => ({ f: .1 + k * .18, y: .62 + k * .13, a: .18 + k * .12, items: Array.from({ length: 14 }, () => ({ x: cloudRand() * 1600, w: 90 + cloudRand() * 160, h: 22 + cloudRand() * 26 })) }));
   const starRand = LF.rng(7);
   const stars = Array.from({ length: 120 }, () => ({ x: starRand(), y: starRand() * .7, r: starRand() < .15 ? 1.6 : .9, ph: starRand() * TAU }));
 
@@ -54,7 +57,46 @@
       cam.y += (ty - cam.y) * Math.min(1, dt * 4);
     };
 
+    function drawCloudSky(W, cam) {
+      const { W: SW, H: SH } = R, sc = R.scale(cam), bs = R.base;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const g = ctx.createLinearGradient(0, 0, 0, SH);
+      g.addColorStop(0, '#0E1638'); g.addColorStop(.5, '#24306A'); g.addColorStop(.8, '#4A4A86'); g.addColorStop(1, '#7A6A9E');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+      ctx.fillStyle = '#E6E0FF';
+      for (const s of stars) {
+        const tw = reduced ? .7 : .5 + .5 * Math.sin(clock * 1.5 + s.ph);
+        ctx.globalAlpha = (.3 + tw * .55) * (1 - s.y);
+        const x = ((s.x * SW - cam.x * sc * .02) % SW + SW) % SW, y = ((s.y * SH * .6 - cam.y * sc * .02) % SH + SH) % SH;
+        ctx.fillRect(x, y, s.r * R.dpr, s.r * R.dpr);
+      }
+      ctx.globalAlpha = 1;
+      const mx = SW * .2 - cam.x * sc * .03, my = SH * .18, mr = 26 * bs;
+      const mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr * 6);
+      mg.addColorStop(0, 'rgba(255,240,210,.28)'); mg.addColorStop(1, 'rgba(255,240,210,0)');
+      ctx.fillStyle = mg; ctx.fillRect(mx - mr * 6, my - mr * 6, mr * 12, mr * 12);
+      ctx.fillStyle = '#FFF1CF'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
+      // The ground is far, far below: a sea of cloud with the odd lamp glinting through.
+      const bottom = (W.h * TS - cam.y) * sc;
+      for (const layer of clouds) {
+        const span = 1600 * bs, drift = reduced ? 0 : clock * 6 * (1 + layer.f * 4);
+        const start = -(((cam.x * layer.f * sc + drift * bs) % span) + span) % span;
+        const y0 = Math.min(SH * layer.y, bottom - (1 - layer.y) * SH * .5) - cam.y * sc * layer.f * .2 + (W.h * TS * sc * layer.f * .2);
+        ctx.fillStyle = `rgba(214,206,240,${layer.a})`;
+        for (let rep = start; rep < SW; rep += span) for (const c of layer.items) {
+          const x = rep + c.x * bs, w = c.w * bs, h = c.h * bs;
+          if (x > SW || x + w < 0) continue;
+          ctx.beginPath(); ctx.ellipse(x + w / 2, y0, w / 2, h / 2, 0, 0, TAU); ctx.ellipse(x + w * .35, y0 - h * .35, w * .25, h * .45, 0, 0, TAU); ctx.fill();
+        }
+      }
+      const sea = Math.min(bottom - 2 * TS * sc, SH * 1.1);
+      const sg = ctx.createLinearGradient(0, sea, 0, sea + 4 * TS * sc);
+      sg.addColorStop(0, 'rgba(200,190,235,0)'); sg.addColorStop(1, 'rgba(200,190,235,.75)');
+      ctx.fillStyle = sg; ctx.fillRect(0, sea, SW, SH);
+    }
+
     function drawSky(W, cam) {
+      if (W.def.sky) return drawCloudSky(W, cam);
       const { W: SW, H: SH } = R, sc = R.scale(cam);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const g = ctx.createLinearGradient(0, 0, 0, SH);
@@ -262,7 +304,27 @@
     }
 
     function drawPlats(W) {
+      // Wheels: the hub and spokes behind their platforms.
       for (const p of W.plats) {
+        if (p.kind !== 'wheel') continue;
+        ctx.strokeStyle = '#4C4062'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(p.cx, p.cy); ctx.lineTo(p.x + p.w / 2, p.y + 6); ctx.stroke();
+        ctx.strokeStyle = 'rgba(143,129,171,.35)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
+        ctx.beginPath(); ctx.arc(p.cx, p.cy, LF.WHEEL_R, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      }
+      for (const p of W.plats) {
+        if (p.kind !== 'wheel') continue;
+        ctx.fillStyle = '#5E5173'; ctx.beginPath(); ctx.arc(p.cx, p.cy, 9, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(p.cx, p.cy, 3.5, 0, TAU); ctx.fill();
+      }
+      for (const p of W.plats) {
+        if (p.kind === 'wheel') {
+          ctx.fillStyle = '#3A3350'; ctx.fillRect(p.x + 4, p.y + 10, p.w - 8, 3);
+          ctx.fillStyle = '#7F6FA8'; ctx.fillRect(p.x, p.y, p.w, 10);
+          ctx.fillStyle = '#B9A8E0'; ctx.fillRect(p.x, p.y, p.w, 2);
+          ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(p.x + p.w / 2, p.y + 6, 2.5, 0, TAU); ctx.fill();
+          continue;
+        }
         if (p.kind === 'fall') {
           if (p.state === 'gone') {
             ctx.strokeStyle = 'rgba(192,138,92,.3)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
@@ -1299,6 +1361,14 @@
       }
       drawCannon(W, opts);
       for (const l of W.lanterns) drawLantern(l);
+      // A raging boss glows red (it can't be stomped till it calms down).
+      for (const e of W.enemies) {
+        if (!(e.fury > 0) || !e.alive) continue;
+        const cx = e.x + e.w / 2, cy = e.y + e.h / 2, rr = Math.max(e.w, e.h) * (.8 + .1 * Math.sin(clock * 20));
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+        g.addColorStop(0, 'rgba(255,77,61,.55)'); g.addColorStop(1, 'rgba(255,77,61,0)');
+        ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+      }
       for (const e of W.enemies) LF.ENEMIES[e.type].special ? drawGiant(e) : scaled(e, drawEnemy);
       drawTraps(W);
       drawGhosts(W);

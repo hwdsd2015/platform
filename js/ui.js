@@ -26,12 +26,16 @@
   // Saves number the levels by position, and boss fights have been slotted in since: first
   // after every 10th level (save version 2), then giants halfway between (version 3). Move
   // each saved level from where it was in its save's numbering to where it is now (once).
+  // Then the Sky Roads, a world of their own, went in mid-story (version 4).
   const levelsV = store.get('levelsV', 1);
-  if (levelsV < 3) {
-    const was = LF.LEVELS.map((lv, i) => i).filter(i => levelsV < 2 ? !LF.LEVELS[i].boss : !LF.LEVELS[i].giantFight);
+  if (levelsV < 4) {
+    const was = LF.LEVELS.map((lv, i) => i).filter(i => !LF.LEVELS[i].sky && (levelsV >= 3 || (levelsV < 2 ? !LF.LEVELS[i].boss : !LF.LEVELS[i].giantFight)));
     const move = book => Object.fromEntries(Object.entries(book).map(([k, v]) => [was[k] ?? k, v]));
     progress = move(progress); progressHC = move(progressHC);
-    store.set('progress', progress); store.set('progressHC', progressHC); store.set('levelsV', 3);
+    store.set('progress', progress); store.set('progressHC', progressHC);
+    store.set('secrets', move(store.get('secrets', {}))); store.set('houses', move(store.get('houses', {})));
+    store.set('mapAt', was[store.get('mapAt', 0)] ?? 0); store.set('midway', null); store.set('launch', null);
+    store.set('levelsV', 4);
   }
 
   // ---------- audio ----------
@@ -666,10 +670,10 @@
   const INV_MAX = 9, FRUIT_ICON = { a: '🍎', o: '🍊', b: '🍌' };
   let inventory = store.get('inventory', { a: 0, o: 0, b: 0 }), carry = store.get('powers', null), invFrom = null;
   function saveCarry(p) {
-    carry = p.shield || p.boost || p.dbl ? { shield: p.shield, boost: !!p.boost, dbl: !!p.dbl } : null;
+    carry = p.shield || p.boost || p.dbl ? { shield: p.shield, boost: Math.min(2, +p.boost || 0), dbl: Math.min(2, +p.dbl || 0) } : null;
     store.set('powers', carry);
   }
-  const powersText = p => [p.shield ? `🍎 shield${p.shield > 1 ? ' ×2' : ''}` : '', p.boost ? '🍊 jump boost' : '', p.dbl ? '🍌 double jump' : ''].filter(Boolean).join(' · ') || 'none';
+  const powersText = p => [p.shield ? `🍎 shield${p.shield > 1 ? ' ×2' : ''}` : '', p.boost ? `🍊 jump boost${p.boost > 1 ? ' + slow fall' : ''}` : '', p.dbl ? `🍌 ${p.dbl > 1 ? 'triple' : 'double'} jump` : ''].filter(Boolean).join(' · ') || 'none';
   function showInventory() {
     if (screen !== 'map' && screen !== 'play' && screen !== 'inv') return;
     if (screen === 'inv') return closeInventory();
@@ -718,7 +722,9 @@
         <li><kbd>E</kbd> fire: tap for one shot, hold for autofire; shots splash 1 block · <kbd>X</kbd> explosive round (2 ammo, 3-block blast) · every shot counts as one hit (a grenade one per blast, up to three), so golems take 3 and TNT carts 5; a TNT blast kills everything near it · <kbd>Q</kbd> bouncing grenade (3 ammo) · hold any of them to keep firing · hold <kbd>Shift</kbd> for a big shot: 2× size and blast, 2× ammo · ammo crates are hidden through each level; big crates hold 10, huge ones 25; enemies drop 1–5 ammo when killed, more for tougher ones (TNT carts drop none)</li>
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
-        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · powers last until you die; powers and leftover ammo carry on to the next level</li>
+        <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost (a second orange: slow falling too) · 🍌 double jump (a second banana: triple jump) · powers last until you die; powers and leftover ammo carry on to the next level</li>
+        <li>Towers have no guns: the boss falls to 3 stomps, but each stomp throws it into a fury (it glows red, lashes out and moves faster) and you can't stomp it again until it calms down · your ammo waits for you outside</li>
+        <li>Wheels turn their platforms round and round: ride one to the top · in the Sky Roads there's no floor at all, just the long drop</li>
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
         <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>
         <li>Practice mode (on the map): every level open, nothing counts · <kbd>Z</kbd> set a checkpoint · <kbd>X</kbd> remove the latest · <kbd>C</kbd> explosive round</li>
@@ -809,7 +815,8 @@
     // Clearing a story level carries your fruit powers and leftover ammo on to the next
     // (and its lanterns are done with).
     if (playCtx.kind === 'story') store.set('midway', null);
-    if (playCtx.kind === 'story' && !hardcore) { saveCarry(W.player); store.set('ammo', W.player.ammo); }
+    // (Towers have no guns, so the ammo you're carrying waits for you outside.)
+    if (playCtx.kind === 'story' && !hardcore) { saveCarry(W.player); if (!W.def.noAmmo) store.set('ammo', W.player.ammo); }
     // Out of the Fruit Grove: everything picked goes in the inventory.
     if (playCtx.kind === 'house') {
       screen = 'clear';
@@ -1138,15 +1145,15 @@
     $('hud-time').textContent = fmt(W.def.timeLimit ? Math.max(0, W.def.timeLimit - W.time) : W.time);
     $('hud-time').previousElementSibling.textContent = W.def.timeLimit ? 'Left' : 'Time';
     $('hud-falls').textContent = W.falls;
-    $('hud-ammo').textContent = p.ammo;
+    $('hud-ammo').textContent = W.def.noAmmo ? 'stomp!' : p.ammo;
     const held = Object.keys(p.keys);
     $('hud-keys-wrap').hidden = !held.length;
     $('hud-keys').innerHTML = held.map(k => `<i style="color:${LF.KEYS[k].color}">${LF.KEYS[k].name.split(' ')[0]}</i>`).join('');
     $('hud-ammo-wrap').className = p.ammo ? 'ammo' : 'ammo empty';
     const powers = [];
     if (p.shield) powers.push(`<i class="pw-a">Shield${p.shield > 1 ? ' ×2' : ''}</i>`);
-    if (p.boost > 0) powers.push('<i class="pw-o">Boost</i>');
-    if (p.dbl > 0) powers.push('<i class="pw-b">Double</i>');
+    if (p.boost > 0) powers.push(`<i class="pw-o">${p.boost > 1 ? 'Boost + glide' : 'Boost'}</i>`);
+    if (p.dbl > 0) powers.push(`<i class="pw-b">${p.dbl > 1 ? 'Triple' : 'Double'}</i>`);
     $('hud-powers-wrap').hidden = !powers.length;
     $('hud-powers').innerHTML = powers.join('');
     $('boss-bar').hidden = !boss;

@@ -30,6 +30,7 @@
     rocket: { cost: 2, name: 'explosive round' },
     grenade: { cost: 3, name: 'grenade' },
   };
+  const SLOWFALL = 150;
   const BLINK = LF.BLINK = 2, CONVEY = 110, BULLET = 620, AMMO = { q: 3, Q: 10, $: 25 };
   const TAU = Math.PI * 2;
 
@@ -37,8 +38,8 @@
   // level). Picked fruit grows back after REGROW seconds.
   LF.FRUITS = {
     a: { name: 'Apple', power: 'Shield', color: '#E5484D', note: 'shield: blocks one hit (a second apple doubles it, no more)' },
-    o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', note: 'higher jumps, until you die' },
-    b: { name: 'Banana', power: 'Double jump', color: '#FFE066', note: 'jump again in mid-air, until you die' },
+    o: { name: 'Orange', power: 'Jump boost', color: '#FF9A2E', note: 'higher jumps, until you die (a second orange: slow falling too)' },
+    b: { name: 'Banana', power: 'Double jump', color: '#FFE066', note: 'jump again in mid-air, until you die (a second banana: triple jump)' },
   };
 
   // drop: ammo an enemy leaves behind when you kill it — the harder it is to kill, the more.
@@ -69,13 +70,16 @@
     9: { name: 'The Powder King', boss: true, w: 48, h: 56, stomp: true, drop: 10, hits: 18, note: 'boss: lobs bombs and sends TNT carts' },
   };
   // A fruit's power on the player: apple adds a shield layer (up to 2), orange the jump
-  // boost, banana the double jump. False if it would add nothing.
+  // boost (a second one: slow falling too), banana the double jump (a second one: triple
+  // jump). False if it would add nothing.
   LF.applyFruit = (p, type) => {
     if (type === 'a') { if (p.shield >= 2) return false; p.shield++; return true; }
-    if (type === 'o') { if (p.boost) return false; p.boost = 1; return true; }
-    if (type === 'b') { if (p.dbl) return false; p.dbl = 1; p.airJumps = Math.max(p.airJumps, 1); return true; }
+    if (type === 'o') { if (p.boost >= 2) return false; p.boost = (p.boost ? 1 : 0) + 1; return true; }
+    if (type === 'b') { if (p.dbl >= 2) return false; p.dbl = (p.dbl ? 1 : 0) + 1; p.airJumps = Math.max(p.airJumps, p.dbl); return true; }
     return false;
   };
+  // What a fruit power is called at each level (1 or 2).
+  LF.powerName = (type, n) => type === 'o' ? (n > 1 ? 'slow fall' : 'jump boost') : type === 'b' ? (n > 1 ? 'triple jump' : 'double jump') : n > 1 ? 'shield ×2' : 'shield';
 
   // Giant bosses: one for every enemy and hazard without a boss of its own. They only come
   // from boss arenas, whose map marks the spot with 0 and whose def.giant names the giant.
@@ -116,6 +120,9 @@
   // grenade's three blasts can land three). And every dazed (or stunned, or resting)
   // moment lasts DAZE times as long as it would otherwise.
   const BOSS_HITS = 20, DAZE = 1.75, SPAWN_HOLD = 1.5;
+  // In a tower (def.bossFury) a stomped boss flies into a fury for FURY seconds: it lashes
+  // out, moves faster, and can't be stomped (you bounce off) or hurt until it calms down.
+  const FURY = 3;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
@@ -175,6 +182,7 @@
       else if (c === 'f') { W.traps.push({ type: 'bar', cx: x * TS + 16, cy: y * TS + 16, n: 5, a: (x + y) * .7, spin: (x + y) % 2 ? 1.7 : -1.7 }); tiles[y][x] = '#'; }
       else if (c === 'k') { W.traps.push({ type: 'crush', x: x * TS + 1, y: y * TS + 1, ox: x * TS + 1, oy: y * TS + 1, w: 30, h: 30, state: 'idle', vy: 0, wait: 0 }); tiles[y][x] = ' '; }
       // q ammo, Q big ammo, $ huge ammo.
+      else if (AMMO[c] && def.noAmmo) tiles[y][x] = ' ';
       else if (AMMO[c]) { W.ammo.push({ big: c !== 'q', huge: c === '$', n: AMMO[c], tx: x, ty: y, x: x * TS + 16, y: y * TS + 20, taken: false }); tiles[y][x] = ' '; }
       else if (c === 'T' || c === 'H') { W.blinks.push({ tx: x, ty: y, c, wait: false }); if (c === 'H') tiles[y][x] = 'h'; }
       else if (LF.FRUITS[c]) { W.fruits.push({ type: c, tx: x, ty: y, x: x * TS + 16, y: y * TS + 18, taken: false, regrow: 0, pop: 0 }); tiles[y][x] = ' '; }
@@ -194,6 +202,14 @@
       }
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
+        tiles[y][x] = ' ';
+      } else if (c === 'x') {
+        // Wheel: WHEEL_CARS platforms turning around this spot (they stay level as they go).
+        const spin = (x + y) % 2 ? WHEEL_SPIN : -WHEEL_SPIN;
+        for (let k = 0; k < WHEEL_CARS; k++) {
+          const pl = { kind: 'wheel', cx: x * TS + 16, cy: y * TS + 16, a: k / WHEEL_CARS * TAU, spin, w: TS * 2, h: 12, dx: 0, dy: 0 };
+          wheelAt(pl); pl.prevY = pl.y; W.plats.push(pl);
+        }
         tiles[y][x] = ' ';
       } else if (c === 'd') {
         // Falling shingle: shakes when stood on, drops, then grows back.
@@ -269,10 +285,12 @@
     W.player.ammo = playerTune(def).ammo;
     // Ammo brought from the last level, on top of the level's own.
     if (def.carryAmmo) W.player.ammo += def.carryAmmo;
+    // Boss towers: no ammo at all (stomp!).
+    if (def.noAmmo) W.player.ammo = 0;
     // Powers brought from the last level (or the inventory): def.powers = { shield, boost, dbl }.
     if (def.powers) {
       const pw = def.powers;
-      W.player.shield = Math.min(2, pw.shield || 0); W.player.boost = pw.boost ? 1 : 0; W.player.dbl = pw.dbl ? 1 : 0;
+      W.player.shield = Math.min(2, pw.shield || 0); W.player.boost = Math.min(2, +pw.boost || 0); W.player.dbl = Math.min(2, +pw.dbl || 0);
     }
     W.got = {};   // fruit picked up, by type
     // Back into a level whose lanterns you'd lit last time (def.resume = { lit: [lantern
@@ -563,10 +581,15 @@
     W.shake = Math.max(0, W.shake - dt);
   };
 
+  // Wheels: x marks the hub; its platforms ride round it WHEEL_R from the middle.
+  const WHEEL_R = TS * 3, WHEEL_CARS = 4, WHEEL_SPIN = .75;
+  LF.WHEEL_R = WHEEL_R;
+  function wheelAt(pl) { pl.x = pl.cx + Math.cos(pl.a) * WHEEL_R - pl.w / 2; pl.y = pl.cy + Math.sin(pl.a) * WHEEL_R - pl.h / 2; }
   function stepPlats(W, dt) {
     for (const pl of W.plats) {
       pl.prevY = pl.y; pl.dx = 0; pl.dy = 0;
       if (pl.kind === 'fall') { stepShingle(W, pl, dt); continue; }
+      if (pl.kind === 'wheel') { const ox = pl.x, oy = pl.y; pl.a += pl.spin * dt; wheelAt(pl); pl.dx = pl.x - ox; pl.dy = pl.y - oy; continue; }
       const sp = pl.v * dt * pl.dir;
       if (pl.axis === 'x') {
         const nx = pl.x + sp;
@@ -665,7 +688,7 @@
   // count them) and arrive together for +n ammo. Hardcore has no ammo, so nothing drops there.
   function dropAmmo(W, e) {
     const n = LF.ENEMIES[e.type].drop;
-    if (!n || W.def.noSpawnInv) return;
+    if (!n || W.def.noSpawnInv || W.def.noAmmo) return;
     W.ammoFly.push({ n, x: e.x + e.w / 2, y: e.y + e.h / 2, vx: (Math.random() - .5) * 80, vy: -300, t: 0 });
   }
   // A group of bullets pops up for a moment, then homes in on the player faster and faster.
@@ -723,7 +746,7 @@
       if (hits >= (W.shotMax[shot] || 1)) return;
       e.hitBy[shot] = hits + 1;
     }
-    if (boss) { dmg = 1; wakeBoss(W, e); }
+    if (boss) { if (e.fury > 0) return; dmg = 1; wakeBoss(W, e); }
     if (e.armored) {
       W.floaters.push({ x: e.x + e.w / 2, y: e.y - 6, t: 'armored', life: .6, c: '#CFC6E8' });
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 6, ['#CFC6E8'], 100, 300, 2); W.emit('clank');
@@ -731,6 +754,7 @@
     }
     if (e.hp > dmg) {
       e.hp -= dmg; e.hurt = .15; if (!boss && e.type !== '@') e.x += dir * 5;
+      if (boss && W.def.bossFury) startFury(W, e);
       burst(W, e.x + e.w / 2, e.y + e.h / 2, 8, ['#CFC6E8', '#FFE2A8'], 120, 300, 2); W.emit('clank');
       return;
     }
@@ -931,7 +955,10 @@
 
   function stepEnemy(W, e, dt, playing) {
     e.t += dt;
-    if (isBoss(e)) return stepBoss(W, e, dt, playing);
+    if (isBoss(e)) {
+      if (e.fury > 0) { stepFury(W, e, dt); if (e.alive) stepBoss(W, e, dt * .6, playing); }
+      return stepBoss(W, e, dt, playing);
+    }
     if (WALKERS.has(e.type)) {
       if (!supported(W, e)) {
         e.vy = Math.min(MAXFALL, (e.vy || 0) + G * dt);
@@ -1172,6 +1199,35 @@
   }
 
   // ---------- bosses ----------
+  function startFury(W, e) {
+    e.fury = FURY; e.furyHit = .5; e.dazed = 0;
+    if (e.wait > .3) e.wait = .3;
+    W.floaters.push({ x: e.x + e.w / 2, y: e.y - 22, t: 'FURY!', life: 1.4, c: '#FF4D3D' });
+    W.shake = Math.max(W.shake, .3); W.emit('roar');
+  }
+  // Half a second into its fury the boss lashes out: shockwaves along the floor if it's
+  // standing, else a ring of embers (with a gap where you are). It keeps flaring as it rages.
+  function stepFury(W, e, dt) {
+    e.fury -= dt; e.dazed = 0;
+    const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+    if (Math.random() < dt * 30) burst(W, ex + (Math.random() - .5) * e.w, ey + (Math.random() - .5) * e.h, 1, ['#FF4D3D', '#FFB547'], 60, -80, 2.5);
+    if (e.furyHit == null) return;
+    e.furyHit -= dt;
+    if (e.furyHit > 0) return;
+    e.furyHit = null;
+    const grounded = e.ground && !LF.ENEMIES[e.type].fly;
+    if (grounded) shock(W, e, [[-1, 250], [1, 250]]);
+    else {
+      const p = W.player, toP = Math.atan2(p.y + p.h / 2 - ey, p.x + p.w / 2 - ex);
+      for (let k = 0; k < 10; k++) {
+        const a = k / 10 * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
+        if (off < .5) continue;
+        W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, life: 4 });
+      }
+    }
+    ring(W, ex, ey, Math.max(e.w, e.h), '255,77,61', .4);
+    W.shake = Math.max(W.shake, .25);
+  }
   function wakeBoss(W, e) {
     if (e.awake) return;
     e.awake = true; e.state = 'idle'; e.wait = e.type === '6' ? 3 : 1; e.cool = 1;
@@ -2007,7 +2063,7 @@
 
     // Walls: touching one in the air allows a wall jump; pushing into it while falling slides slowly.
     p.wall = p.onGround ? 0 : wallBeside(W, p, -1) ? -1 : wallBeside(W, p, 1) ? 1 : 0;
-    const airJumps = T.airJumps + (p.dbl > 0 ? 1 : 0);
+    const airJumps = T.airJumps + Math.min(2, p.dbl > 0 ? Math.ceil(p.dbl) : 0);
     if (p.wall) { p.wallDir = p.wall; p.wallCoyote = .1; p.airJumps = airJumps; }
     else p.wallCoyote -= dt;
     if (p.onGround || wet) p.airJumps = airJumps;
@@ -2048,6 +2104,10 @@
     if (wet) {
       p.vy = Math.min(SINK, p.vy + grav * .45 * dt);
       if (Math.random() < .05) W.particles.push({ x: p.x + p.w / 2 + p.face * 4, y: p.y + 4, vx: 0, vy: -40, life: .6, max: .6, c: '#9FD8FF', size: 2, g: -60 });
+    } else if (p.boost >= 2 && p.vy > 0) {
+      // Two oranges: you float down slowly.
+      p.vy = Math.min(SLOWFALL * Math.sqrt(T.gravity), p.vy + grav * dt * .5);
+      if (Math.random() < .15) W.particles.push({ x: p.x + Math.random() * p.w, y: p.y, vx: 0, vy: -30, life: .35, max: .35, c: '#FFD08A', size: 2, g: -20 });
     } else p.vy = Math.min(MAXFALL * Math.sqrt(T.gravity), p.vy + grav * dt * (p.vy > 0 ? 1.15 : 1));
     if (p.sliding) {
       p.vy = Math.min(p.vy, WALL_SLIDE * T.wallSlide);
@@ -2082,7 +2142,7 @@
         W.emit('shoot');
       } else if (tapped) {
         p.cool = .5; W.emit('empty');
-        W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: p.ammo > 0 ? `big shot needs ${s} ammo` : 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
+        W.floaters.push({ x: p.x + p.w / 2, y: p.y - 10, t: W.def.noAmmo ? 'no guns in a tower: stomp!' : p.ammo > 0 ? `big shot needs ${s} ammo` : 'no ammo — find a crate', life: 1, c: '#D9D0F0' });
       }
     }
     // X and Q work like E: tap for one, hold to keep firing while there's ammo for it.
@@ -2176,6 +2236,14 @@
       if (!e.alive || e.phased || !overlap(p, e)) continue;
       const spec = LF.ENEMIES[e.type];
       if (e.type === 'G' && e.fade > .85) continue;
+      // A boss in a fury can't be stomped: you just bounce off it.
+      if (spec.boss && e.fury > 0) {
+        if (p.vy > 0 && p.y + p.h - e.y < 18) {
+          p.vy = -560 * Math.sqrt(T.gravity); p.jumping = false;
+          if (!W.floaters.some(f => f.t === 'it’s raging!')) W.floaters.push({ x: e.x + e.w / 2, y: e.y - 8, t: 'it’s raging!', life: .8, c: '#FF4D3D' });
+        } else if (e.stompCool <= 0) { hurt(W); if (p.dead) return; }
+        continue;
+      }
       // Armored heads (bosses, and golems until their last hit) can be stomped again and
       // again, with a short pause between: 3 damage to a boss, 1 to a golem.
       if ((spec.stomp || e.dazed > 0) && (spec.boss || e.hp > 1)) {
@@ -2246,7 +2314,7 @@
       LF.applyFruit(p, f.type);
       W.got[f.type] = (W.got[f.type] || 0) + 1;
       burst(W, f.x, f.y, 16, [spec.color, '#FFF6C2'], 130, 150, 2.5);
-      W.floaters.push({ x: f.x, y: f.y - 20, t: spec.power.toLowerCase(), life: 1.1, c: spec.color });
+      W.floaters.push({ x: f.x, y: f.y - 20, t: LF.powerName(f.type, f.type === 'a' ? p.shield : f.type === 'o' ? p.boost : p.dbl), life: 1.1, c: spec.color });
       W.emit('fruit', { type: f.type });
     }
 

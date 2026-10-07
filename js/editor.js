@@ -35,6 +35,7 @@
     { c: '+', label: 'Cannon', group: 'Level', chip: '#5C3B24', note: 'press ↓ beside it to climb in and be fired out: that finishes the level' },
     { c: 'l', label: 'False wall', group: 'Level', chip: '#5E5173', note: 'looks like stone but you can walk through it: hide a secret exit behind it' },
     { c: 'M', label: 'Lift ↔', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
+    { c: 'x', label: 'Wheel ⟳', group: 'Level', chip: '#7F6FA8', note: 'the hub: 4 platforms turn round it, 3 tiles out' },
     { c: 'V', label: 'Lift ↕', group: 'Level', chip: '#C08A5C', note: '2 wide, bounces between blocks or stops' },
     { c: 'q', label: 'Ammo', group: 'Level', chip: '#FFB547', note: '+3 shots' },
     { c: 'Q', label: 'Big ammo', group: 'Level', chip: '#FF6B3D', note: '+10 shots: put it somewhere hard to reach' },

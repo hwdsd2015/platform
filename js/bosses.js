@@ -263,7 +263,7 @@
         r(12, 9, 18, 9, '='); s(15, 8, 'a'); r(36, 9, 42, 9, '='); s(39, 8, 'o'); s(27, 12, 'b');
         s(15, 15, '0'); r(52, 1, 52, 12, 'g'); s(53, 12, 'D');
       }) },
-    { giant: 'f', name: 'Fire Bar Bossfight', dark: .7, sign: 'THE FIRE WHEEL · stomp or shoot its core when the fire dies',
+    { giant: 'f', name: 'Fire Bar Bossfight', dark: .7, sign: 'THE FIRE WHEEL · stomp its core when the fire dies',
       map: () => hall(46, 18, ({ r, s }) => { r(8, 9, 13, 9, '='); s(10, 8, 'a'); r(33, 9, 38, 9, '='); s(35, 8, 'b'); s(16, 14, 'q'); s(23, 9, '0'); }) },
     { giant: '*', name: 'Lava Bubble Bossfight', dark: .66, sign: 'THE MAGMA HEART · it hides in the lava · stomp it when it crusts',
       map: () => B(52, 18, ({ r, s, walls }) => {
@@ -402,9 +402,10 @@
     }
     const arena = at[at.length - 1], climbAt = at[0], runAt = at[1];
     const out = {
-      ...def, map: g.map(row => row.join('')), noDoor: true, bossEnds: true, arenaX: arena.x,
+      // No guns in a tower: the boss falls to 3 stomps, and flies into a fury after each.
+      ...def, map: g.map(row => row.join('')), noDoor: true, bossEnds: true, arenaX: arena.x, noAmmo: true, bossFury: true, bossHits: 3,
       signs: [
-        { x: climbAt.x + 2, y: climbAt.y + parts[0].length - 4.6, t: castle ? 'THE CASTLE · climb, floor after floor' : 'CLIMB THE TOWER ↑' },
+        { x: climbAt.x + 2, y: climbAt.y + parts[0].length - 4.6, t: castle ? 'THE CASTLE · climb, floor after floor · no guns here' : 'CLIMB THE TOWER ↑ · no guns here: stomp' },
         { x: runAt.x + 2, y: runAt.y + parts[1].length - 6.6, t: 'along the battlements →' },
         ...(def.signs || []).map(s => ({ ...s, x: s.x + arena.x, y: s.y + arena.y })),
       ],
@@ -414,15 +415,17 @@
   }
 
   // Lay the fights in: a boss fight after every 10th level and a giant halfway between.
+  // The Sky Roads (levels-12.js) go in after the Powder Works, as a world of their own.
   const L = LF.LEVELS, regular = L.slice(), out = [];
   regular.forEach((lv, i) => {
     out.push(lv);
     const n = i + 1, chapter = lv.chapter;
     if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...tower(arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), 300 + n), chapter, boss: true });
     else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...tower(giantArena((n - 5) / 10), 300 + n), chapter, boss: true });
+    if (chapter === 'The Powder Works' && regular[i + 1] && regular[i + 1].chapter !== chapter) out.push(...(LF.SKY_LEVELS || []));
   });
   // ---- The final boss ----
-  // The very last level, a chapter of its own: the Last Dark, which takes 50 hits.
+  // The very last level, a chapter of its own: the Last Dark.
   const finalMap = B(60, 20, ({ r, s, walls }) => {
     walls(); r(0, 0, 59, 0); r(1, 17, 58, 18);
     s(2, 16, 'P'); s(4, 16, '$'); s(6, 16, 'Q'); s(8, 16, 'a');
@@ -433,7 +436,7 @@
   });
   out.push({
     ...tower({ name: 'Final Bossfight', dark: .82, map: easeAccess(finalMap), giant: 'Ω',
-      signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 50 hits · stomp it when it dives to the floor' }] }, 999, true),
+      signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 3 stomps · stomp it when it dives to the floor' }] }, 999, true),
     chapter: 'The Last Night', boss: true, finalFight: true,
   });
   L.length = 0; L.push(...out);

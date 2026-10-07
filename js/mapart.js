@@ -9,6 +9,7 @@
     { sky: ['#2E2552', '#3D2C57'], trail: '#B9935F', kind: 'town', wander: 'beetle' },
     { sky: ['#1B3352', '#21486E'], trail: '#D8C08A', kind: 'harbor', wander: 'gull' },
     { sky: ['#382B3E', '#4A3846'], trail: '#C08A5C', kind: 'gears', wander: 'spark' },
+    { sky: ['#1C2858', '#3A4482'], trail: '#E6E0FF', kind: 'sky', wander: 'gull' },
     { sky: ['#183647', '#22495B'], trail: '#CFC6E8', kind: 'canal', wander: 'frog' },
     { sky: ['#1F3528', '#2B4934'], trail: '#E0C48A', kind: 'garden', wander: 'wasp' },
     { sky: ['#382424', '#4A2D2A'], trail: '#B08A6A', kind: 'smoke', wander: 'bat' },
@@ -31,6 +32,11 @@
     gears: [
       (x, y, r) => { const s = 10 + r() * 8; return `<g transform="translate(${x} ${y - s})"><g class="mp-spin${r() < .5 ? ' rev' : ''}"><circle r="${s}" fill="none" stroke="#8F81AB" stroke-width="${s * .5}" stroke-dasharray="${s * .5} ${s * .4}"/><circle r="${s * .55}" fill="#5E5173"/><circle r="${s * .2}" fill="#2A2348"/></g></g>`; },
       (x, y) => `<g transform="translate(${x} ${y})"><rect x="-10" y="-30" width="20" height="30" fill="#4C4062"/><circle cy="-38" r="12" fill="#D9D0F0"/><line x1="0" y1="-38" x2="0" y2="-46" stroke="#2A2348" stroke-width="2"/><line x1="0" y1="-38" x2="6" y2="-38" stroke="#2A2348" stroke-width="2"/></g>`,
+    ],
+    sky: [
+      (x, y, r) => { const s = .8 + r() * .6; return `<g transform="translate(${x} ${y - 10}) scale(${s})" class="mp-bob"><ellipse cx="0" cy="0" rx="26" ry="9" fill="#D6CEF0" opacity=".55"/><ellipse cx="-8" cy="-6" rx="13" ry="8" fill="#E6E0FF" opacity=".6"/></g>`; },
+      (x, y) => `<g transform="translate(${x} ${y})" class="mp-bob"><path d="M-18 -10 L18 -10 L10 0 L2 6 L-8 2 Z" fill="#5E5173"/><rect x="-18" y="-13" width="36" height="4" fill="#8F81AB"/><rect x="-2" y="-30" width="3" height="17" fill="#D9D0F0"/><rect x="-5" y="-36" width="9" height="7" fill="#FFB547" class="mp-glow"/></g>`,
+      (x, y) => `<g transform="translate(${x} ${y - 20})"><g class="mp-spin"><circle r="16" fill="none" stroke="#8F81AB" stroke-width="2" stroke-dasharray="3 4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#5E5173" stroke-width="2"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#5E5173" stroke-width="2"/></g><circle r="3" fill="#FFB547"/></g>`,
     ],
     canal: [
       (x, y) => `<g transform="translate(${x} ${y})"><rect x="-26" y="-8" width="52" height="10" rx="4" fill="#2E4E82" opacity=".8"/><path d="M-20 -3 q5 -3 10 0 t10 0 t10 0 t10 0" fill="none" stroke="#7FB0E0" stroke-width="1.5" class="mp-wave"/></g>`,
