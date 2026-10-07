@@ -2281,6 +2281,22 @@
     }
 
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+    // Stepping into a tower's boss arena, the dark tears every fruit power off you (fruit
+    // you find in the arena still works).
+    if (W.def.arenaX && !W.stripped && p.x >= W.def.arenaX * TS) {
+      W.stripped = true;
+      const had = [p.shield && 'a', p.boost && 'o', p.dbl && 'b', p.fast && 'm'].filter(Boolean);
+      if (had.length) {
+        p.shield = p.boost = p.dbl = p.fast = 0; p.airJumps = Math.min(p.airJumps, playerTune(W.def).airJumps);
+        for (const t of had) for (let k = 0; k < 10; k++) {
+          const a = Math.random() * TAU, sp = 120 + Math.random() * 160;
+          W.particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: .9, max: .9, c: LF.FRUITS[t].color, size: 3, g: 500 });
+        }
+        ring(W, cx, cy, 60, '70,60,107', .5);
+        W.floaters.push({ x: cx, y: p.y - 18, t: 'the dark takes your fruit!', life: 1.8, c: '#CFC6E8' });
+        W.shake = Math.max(W.shake, .25); W.emit('strip');
+      }
+    }
     for (const l of W.lanterns) {
       if (l.lit || Math.abs(cx - l.x) > 22 || Math.abs(cy - l.y) > 26) continue;
       l.lit = true; l.pop = 1; W.lanternLit = true;

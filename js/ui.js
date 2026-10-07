@@ -93,6 +93,7 @@
     walljump: () => tone(360, 680, .08, 'square', .03),
     djump: () => { tone(520, 980, .1, 'triangle', .04); tone(780, 1400, .08, 'sine', .03, .04); },
     fruit: () => { tone(660, 990, .1, 'triangle', .05); tone(990, 1480, .14, 'triangle', .04, .06); },
+    strip: () => { tone(700, 180, .35, 'sawtooth', .04); tone(500, 120, .4, 'triangle', .04, .08); },
     shield: () => { tone(900, 300, .25, 'triangle', .05); tone(1200, 400, .2, 'sine', .03, .03); },
     door: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, f, .22, 'triangle', .05, .25 + i * .08)),
     clear: () => [392, 523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, f, .3, 'triangle', .05, i * .07)),
@@ -729,6 +730,7 @@
         <li>Keys open the locked-door blocks you touch, one block at a time; you keep the key</li>
         <li>Water is safe: you sink slowly and can jump as often as you like</li>
         <li>Fruit: 🍎 shield (a second apple doubles it) · 🍊 jump boost · 🍌 double jump · 🍉 speed · powers last until you die; powers and leftover ammo carry on to the next level</li>
+        <li>Stepping into a tower's boss arena, you lose every fruit power you brought (fruit in the arena still works)</li>
         <li>Towers have no guns: the boss falls to 3 stomps, but each stomp throws it into a fury (it glows red, lashes out and moves faster) and you can't stomp it again until it calms down · your ammo waits for you outside</li>
         <li>Wheels turn their platforms round and round: ride one to the top · in the Sky Roads there's no floor at all, just the long drop</li>
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
