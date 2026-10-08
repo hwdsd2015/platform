@@ -124,8 +124,8 @@
   const BOSS_HITS = 20, DAZE = 1.75, SPAWN_HOLD = 1.5;
   // In a tower (def.bossFury) a stomped boss flies into a fury for FURY seconds: it lashes
   // out every FURY_EVERY seconds the whole time, moves faster, and can't be stomped (you
-  // bounce off) or hurt until it calms down.
-  const FURY = 10, FURY_EVERY = 1.1;
+  // bounce off) or hurt until it calms down. Then it's worn out: dazed for FURY_REST seconds.
+  const FURY = 10, FURY_EVERY = 1.6, FURY_REST = 2.5;
   // Enemies that live in water: their map cell stays water.
   LF.SWIMMERS = { Y: 1, U: 1, N: 1 };
 
@@ -549,6 +549,8 @@
       if (!e.alive) { e.dead += dt; continue; }
       // (A boss's fury runs on the real clock: FURY is in seconds you live through.)
       if (e.fury > 0 && e.alive) stepFury(W, e, dt);
+      // Worn out after a fury: dazed (stompable whatever it is) till it gets its breath back.
+      if (e.rest > 0) { e.rest -= dt; e.dazed = Math.max(e.dazed || 0, Math.min(e.rest, .2)); }
       stepEnemy(W, e, dt * ENEMY_SPEED * tune(W.def.tuning, e.type).speed, playing);
     }
     stepProjectiles(W, dt, playing);
@@ -1003,7 +1005,7 @@
       // Raging walkers and flyers rampage round the arena instead of their usual routine;
       // the rest keep to it, faster.
       if (e.fury > 0 && furyKind(e)) return furyMove(W, e, dt);
-      if (e.fury > 0) stepBoss(W, e, dt * .6, playing);
+      if (e.fury > 0) stepBoss(W, e, dt * .3, playing);
       return stepBoss(W, e, dt, playing);
     }
     if (WALKERS.has(e.type)) {
@@ -1279,7 +1281,7 @@
   }
   function fireAround(W) {
     const p = W.player;
-    for (const d of [-3, -1.5, 1.5, 3]) {
+    for (const d of [-2.5, 2.5]) {
       const x = p.x + p.w / 2 + d * TS, fy = floorUnder(W, x, p.y);
       if (fy == null || x < arenaLeft(W) || x > arenaRight(W)) continue;
       // A glowing warning on the floor first; the fire bursts up FLAME_WARN seconds later.
@@ -1289,10 +1291,10 @@
   const FLAME_WARN = .8;
   function emberRing(W, e) {
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2, p = W.player, toP = Math.atan2(p.y + p.h / 2 - ey, p.x + p.w / 2 - ex);
-    for (let k = 0; k < 12; k++) {
-      const a = k / 12 * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
-      if (off < .45) continue;
-      W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, life: 4 });
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
+      if (off < .8) continue;
+      W.projectiles.push({ x: ex - 6, y: ey - 6, w: 12, h: 12, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, life: 4 });
     }
   }
   // Leap somewhere new with floor under it: half the time near you, else across the arena.
@@ -1300,7 +1302,7 @@
     const p = W.player, px = p.x + p.w / 2, lo = arenaLeft(W) + TS, hi = arenaRight(W) - TS - e.w;
     if (hi <= lo) return;
     for (let k = 0; k < 16; k++) {
-      const near = (e.furyN + k) % 2 === 0;
+      const near = (e.furyN + k) % 3 === 0;
       const tx = Math.max(lo, Math.min(hi, near ? px - e.w / 2 + (Math.random() - .5) * TS * 6 : lo + Math.random() * (hi - lo)));
       if (Math.abs(tx - e.x) < TS * 3 || floorUnder(W, tx + e.w / 2, e.y) == null) continue;
       e.fjump = true; e.ground = false; e.vy = -1000; e.vx = Math.max(-650, Math.min(650, (tx - e.x) / .95));
@@ -1316,7 +1318,7 @@
   }
   function furySlam(W, e) {
     shock(W, e, [[-1, 280], [1, 280]]);
-    rockRain(W, 4, 4);
+    rockRain(W, 2, 4);
     ring(W, e.x + e.w / 2, e.y + e.h, e.w * 1.5, '255,77,61', .4);
     burst(W, e.x + e.w / 2, e.y + e.h, 20, ['#FF4D3D', '#FFB547', '#9A8FBF'], 220, 400, 3);
     W.shake = Math.max(W.shake, .45); W.emit('stomp', { type: e.type });
@@ -1337,7 +1339,7 @@
       if (d <= sp) {
         e.x = e.ft.x; e.y = e.ft.y; e.ft = null;
         // At the end of a dart it drops a bomb or three on you.
-        for (const vx of [-90, 0, 90]) W.projectiles.push({ kind: 'bomb', fury: true, x: e.x + e.w / 2 - 6, y: e.y + e.h, w: 12, h: 12, vx, vy: 60, g: 900, life: 3 });
+        for (const vx of [-70, 70]) W.projectiles.push({ kind: 'bomb', fury: true, x: e.x + e.w / 2 - 6, y: e.y + e.h, w: 12, h: 12, vx, vy: 60, g: 900, life: 3 });
       } else { e.x += dx / d * sp; e.y += dy / d * sp; }
     }
   }
@@ -1347,7 +1349,9 @@
     if (Math.random() < dt * 30) burst(W, ex + (Math.random() - .5) * e.w, ey + (Math.random() - .5) * e.h, 1, ['#FF4D3D', '#FFB547'], 60, -80, 2.5);
     if (e.fury <= 0) {
       // Calming down: back to its usual routine, from the top.
-      if (furyKind(e)) { e.fjump = false; e.ft = null; e.vx = 0; e.state = 'idle'; e.wait = .8; }
+      if (furyKind(e)) { e.fjump = false; e.ft = null; e.vx = 0; e.state = 'idle'; e.wait = FURY_REST; }
+      e.rest = FURY_REST;
+      W.floaters.push({ x: ex, y: e.y - 18, t: 'worn out!', life: 1.4, c: '#FFE2A8' });
       return;
     }
     e.furyHit -= dt;
@@ -1357,10 +1361,10 @@
     if (step === 1) {
       if (kind === 'leap' && e.ground) furyLeap(W, e);
       else if (kind === 'fly') furyDart(W, e);
-      else rockRain(W, 6, 5);
+      else rockRain(W, 4, 5);
     } else if (step === 2) emberRing(W, e);
     else if (step === 3) fireAround(W);
-    else rockRain(W, 6, 6);
+    else rockRain(W, 4, 6);
     ring(W, ex, ey, Math.max(e.w, e.h), '255,77,61', .4);
     W.shake = Math.max(W.shake, .25);
   }
