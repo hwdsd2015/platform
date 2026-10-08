@@ -192,7 +192,11 @@
     const lv = LF.LEVELS[i];
     return !lv.boss && lv.secretTo == null && i % 7 === 4 && LF.WORLDS[lv.world].last !== i;
   });
-  const houseOpen = i => !!progress[i] && !houses[i];
+  // A fruit house's grove grows back GROVE_REGROW after you've been in (houses[i] is when).
+  const GROVE_REGROW = 60 * 60 * 1000;
+  const houseUsed = i => typeof houses[i] === 'number' && Date.now() - houses[i] < GROVE_REGROW;
+  const regrowIn = i => { const m = Math.ceil((GROVE_REGROW - (Date.now() - houses[i])) / 60000); return m >= 60 ? '1 hour' : `${m} min`; };
+  const houseOpen = i => !!progress[i] && !houseUsed(i);
   // The lamplighter can also stand at a cannon: { world: k } at the end of world k, or
   // { secret: i } beside level i. Enter there plays the Cannon Yard (see cannonLevel).
   let mapCannon = null;
@@ -393,7 +397,7 @@
     // Fruit houses: a cottage with a fruit on its sign; dim until its level is cleared, its
     // door shut once you've been in.
     for (const [i, c] of Object.entries(houseSpots)) {
-      const cls = houses[i] ? ' used' : progress[i] ? ' open' : '';
+      const cls = houseUsed(i) ? ' used' : progress[i] ? ' open' : '';
       if (progress[i]) out += `<path class="warp house-path" d="M${pos[i].x} ${pos[i].y} L${c.x} ${c.y}"/>`;
       out += `<g class="house${cls}" data-house="${i}" transform="translate(${c.x} ${c.y})"><circle class="hit" r="18"/>
         <rect x="-13" y="-16" width="26" height="18" rx="2" class="walls"/><path d="M-17 -16 L0 -30 L17 -16 Z" class="roof"/>
@@ -561,9 +565,9 @@
       $('map-info').innerHTML = `<div>
           <small>Fruit house · beside level ${mapHouse + 1}</small>
           <strong>Fruit Grove</strong>
-          <em>${houses[mapHouse] ? 'You’ve been in here: the fruit’s all gathered' : '10 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
+          <em>${houseUsed(mapHouse) ? `You’ve been in here: the fruit grows back in ${regrowIn(mapHouse)}` : '10 seconds to grab all the fruit you can: it all goes in your inventory'}</em>
         </div>
-        <div class="map-actions">${houses[mapHouse] ? '' : '<button class="go" data-act="house">Go in</button>'}</div>`;
+        <div class="map-actions">${houseUsed(mapHouse) ? '' : '<button class="go" data-act="house">Go in</button>'}</div>`;
       const b = $('map-info').querySelector('[data-act]');
       if (b) b.addEventListener('click', () => { initAudio(); if (!mapBusy) ACTIONS.house({ i: mapHouse }); });
       return;
@@ -740,7 +744,7 @@
         <span class="inv-icon">${FRUIT_ICON[t]}</span><div><b>${f.name} ×${inventory[t] || 0}</b><small>${esc(f.note)}</small></div>
         <button class="mini go-mini" data-use="${t}" ${(inventory[t] || 0) > 0 && !hardcore ? '' : 'disabled'}>Use</button></li>`).join('')}</ul>
       <p class="lede">${hardcore ? 'Hardcore is on: no fruit.' : inLevel ? `Your powers now: ${powersText(now)}` : `Ready for your next level: ${powersText(now)}`}</p>
-      <p class="inv-note">Gather fruit in the fruit houses on the map. Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too, until you die${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
+      <p class="inv-note">Gather fruit in the fruit houses on the map (each one’s grove grows back an hour after you’ve been in). Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too, until you die${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
     </div>`;
     $('inv-close').addEventListener('click', closeInventory);
     for (const b of $('inv').querySelectorAll('[data-use]')) b.addEventListener('click', () => useItem(b.dataset.use));
@@ -870,7 +874,7 @@
     if (playCtx.kind === 'house') {
       screen = 'clear';
       setVisible({ hud: true, overlay: true });
-      houses[playCtx.i] = true; store.set('houses', houses);
+      houses[playCtx.i] = Date.now(); store.set('houses', houses);
       const got = Object.entries(W.got).filter(([, n]) => n > 0);
       for (const [t, n] of got) inventory[t] = Math.min(INV_MAX, (inventory[t] || 0) + n);
       store.set('inventory', inventory);
@@ -1092,7 +1096,7 @@
     // Follow a secret path you've found: the lamplighter goes to the level it leads to.
     // Stand at a secret cannon you've found (from the level's button on the map).
     warp: d => { const i = +(d.i ?? mapAt); if (LF.LEVELS[i].secretTo != null && secrets[i]) { mapAt = i; mapCannon = { secret: i }; store.set('mapAt', i); renderMap(); } },
-    // Into a fruit house's Fruit Grove (once per house).
+    // Into a fruit house's Fruit Grove (once an hour per house).
     house: d => { const i = +d.i; if (houseOpen(i)) play(fruitGrove(i), { kind: 'house', i }); },
     items: () => showInventory(),
     itemsFromPause: () => { screen = 'play'; setVisible({ hud: true, touch: true }); showInventory(); },

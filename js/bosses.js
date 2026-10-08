@@ -344,6 +344,204 @@
     g[h - 4][17] = 'B'; g[h - 4][37] = R() < .5 ? 'K' : 'R'; g[h - 7][26] = 'W';
     return g;
   }
+  // Every tower climbs differently: CLIMBS holds a dozen shapes of shaft, and each tower
+  // gets the next one along (towers 13-24 get them again, wider or taller, and mirrored,
+  // and so on), so no two towers are alike. Likewise RUNS for the battlements. Every
+  // climb starts at the bottom left (P), has a lantern part way up, and ends at the door
+  // (j) on its top floor, row 5; every run starts at n on the left, has a lantern in the
+  // middle and ends at j on the right.
+  const frame = (w, h) => {
+    const g = grid(w, h);
+    put(g, 0, 0, w - 1, 0, '#'); put(g, 0, 0, 0, h - 1, '#'); put(g, w - 1, 0, w - 1, h - 1, '#'); put(g, 0, h - 2, w - 1, h - 1, '#');
+    g[h - 3][2] = 'P';
+    return g;
+  };
+  // The top floor (row 5), crossed by a plank over the last ledge so you jump up through
+  // it, and the door at the end away from that.
+  const topFloor = (g, x0, x1, door) => {
+    const w = g[0].length;
+    put(g, 1, 5, w - 2, 5, '#'); put(g, Math.max(1, x0), 5, Math.min(w - 2, x1), 5, '=');
+    g[4][door ?? ((x0 + x1) / 2 > w / 2 ? 2 : w - 3)] = 'j';
+  };
+  const FLY = 'FZW';
+  // Rows for ledges from `bottom` up to `top`, evenly spaced and never more than `gap` apart
+  // (so the last one is always a jump below the top floor).
+  const rowsUp = (bottom, top = 8, gap = 3) => {
+    const n = Math.ceil((bottom - top) / gap) + 1;
+    return Array.from({ length: n }, (_, k) => Math.round(bottom - k * (bottom - top) / (n - 1)));
+  };
+  // A shaft's width in three touching thirds: [left, middle, right] x ranges.
+  const thirds = w => { const t = Math.floor((w - 4) / 3); return [[2, 1 + t], [2 + t, 1 + 2 * t], [2 + 2 * t, w - 3]]; };
+  // Ledges three rows apart, taking their x ranges from `spans` in turn, lantern half way.
+  function ledges(g, R, spans, tile = () => '#', foes = .35) {
+    const h = g.length;
+    let k = 0, last;
+    const rows = rowsUp(h - 5);
+    for (const y of rows) {
+      const [x0, x1] = spans[k % spans.length];
+      put(g, x0, y, x1, y, tile(k, R));
+      if (k === Math.floor(rows.length / 2)) g[y - 1][x0 + 1] = 'L';
+      else if (k > 1 && R() < foes) g[y - 2][Math.floor((x0 + x1) / 2)] = FLY[Math.floor(R() * 3)];
+      last = [x0, x1]; k++;
+    }
+    topFloor(g, last[0], last[1]);
+    return g;
+  }
+  const CLIMBS = [
+    // Zigzag: ledges stepping across the shaft and back.
+    (R, v) => { const w = 22 + v * 2, g = frame(w, 32 + v * 2), [A, M, C] = thirds(w); return ledges(g, R, [C, M, A, M], () => (R() < .25 ? '=' : '#')); },
+    // Switchback stairs: plank steps two rows apart, up to one wall and back.
+    (R, v) => {
+      const w = 24 + v * 2, h = 30 + v * 3, g = frame(w, h);
+      let x = 3, d = 1, y = 8 + 2 * Math.floor((h - 12) / 2), n = 0, last;
+      const steps = [];
+      while (y >= 8) { steps.push([x, y]); last = [x, x + 2]; if ((d > 0 && x + 4 + 2 > w - 3) || (d < 0 && x - 4 < 2)) d = -d; else x += 4 * d; y -= 2; n++; }
+      steps.forEach(([sx, sy], k) => { put(g, sx, sy, sx + 2, sy, '='); if (k === Math.floor(steps.length / 2)) g[sy - 1][sx + 1] = 'L'; else if (k > 2 && k % 4 === 0) g[sy - 3][sx + 1] = 'F'; });
+      topFloor(g, last[0], last[1]);
+      return g;
+    },
+    // Twin chimneys: up the left one, through a window in the wall between, up the right.
+    (R, v) => {
+      const w = 23, h = 31 + v * 3, g = frame(w, h), mid = 11;   // (ledges exactly three rows apart)
+      put(g, mid, 6, mid, h - 3, '#');
+      const rows = rowsUp(h - 5);
+      const half = Math.floor(rows.length / 2);
+      let last;
+      rows.forEach((y, k) => {
+        const left = k <= half, side = k % 2;
+        const span = left ? (side ? [6, 9] : [2, 5]) : (side ? [13, 16] : [17, 20]);
+        put(g, span[0], y, span[1], y, '#'); last = span;
+        if (k === half) { put(g, mid, y - 3, mid, y - 1, '.'); put(g, 12, y, 15, y, '#'); g[y - 1][span[0] + 1] = 'L'; }
+        else if (k > 1 && R() < .3) g[y - 2][span[0] + 2] = 'Z';
+      });
+      g[h - 3][16] = 'B';
+      topFloor(g, last[0], last[1]);
+      return g;
+    },
+    // Scaffold: a lattice of short planks, every row offset from the last.
+    (R, v) => {
+      const w = 26 + v * 2, h = 30 + v * 3, g = frame(w, h);
+      const rows = rowsUp(h - 5);
+      let last;
+      rows.forEach((y, k) => {
+        const off = k % 2 ? 5 : 2;
+        for (let x = off; x + 1 < w - 1; x += 7) put(g, x, y, x + 2, y, '=');
+        last = [off, off + 2];
+        if (k === Math.floor(rows.length / 2)) g[y - 1][off + 1] = 'L';
+        else if (k > 1 && R() < .5) g[y - 2][off + 8] = FLY[Math.floor(R() * 3)];
+      });
+      topFloor(g, last[0], last[1]);
+      return g;
+    },
+    // Lifts: ride up one lift to a ledge (the lantern), cross, and up the next.
+    (R, v) => {
+      const w = 20 + v * 2, h = 30 + v * 2, g = frame(w, h), midY = Math.floor(h / 2) + 1;
+      const lift = (x, top, bot) => { g[bot][x] = 'V'; for (const c of [x, x + 1]) { g[top - 1][c] = '|'; g[bot + 1][c] = g[bot + 1][c] === '#' ? '#' : '|'; } };
+      lift(4, midY, h - 4);
+      put(g, 7, midY, w - 9, midY, '#'); g[midY - 1][8] = 'L'; g[midY - 1][w - 10] = 'B';
+      lift(w - 7, 8, midY - 1);
+      put(g, 7, midY + 4, 9, midY + 4, '=');
+      topFloor(g, w - 7, w - 6);
+      return g;
+    },
+    // Springs: ledge to ledge, each spring flinging you up past the next ledge, seven rows up.
+    (R, v) => {
+      const w = 22 + v * 2, h = 31 + (v % 2) * 7, g = frame(w, h);
+      let sx = 4, y = h - 2, k = 0, last;
+      g[h - 2][sx] = 'O';
+      const levels = [];
+      for (let ly = h - 9; ly >= 8; ly -= 7) levels.push(ly);   // (a spring flings you a good eight rows)
+      levels.forEach((ly, n) => {
+        // (Planks, so you can rise up through them on the bounce and come down on top.)
+        const right = n % 2 === 0, x0 = right ? sx + 2 : sx - 5, x1 = x0 + 3;
+        put(g, x0, ly, x1, ly, '=');
+        const nx = right ? x1 : x0;
+        if (n < levels.length - 1) g[ly][nx] = 'O';
+        if (n === Math.floor(levels.length / 2)) g[ly - 1][right ? x0 + 1 : x1 - 1] = 'L';
+        else if (n > 0) g[ly - 3][Math.floor((x0 + x1) / 2)] = 'Z';
+        sx = nx; last = [x0, x1];
+      });
+      topFloor(g, last[0], last[1]);
+      return g;
+    },
+    // Crumbling ledges: they fall away under you (and grow back).
+    (R, v) => { const w = 22 + v * 2, g = frame(w, 32 + v * 2), [A, M, C] = thirds(w); return ledges(g, R, [A, M, C, M], k => (k % 2 ? 'C' : '#'), .2); },
+    // Blinking ledges: every other one is on while the rest are off.
+    (R, v) => { const w = 22 + v * 2, g = frame(w, 30 + v * 2), [A, M, C] = thirds(w); return ledges(g, R, [C, M, A, M], k => (k < 1 ? '#' : k % 2 ? 'T' : 'H'), .2); },
+    // The cake: tiers of plank narrowing upwards, with guards and spikes on them.
+    (R, v) => {
+      const w = 28 + v * 2, h = 26 + v * 3, g = frame(w, h);
+      const rows = rowsUp(h - 5);
+      const c = Math.floor(w / 2), n = rows.length;
+      let last;
+      rows.forEach((y, k) => {
+        const half = Math.max(2, Math.round((w / 2 - 3) * (1 - k / n)));
+        put(g, c - half, y, c + half, y, '=');
+        last = [c - half, c + half];
+        if (k === Math.floor(n / 2)) g[y - 1][c] = 'L';
+        else if (k % 2 === 1 && half > 4) g[y - 1][c - half + 1] = 'B';
+      });
+      topFloor(g, last[0], last[1]);
+      return g;
+    },
+    // The chimney: tall and tight, ledges off one wall then the other.
+    (R, v) => { const w = 11, g = frame(w, 36 + v * 4); return ledges(g, R, [[6, 9], [1, 4]], () => '#', .25); },
+    // The S-bend: up the lower shaft on the left, along a corridor, up the upper on the right.
+    (R, v) => {
+      const w = 30, h = 34 + v * 2, g = frame(w, h), cy = 18;
+      put(g, 13, cy + 1, w - 2, h - 3, '#'); put(g, 1, 1, 16, cy - 4, '#');
+      let k = 0;
+      for (const y of rowsUp(h - 5, cy + 3)) { put(g, k % 2 ? 7 : 2, y, k % 2 ? 11 : 6, y, '#'); k++; }
+      put(g, 9, cy + 1, 12, cy + 1, '#');
+      g[cy][15] = 'L'; g[cy][22] = 'B';
+      let last;
+      k = 0;
+      for (const y of rowsUp(cy - 2)) { const sp = k % 2 ? [17, 21] : [23, 27]; put(g, sp[0], y, sp[1], y, '#'); last = sp; k++; }
+      if (!last) last = [23, 27];
+      topFloor(g, last[0], last[1], last[0] > 20 ? 18 : w - 3);
+      return g;
+    },
+    // Belts: floor after floor, each with a hole at the end, its conveyor running away from it.
+    (R, v) => {
+      const w = 24 + v * 2, h = 30 + v * 4, g = frame(w, h);
+      let below = h - 2, f = 0, holeAt;
+      for (let y = h - 6; y >= 8; y -= 4, f++) {
+        const right = f % 2 === 0, hx = right ? w - 4 : 2;
+        put(g, 1, y, w - 2, y, right ? '<' : '>'); put(g, hx, y, hx + 1, y, '.');
+        g[below - 1][hx] = '#';
+        if (f === 2) g[y - 1][right ? 4 : w - 5] = 'L';
+        else if (f % 2) g[y - 1][Math.floor(w / 2)] = R() < .5 ? 'B' : 'K';
+        below = y; holeAt = hx;
+      }
+      g[below - 1][holeAt === 2 ? w - 4 : 2] = '#';
+      topFloor(g, holeAt === 2 ? w - 5 : 1, holeAt === 2 ? w - 3 : 4);
+      return g;
+    },
+  ];
+  // Mirror a climb left to right (its start moves to the bottom right).
+  const mirror = g => g.map(row => row.slice().reverse());
+  const RUNS = [
+    // Pits under planks, a few guards.
+    (R, v) => { const w = 46 + v * 4, h = 14, g = runFrame(w, h); for (const px of [12, 30]) { const lava = R() < .5; put(g, px, h - 3, px + 2, h - 2, lava ? '!' : '#'); if (!lava) put(g, px, h - 3, px + 2, h - 3, '^'); put(g, px - 1, h - 6, px + 3, h - 6, '='); } g[h - 4][22] = 'L'; g[h - 4][17] = 'B'; g[h - 4][37] = R() < .5 ? 'K' : 'R'; g[h - 7][26] = 'W'; return g; },
+    // A lava moat, crossed on crumbling bridges.
+    (R, v) => { const w = 48 + v * 4, h = 14, g = runFrame(w, h); put(g, 6, h - 3, w - 8, h - 2, '!'); for (let x = 7; x < w - 9; x += 9) { put(g, x, h - 5, x + 5, h - 5, 'C'); } put(g, 21, h - 5, 25, h - 5, '#'); g[h - 6][23] = 'L'; g[h - 8][30] = 'Z'; return g; },
+    // A pendulum hall under a low roof.
+    (R, v) => { const w = 46 + v * 4, h = 14, g = runFrame(w, h); put(g, 1, 1, w - 2, 3, '#'); for (let x = 9; x < w - 6; x += 8) { if (Math.abs(x - 22) < 3) continue; g[4][x] = R() < .5 ? 'e' : 'E'; } g[h - 4][22] = 'L'; g[h - 4][29] = 'B'; return g; },
+    // Rooftops: separate roofs with drops between and wasps above.
+    (R, v) => { const w = 50 + v * 4, h = 16, g = runFrame(w, h); for (let x = 8; x < w - 6; x += 10) put(g, x, h - 3, x + 2, h - 2, '.'); for (let x = 8; x < w - 6; x += 10) put(g, x - 1, h - 4, x - 1, h - 4, '#'); g[h - 4][22] = 'L'; g[h - 8][18] = 'W'; g[h - 8][38] = 'W'; g[h - 4][32] = 'A'; return g; },
+    // Lifts over a spike pit.
+    (R, v) => { const w = 46 + v * 4, h = 14, g = runFrame(w, h); put(g, 6, h - 3, w - 8, h - 3, '^'); g[h - 5][7] = 'M'; g[h - 5][5] = '|'; put(g, 20, h - 5, 25, h - 5, '#'); g[h - 5][19] = '|'; g[h - 6][23] = 'L'; g[h - 5][27] = 'M'; g[h - 5][26] = '|'; g[h - 5][w - 7] = '|'; return g; },
+    // Fire bars, with blinking blocks to cross a pit.
+    (R, v) => { const w = 48 + v * 4, h = 14, g = runFrame(w, h); g[h - 6][14] = 'f'; g[h - 6][36] = 'f'; put(g, 27, h - 3, 32, h - 2, '!'); put(g, 27, h - 5, 28, h - 5, 'T'); put(g, 31, h - 5, 32, h - 5, 'H'); g[h - 4][22] = 'L'; g[h - 4][8] = 'B'; return g; },
+  ];
+  function runFrame(w, h) {
+    const g = grid(w, h);
+    put(g, 0, 0, w - 1, 0, '#'); put(g, 0, 0, 0, h - 1, '#'); put(g, w - 1, 0, w - 1, h - 1, '#'); put(g, 1, h - 3, w - 2, h - 2, '#'); put(g, 0, h - 1, w - 1, h - 1, '#');
+    g[h - 4][2] = 'n'; g[h - 4][w - 3] = 'j';
+    return g;
+  }
+  let towerNo = 0;
+
   // The castle's climb: floors four rows apart, each with one hole up at the end opposite
   // the last, so every floor is crossed end to end; a step under each hole; spikes, crumbling
   // stretches and enemies along the way; lanterns a third and two thirds of the way up.
@@ -391,7 +589,11 @@
     // (The only fruit in an arena is apples: every bit of fruit there becomes one.)
     const arenaRows = def.map.map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
     arenaRows.forEach(row => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = 'a'; }));
-    const parts = castle ? [castleClimb(R), castleWalls(R), arenaRows] : [shaft(R), battlements(R), arenaRows];
+    // (Each tower its own climb and run: see CLIMBS and RUNS.)
+    const t = castle ? 0 : towerNo++, cv = Math.floor(t / CLIMBS.length);
+    const climb = castle ? castleClimb(R) : CLIMBS[t % CLIMBS.length](R, cv);
+    const run = castle ? castleWalls(R) : RUNS[(t + Math.floor(t / RUNS.length)) % RUNS.length](R, Math.floor(t / RUNS.length) % 3);
+    const parts = [castle || cv % 2 === 0 ? climb : mirror(climb), run, arenaRows];
     const h = Math.max(...parts.map(p => p.length));
     const w = parts.reduce((s, p) => s + p[0].length, 0) + GAP * (parts.length - 1);
     const g = grid(w, h, '#'), at = [];
