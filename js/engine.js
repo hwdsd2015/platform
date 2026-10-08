@@ -603,12 +603,12 @@
   };
 
   // Wheels: x marks the hub; its platforms ride round it WHEEL_R from the middle.
-  const WHEEL_R = TS * 3, WHEEL_CARS = 4, WHEEL_SPIN = .75;
+  const WHEEL_R = TS * 3, WHEEL_CARS = 4, WHEEL_SPIN = 1.15;
   LF.WHEEL_R = WHEEL_R;
   function wheelAt(pl) { pl.x = pl.cx + Math.cos(pl.a) * WHEEL_R - pl.w / 2; pl.y = pl.cy + Math.sin(pl.a) * WHEEL_R - pl.h / 2; }
-  // Turn blocks turn smoothly at SPIN radians a second (a full turn every 11 seconds or so):
+  // Turn blocks turn smoothly at SPIN radians a second (a full turn every 7 seconds or so):
   // walk to stay on top as the face under you tilts.
-  const SPIN = .55;
+  const SPIN = .9;
   function stepSpinners(W, dt) {
     for (const s of W.spinners) { s.da = s.dir * SPIN * dt; s.a += s.da; }
   }
