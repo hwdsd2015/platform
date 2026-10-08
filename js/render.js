@@ -492,6 +492,50 @@
         ctx.fillStyle = e.state === 'stuck' ? '#9A8FBF' : '#FF6B3D'; ctx.fillRect(6, 9, 7, 3); ctx.fillRect(17, 9, 7, 3);
         ctx.fillStyle = '#211C3F'; ctx.fillRect(9, 19, 12, 3);
         ctx.restore();
+      } else if (e.type === 'Ø+') {
+        // The Void: a black disc ringed with a slow swirl of violet and ember, wider while it
+        // pulls; it fades out and back in when it blinks, and cracks and dims as it collapses.
+        const R0 = e.w / 2, pulling = e.state === 'pull', down = e.state === 'collapse';
+        ctx.save(); ctx.globalAlpha = 1 - (e.fade || 0) * .9;
+        const halo = ctx.createRadialGradient(cx, cy, R0 * .6, cx, cy, R0 * (pulling ? 3.2 : 2));
+        halo.addColorStop(0, 'rgba(143,129,171,.45)'); halo.addColorStop(1, 'rgba(143,129,171,0)');
+        ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, cy, R0 * (pulling ? 3.2 : 2), 0, TAU); ctx.fill();
+        for (let k = 0; k < 3; k++) {
+          ctx.strokeStyle = k === 1 ? 'rgba(255,107,61,.7)' : 'rgba(207,198,232,.6)'; ctx.lineWidth = 3 - k * .6;
+          ctx.beginPath(); ctx.ellipse(cx, cy, R0 * (1.25 + k * .18), R0 * (.42 + k * .08), clock * (pulling ? 2.4 : .8) * (k % 2 ? -1 : 1) + k, 0, TAU); ctx.stroke();
+        }
+        ctx.fillStyle = e.hurt > 0 ? '#CFC6E8' : down ? '#2A2348' : '#05040E'; ctx.beginPath(); ctx.arc(cx, cy, R0, 0, TAU); ctx.fill();
+        ctx.strokeStyle = down ? '#8F81AB' : '#463C6B'; ctx.lineWidth = 2; ctx.stroke();
+        if (down) {
+          ctx.strokeStyle = '#CFC6E8'; ctx.lineWidth = 2;
+          for (const a of [.4, 2.2, 4.1]) { ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R0 * .2, cy + Math.sin(a) * R0 * .2); ctx.lineTo(cx + Math.cos(a + .3) * R0 * .6, cy + Math.sin(a + .3) * R0 * .6); ctx.lineTo(cx + Math.cos(a) * R0 * .95, cy + Math.sin(a) * R0 * .95); ctx.stroke(); }
+        } else {
+          ctx.fillStyle = pulling ? '#FF6B3D' : '#CFC6E8';
+          for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + d * R0 * .32, cy - R0 * .1, 5, pulling ? 3 : 6, 0, 0, TAU); ctx.fill(); }
+        }
+        ctx.restore();
+      } else if (e.type === 'Ɱ+') {
+        // The Melon Brute: a striped watermelon with angry eyes; it turns as it rolls, and
+        // cracks open (red inside) when it hits a wall.
+        const rx = e.w / 2, ry = e.h / 2, cracked = e.state === 'cracked';
+        ctx.save(); ctx.translate(cx, cy);
+        ctx.fillStyle = e.hurt > 0 ? '#E8F5E9' : '#2E7D32'; ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, TAU); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, TAU); ctx.clip();
+        ctx.strokeStyle = '#1B5E20'; ctx.lineWidth = 6;
+        const sp = e.spin || 0;
+        for (let k = -3; k <= 3; k++) { const x = ((k * 20 + sp * 20) % 140 + 140) % 140 - 70; ctx.beginPath(); ctx.moveTo(x, -ry); ctx.quadraticCurveTo(x + 8, 0, x, ry); ctx.stroke(); }
+        ctx.restore();
+        if (cracked) {
+          ctx.fillStyle = '#E5484D'; ctx.beginPath(); ctx.moveTo(-rx * .5, -ry); ctx.lineTo(-rx * .15, -ry * .2); ctx.lineTo(-rx * .4, ry * .3); ctx.lineTo(rx * .1, ry * .1); ctx.lineTo(rx * .3, -ry); ctx.fill();
+          ctx.fillStyle = '#211C3F'; for (const [x, y] of [[-14, -20], [0, -6], [-8, 8]]) ctx.fillRect(x, y, 3, 5);
+        }
+        ctx.fillStyle = '#FFF1CF';
+        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(d * 14 + e.face * 6, -8, 7, 6, 0, 0, TAU); ctx.fill(); }
+        ctx.fillStyle = '#211C3F';
+        for (const d of [-1, 1]) { ctx.beginPath(); ctx.arc(d * 14 + e.face * 8, -7, 3, 0, TAU); ctx.fill(); }
+        ctx.strokeStyle = '#211C3F'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-22 + e.face * 6, -20); ctx.lineTo(-7 + e.face * 6, -14); ctx.moveTo(22 + e.face * 6, -20); ctx.lineTo(7 + e.face * 6, -14); ctx.stroke();
+        ctx.restore();
       } else if (e.type === 'Ω+') {
         // The Last Dark: a towering hooded shape under a candle-snuffer, eyes burning hotter
         // with each phase, wisps of smoke circling it.
@@ -1261,6 +1305,21 @@
           ctx.fillStyle = '#1A1530'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
           ctx.strokeStyle = '#8F81AB'; ctx.lineWidth = 1; ctx.stroke();
           ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(x + 2, y - 7, 2.2 * flick(x, .5), 0, TAU); ctx.fill();
+          continue;
+        }
+        if (b.kind === 'void') {
+          // A void orb: a dark bead in a violet glow.
+          const x = b.x + b.w / 2, y = b.y + b.h / 2, g = ctx.createRadialGradient(x, y, 2, x, y, 13);
+          g.addColorStop(0, 'rgba(143,129,171,.7)'); g.addColorStop(1, 'rgba(143,129,171,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 13, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#05040E'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
+          continue;
+        }
+        if (b.kind === 'seed') {
+          // A melon seed, pointing the way it flies.
+          ctx.save(); ctx.translate(b.x + b.w / 2, b.y + b.h / 2); ctx.rotate(Math.atan2(b.vy, b.vx));
+          ctx.fillStyle = '#211C3F'; ctx.beginPath(); ctx.ellipse(0, 0, 6, 3.5, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#5E5173'; ctx.fillRect(-1, -1.5, 3, 1.2); ctx.restore();
           continue;
         }
         const r = b.w / 2;

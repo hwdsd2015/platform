@@ -542,6 +542,32 @@
   }
   let towerNo = 0;
 
+  // The Void's arena: islands over the drop, the Void hanging above them (it sinks to just
+  // above them when it collapses).
+  const voidDef = () => ({
+    name: 'The Sky Spire', dark: .4, giant: 'Ø', sky: true,
+    map: B(52, 20, ({ r, s }) => {
+      r(0, 0, 51, 0); r(0, 0, 0, 19); r(51, 0, 51, 19);
+      r(1, 13, 7, 13); s(3, 12, 'P');
+      r(11, 13, 15, 13); s(13, 12, 'a');
+      r(19, 14, 24, 14); r(28, 13, 32, 13);
+      r(36, 14, 41, 14); s(38, 13, 'a'); r(45, 13, 50, 13);
+      s(26, 5, '0');
+    }),
+    signs: [{ x: 2, y: 9.4, t: 'THE VOID · it pulls you in: run! · stomp it when it collapses' }],
+  });
+  // The Melon Brute's arena: a long floor to roll along, planks to jump up out of its way.
+  const melonDef = () => ({
+    name: 'The Melon Vault', dark: .55, giant: 'Ɱ',
+    map: easeAccess(B(46, 16, ({ r, s, walls }) => {
+      walls(); r(0, 0, 45, 0); r(0, 13, 45, 15);
+      s(2, 12, 'P');
+      r(8, 9, 13, 9, '='); s(10, 8, 'a'); r(20, 8, 26, 8, '='); r(33, 9, 38, 9, '='); s(35, 8, 'a');
+      s(30, 12, '0');
+    })),
+    signs: [{ x: 2, y: 9.4, t: 'THE MELON BRUTE · it rolls till it hits a wall · stomp it while it’s cracked' }],
+  });
+
   // The Sky Spire, the Sky Roads' tower: no floor, just the long drop under a climb of
   // islands, turn blocks, crumbling stone, a wheel and blinking blocks, then a run of
   // islands across the sky.
@@ -621,13 +647,14 @@
   }
   // Put the parts side by side and wire up the arena: its start becomes the last entry,
   // its door and boss gate go, and anything it measured in columns or rows moves with it.
-  function tower(def, seed, castle, sky) {
+  // (design: which climb and run, for towers added later, so the rest keep theirs.)
+  function tower(def, seed, castle, sky, design) {
     const R = LF.rng(seed);
     // (The only fruit in an arena is apples: every bit of fruit there becomes one.)
     const arenaRows = def.map.map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
     arenaRows.forEach(row => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = 'a'; }));
     // (Each tower its own climb and run: see CLIMBS and RUNS.)
-    const t = castle || sky ? 0 : towerNo++, cv = Math.floor(t / CLIMBS.length);
+    const t = design ?? (castle || sky ? 0 : towerNo++), cv = Math.floor(t / CLIMBS.length);
     const climb = sky ? skyClimb() : castle ? castleClimb(R) : CLIMBS[t % CLIMBS.length](R, cv);
     const run = sky ? skyRun() : castle ? castleWalls(R) : RUNS[(t + Math.floor(t / RUNS.length)) % RUNS.length](R, Math.floor(t / RUNS.length) % 3);
     const parts = [castle || sky || cv % 2 === 0 ? climb : mirror(climb), run, arenaRows];
@@ -666,10 +693,14 @@
     if (chapter === 'The Powder Works' && regular[i + 1] && regular[i + 1].chapter !== chapter) {
       out.push(...(LF.SKY_LEVELS || []));
       // ...ending at the Sky Spire, where the Soot Queen nests above the clouds.
-      out.push({ ...tower({ ...arena(1, 2), name: 'The Sky Spire', dark: .4 }, 777, false, true), chapter: 'The Storm Heights', boss: true, sky: true, since: 6 });
+      out.push({ ...tower(voidDef(), 777, false, true), chapter: 'The Storm Heights', boss: true, sky: true, since: 6 });
     }
     // And the Melon Patch (levels-13.js) closes the Garden Market.
-    if (chapter === 'The Ember Gardens' && regular[i + 1] && regular[i + 1].chapter !== chapter) out.push(...(LF.MELON_LEVELS || []));
+    if (chapter === 'The Ember Gardens' && regular[i + 1] && regular[i + 1].chapter !== chapter) {
+      out.push(...(LF.MELON_LEVELS || []));
+      // ...ending at the Melon Vault, the Melon Brute's tower.
+      out.push({ ...tower(melonDef(), 778, false, false, 40), chapter: 'The Melon Patch', boss: true, since: 7 });
+    }
   });
   // ---- The final boss ----
   // The very last level, a chapter of its own: the Last Dark.

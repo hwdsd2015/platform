@@ -30,8 +30,8 @@
   // Patch at the end of the Garden Market (version 5).
   const levelsV = store.get('levelsV', 1);
   // Later additions say which save version brought them in (lv.since): the Storm Heights
-  // and the Sky Spire came with version 6.
-  const SAVE_V = 6;
+  // and the Sky Spire came with version 6, the Melon Vault with 7.
+  const SAVE_V = 7;
   if (levelsV < SAVE_V) {
     const was = LF.LEVELS.map((lv, i) => i).filter(i => !((LF.LEVELS[i].since || 0) > levelsV) && (levelsV >= 3 || (levelsV < 2 ? !LF.LEVELS[i].boss : !LF.LEVELS[i].giantFight)));
     const move = book => Object.fromEntries(Object.entries(book).map(([k, v]) => [was[k] ?? k, v]));

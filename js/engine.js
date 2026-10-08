@@ -108,12 +108,15 @@
     '%': { name: 'The Rising Dark', w: 56, h: 56, stomp: true, hits: 12 },
     // The final boss: the darkness itself, and it takes twice the hits.
     'Ω': { name: 'The Last Dark', w: 72, h: 96, stomp: true, hits: 50 },
+    // Bosses of their own: the Void (the Sky Spire's) and the Melon Brute (the Melon Patch's).
+    'Ø': { name: 'The Void', w: 64, h: 64, stomp: false, fly: true, hits: 3 },
+    'Ɱ': { name: 'The Melon Brute', w: 76, h: 60, stomp: false, hits: 3 },
   };
   for (const [c, g] of Object.entries(GIANTS)) {
     const base = LF.ENEMIES[c];
     LF.ENEMIES[c + '+'] = base
       ? { name: g.name, boss: true, special: true, giant: c, k: g.k, w: base.w * g.k, h: base.h * g.k, stomp: base.stomp, drop: 10, fly: g.fly, hits: g.hits }
-      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, drop: 10, hits: g.hits };
+      : { name: g.name, boss: true, special: true, w: g.w, h: g.h, stomp: g.stomp, drop: 10, fly: g.fly, hits: g.hits };
   }
   const isBoss = LF.isBoss = e => !!LF.ENEMIES[e.type].boss;
   // Each boss falls to an exact number of hits, its `hits` (an arena can set its own with
@@ -341,6 +344,8 @@
     e.scale = s.k || 1; e.reach = -TS;
     const cx = tx * TS + TS / 2, cy = ty * TS + TS / 2;
     if (s.fly || c === 'f' || c === 'Ω') { e.x = cx - e.w / 2; e.y = cy - e.h / 2; }
+    // The Melon Brute stands on the floor under its spot.
+    if (c === 'Ɱ') { e.x = cx - e.w / 2; e.y = (ty + 1) * TS - e.h; }
     // Swimmers and the Magma Heart: find their pool's surface and sides.
     if (c === 'U' || c === 'Y' || c === 'N' || c === '*') {
       measurePool(W, e, tx, ty);
@@ -1982,6 +1987,104 @@
         } else if (e.state === 'stuck') { if ((e.wait -= dt) <= 0) e.state = 'rise'; }
         else { e.y -= 150 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = rage ? .6 : 1; } }
         e.x = Math.max(arenaLeft(W), Math.min((W.w - 1) * TS - e.w, e.x));
+        break;
+      }
+      case 'Ø+': {
+        // The Void: a hole in the night sky that hunts you round the islands. In turn it
+        // drifts after you, pulls you toward it (run against it: touching it hurts), throws
+        // rings of void orbs, and blinks to the far side of the arena. After every pull it
+        // collapses, sinking low and dazed: the moment to stomp it.
+        const fast = rage ? 1.3 : 1;
+        if (e.state === 'pull') {
+          if (live) {
+            const p = W.player, dx = ex - (p.x + p.w / 2), dy = ey - (p.y + p.h / 2), d = Math.hypot(dx, dy) || 1;
+            const pull = 135 * fast * Math.max(.35, 1 - d / (TS * 24));
+            moveX(W, p, dx / d * pull * dt);
+            if (!p.onGround && dy < 0) p.vy -= 260 * dt;
+            for (let k = 0; k < 2; k++) {
+              const a = Math.random() * TAU, r = 60 + Math.random() * 90;
+              W.particles.push({ x: ex + Math.cos(a) * r, y: ey + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2, vy: -Math.sin(a) * r * 2.2, life: .45, max: .45, c: '#8F81AB', size: 2, g: 0 });
+            }
+          }
+          if ((e.wait -= dt) <= 0) {
+            e.state = 'collapse'; e.home = e.y; e.vy = 0;
+            W.floaters.push({ x: ex, y: e.y - 14, t: 'it collapses!', life: 1.4, c: '#CFC6E8' });
+            daze(rage ? 1.6 : 2, 'collapse');
+          }
+          break;
+        }
+        if (e.state === 'collapse') {
+          // Sink to the lowest it goes (a little above the islands), then wait out the daze.
+          e.y = Math.min(e.y + 140 * dt, e.oy + TS * 6.5);
+          if ((e.wait -= dt) <= 0) { e.state = 'rise'; }
+          break;
+        }
+        if (e.state === 'rise') { e.y -= 160 * dt; if (e.y <= e.oy) { e.y = e.oy; e.state = 'idle'; e.wait = 1.2 / fast; } break; }
+        if (e.state === 'blink') {
+          e.fade = Math.min(1, (e.fade || 0) + dt * 3);
+          if (e.fade >= 1 && !e.blinked) {
+            const lo = arenaLeft(W) + TS * 2, hi = (W.w - 3) * TS - e.w;
+            e.x = px < (lo + hi) / 2 ? hi - Math.random() * TS * 4 : lo + Math.random() * TS * 4; e.blinked = true;
+            const toP = Math.atan2(py - (e.y + e.h / 2), px - (e.x + e.w / 2));
+            for (const da of [-.25, 0, .25]) W.projectiles.push({ x: e.x + e.w / 2 - 7, y: e.y + e.h / 2 - 7, w: 14, h: 14, vx: Math.cos(toP + da) * 190, vy: Math.sin(toP + da) * 190, life: 4, kind: 'void' });
+          }
+          if (e.blinked) { e.fade = Math.max(0, e.fade - dt * 6); if (e.fade <= 0) { e.blinked = false; e.state = 'idle'; e.wait = 1 / fast; } }
+          break;
+        }
+        // Drift toward a spot above you.
+        const tx = Math.max(arenaLeft(W) + TS, Math.min((W.w - 3) * TS - e.w, px - e.w / 2)), ty = Math.max(TS * 2, Math.min(e.oy + TS * 2, py - TS * 4 - e.h / 2));
+        e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), 110 * fast * dt);
+        e.y += (ty + Math.sin(e.t * 2) * 8 - e.y) * Math.min(1, dt * 1.5);
+        if ((e.wait -= dt) > 0 || !live) break;
+        const acts = ['pull', 'orbs', 'blink', 'pull', 'orbs'];
+        const act = acts[(e.moves = (e.moves || 0) + 1) % acts.length];
+        if (act === 'pull') { e.state = 'pull'; e.wait = 2.4; W.emit('buzz'); W.floaters.push({ x: ex, y: e.y - 14, t: 'it pulls…', life: 1.2, c: '#8F81AB' }); }
+        else if (act === 'orbs') {
+          const n = rage ? 12 : 9, toP = Math.atan2(py - ey, px - ex);
+          for (let k = 0; k < n; k++) {
+            const a = toP + Math.PI / n + k / n * TAU, off = Math.abs(((a - toP) % TAU + TAU + Math.PI) % TAU - Math.PI);
+            if (off < .5) continue;
+            W.projectiles.push({ x: ex - 7, y: ey - 7, w: 14, h: 14, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, life: 4.5, kind: 'void' });
+          }
+          e.wait = 1.6 / fast; W.emit('spit');
+        } else { e.state = 'blink'; e.fade = 0; e.blinked = false; W.emit('buzz'); }
+        break;
+      }
+      case 'Ɱ+': {
+        // The Melon Brute: a giant watermelon. It rolls at you and keeps rolling till it hits
+        // a wall, cracking itself (dazed: stomp it then); spits fans of seeds; hops at you,
+        // landing with shockwaves.
+        const fast = rage ? 1.25 : 1, land = bossFall(W, e, dt);
+        if (e.state === 'roll') {
+          e.spin = (e.spin || 0) + e.vx * dt / (e.h / 2);
+          if (Math.random() < .3) burst(W, ex - Math.sign(e.vx) * e.w / 2, e.y + e.h, 2, ['#7A4A3A', '#A5D6A7'], 60, 300, 2);
+          if (moveX(W, e, e.vx * dt) || e.x <= arenaLeft(W) + 1 || e.x + e.w >= (W.w - 1) * TS - 1) {
+            e.x = Math.max(arenaLeft(W), Math.min((W.w - 1) * TS - e.w, e.x));
+            W.shake = Math.max(W.shake, .5); W.emit('slam');
+            burst(W, ex + Math.sign(e.vx) * e.w / 2, ey, 22, ['#E5484D', '#A5D6A7', '#2E7D32'], 220, 400, 3);
+            for (let k = 0; k < 5; k++) W.projectiles.push({ x: ex - 4, y: e.y + 6, w: 8, h: 8, vx: -Math.sign(e.vx) * (60 + k * 50), vy: -380 - k * 40, g: 900, life: 3, kind: 'seed' });
+            e.vx = 0; W.floaters.push({ x: ex, y: e.y - 14, t: 'crack!', life: 1.2, c: '#A5D6A7' });
+            daze(rage ? 1.6 : 2.1, 'cracked');
+          }
+          break;
+        }
+        if (e.state === 'cracked') { if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = .8 / fast; } break; }
+        if (e.state === 'hop') {
+          moveX(W, e, e.vx * dt);
+          e.x = Math.max(arenaLeft(W), Math.min((W.w - 1) * TS - e.w, e.x));
+          if (land) { shock(W, e, [[-1, 260], [1, 260]]); W.shake = Math.max(W.shake, .35); W.emit('slam'); e.state = 'idle'; e.wait = .7 / fast; }
+          break;
+        }
+        e.face = toward;
+        if ((e.wait -= dt) > 0 || !live || !e.ground) break;
+        const acts = ['roll', 'seeds', 'hop', 'roll', 'hop', 'seeds'];
+        const act = acts[(e.moves = (e.moves || 0) + 1) % acts.length];
+        if (act === 'roll') { e.state = 'roll'; e.vx = toward * 330 * fast; W.emit('snort'); }
+        else if (act === 'hop') { e.state = 'hop'; e.vy = -760; e.ground = false; e.vx = Math.max(-260, Math.min(260, (px - ex) * 1.2)); W.emit('jump'); }
+        else {
+          for (let k = -2; k <= 2; k++) W.projectiles.push({ x: ex - 4, y: e.y + 10, w: 8, h: 8, vx: toward * (140 + Math.abs(k) * 20) + k * 40, vy: -420 + Math.abs(k) * 60, g: 900, life: 3, kind: 'seed' });
+          e.wait = 1.3 / fast; W.emit('spit');
+        }
         break;
       }
       case 'Ω+': {
