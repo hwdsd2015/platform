@@ -8,7 +8,7 @@
     { name: 'Old Town', chapters: ['The Chandlery', 'The Belfry', 'The Kilns', 'The Hollow Spire'] },
     { name: 'The Waterfront', chapters: ['The Orchard', 'The Drowned Quarter', 'The Lighthouse'] },
     { name: 'The Clockwork Quarter', chapters: ['The Clockworks', 'The Frost Roofs', 'The Clock Tower', 'The Vault', 'The Horde', 'The Powder Works'] },
-    { name: 'The Sky Roads', chapters: ['The Cloud Steps', 'The Wind Wheels'] },
+    { name: 'The Sky Roads', chapters: ['The Cloud Steps', 'The Wind Wheels', 'The Storm Heights'] },
     { name: 'The Canal District', chapters: ['The Tallow Docks', 'The Soot Canals'] },
     { name: 'The Garden Market', chapters: ['The Wax Market', 'The Ember Gardens', 'The Melon Patch'] },
     { name: 'The Smokelands', chapters: ['The Smoke Stacks', 'The Ash Barrens', 'The Bell Foundry'] },

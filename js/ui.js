@@ -29,14 +29,17 @@
   // Then the Sky Roads, a world of their own, went in mid-story (version 4), and the Melon
   // Patch at the end of the Garden Market (version 5).
   const levelsV = store.get('levelsV', 1);
-  if (levelsV < 5) {
-    const was = LF.LEVELS.map((lv, i) => i).filter(i => !LF.LEVELS[i].melon && (levelsV >= 4 || !LF.LEVELS[i].sky) && (levelsV >= 3 || (levelsV < 2 ? !LF.LEVELS[i].boss : !LF.LEVELS[i].giantFight)));
+  // Later additions say which save version brought them in (lv.since): the Storm Heights
+  // and the Sky Spire came with version 6.
+  const SAVE_V = 6;
+  if (levelsV < SAVE_V) {
+    const was = LF.LEVELS.map((lv, i) => i).filter(i => !((LF.LEVELS[i].since || 0) > levelsV) && (levelsV >= 3 || (levelsV < 2 ? !LF.LEVELS[i].boss : !LF.LEVELS[i].giantFight)));
     const move = book => Object.fromEntries(Object.entries(book).map(([k, v]) => [was[k] ?? k, v]));
     progress = move(progress); progressHC = move(progressHC);
     store.set('progress', progress); store.set('progressHC', progressHC);
     store.set('secrets', move(store.get('secrets', {}))); store.set('houses', move(store.get('houses', {})));
     store.set('mapAt', was[store.get('mapAt', 0)] ?? 0); store.set('midway', null); store.set('launch', null);
-    store.set('levelsV', 5);
+    store.set('levelsV', SAVE_V);
   }
 
   // ---------- audio ----------

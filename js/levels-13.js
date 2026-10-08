@@ -7,7 +7,7 @@
 (() => {
   const LF = window.LF;
   const B = LF.build;
-  const melon = (name, w, extra, draw) => ({ chapter: 'The Melon Patch', name, melon: true, dark: .55, ...extra, map: B(w, 16, draw) });
+  const melon = (name, w, extra, draw) => ({ chapter: 'The Melon Patch', name, melon: true, since: 5, dark: .55, ...extra, map: B(w, 16, draw) });
 
   LF.MELON_LEVELS = [
     melon('Melon Dash', 100, { signs: [{ x: 1, y: 8.4, t: '🍉 WATERMELON: run faster till you die' }] }, ({ r, s }) => {

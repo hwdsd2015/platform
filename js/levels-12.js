@@ -10,8 +10,9 @@
   const H = 20;
   // A floating island: a slab w wide, tapering underneath.
   const islands = (r, s) => (x, y, w) => { r(x, y, x + w - 1, y); if (w > 2) r(x + 1, y + 1, x + w - 2, y + 1); };
-  const sky = (chapter, name, w, signs, draw) => ({
-    chapter, name, sky: true, dark: .3, signs,
+  // (since: the save version that brought the level in; see the save migration in ui.js.)
+  const sky = (chapter, name, w, signs, draw, since = 4) => ({
+    chapter, name, sky: true, since, dark: .3, signs,
     map: B(w, H, ({ r, s }) => draw({ r, s, isle: islands(r, s) })),
   });
 
@@ -115,5 +116,59 @@
       s(96, 7, 'x');
       isle(103, 8, 7); s(107, 7, 'D');
     }),
+    // ---- The Storm Heights (added later): turn blocks, lifts and wheels, then the Sky Spire ----
+    sky('The Storm Heights', 'Spinning Steps', 78, [{ x: 1, y: 9.4, t: 'THE STORM HEIGHTS · turn blocks spin: walk to stay on top' }], ({ s, isle }) => {
+      isle(0, 13, 5); s(1, 12, 'P');
+      s(9, 13, ':'); s(15, 12, ':'); s(21, 11, ':');
+      isle(26, 10, 4); s(27, 9, 'L');
+      s(34, 11, ':'); s(40, 13, ':');
+      isle(45, 12, 3);
+      s(52, 10, 'x');
+      isle(58, 10, 3); s(64, 10, ':');
+      isle(68, 10, 8); s(74, 9, 'D');
+    }, 6),
+    sky('The Storm Heights', 'Gale Lifts', 96, [{ x: 1, y: 9.4, t: 'ride the gale: lifts, shingles, crumbling stone' }], ({ r, s, isle }) => {
+      isle(0, 13, 5); s(1, 12, 'P');
+      s(6, 13, 'M'); s(16, 13, '|');
+      isle(18, 13, 3);
+      s(23, 12, 'd'); s(25, 11, 'd'); s(27, 10, 'd');
+      isle(30, 10, 4); s(31, 9, 'L');
+      s(35, 10, 'M'); s(47, 10, '|');
+      isle(49, 11, 3);
+      s(54, 12, 'V'); s(54, 6, '|'); s(55, 6, '|'); s(54, 14, '|'); s(55, 14, '|');
+      isle(57, 7, 3);
+      r(62, 8, 67, 8, 'C');
+      s(71, 9, ':');
+      isle(76, 10, 3); s(80, 11, 'd'); s(82, 11, 'd');
+      isle(85, 11, 10); s(86, 10, 'b'); s(92, 10, 'D');
+    }, 6),
+    sky('The Storm Heights', 'Wheelwork', 90, [{ x: 1, y: 9.4, t: 'wheel, blink, wheel, wheel, spin, wheel' }], ({ r, s, isle }) => {
+      isle(0, 13, 6); s(2, 12, 'P');
+      s(10, 12, 'x');
+      isle(17, 11, 4);
+      r(22, 10, 24, 10, 'T'); r(27, 9, 29, 9, 'H');
+      isle(32, 9, 3); s(33, 8, 'L');
+      s(39, 10, 'x'); s(47, 10, 'x');
+      isle(53, 10, 3); s(59, 10, ':');
+      isle(63, 9, 3); s(70, 9, 'x');
+      isle(76, 9, 12); s(78, 8, 'o'); s(85, 8, 'D');
+    }, 6),
+    sky('The Storm Heights', 'The Last Gust', 112, [{ x: 1, y: 10.4, t: 'the last gust before the Sky Spire' }], ({ r, s, isle }) => {
+      isle(0, 14, 5); s(1, 13, 'P');
+      isle(6, 15, 3); s(7, 15, 'O');
+      isle(10, 8, 4);
+      r(16, 8, 21, 8, 'C');
+      s(25, 9, ':');
+      isle(29, 8, 4); s(31, 7, 'L');
+      s(34, 8, 'M'); s(44, 8, '|');
+      s(48, 10, 'x'); s(57, 10, 'x');
+      r(62, 9, 64, 9, 'T'); r(67, 8, 69, 8, 'H');
+      isle(72, 8, 3); s(77, 9, 'd'); s(79, 10, 'd'); s(81, 11, 'd');
+      s(85, 12, ':');
+      isle(90, 11, 3);
+      s(95, 12, 'V'); s(95, 6, '|'); s(96, 6, '|'); s(95, 13, '|'); s(96, 13, '|');
+      isle(98, 7, 3);
+      isle(102, 9, 8); s(108, 8, 'D');
+    }, 6),
   ];
 })();

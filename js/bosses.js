@@ -542,6 +542,43 @@
   }
   let towerNo = 0;
 
+  // The Sky Spire, the Sky Roads' tower: no floor, just the long drop under a climb of
+  // islands, turn blocks, crumbling stone, a wheel and blinking blocks, then a run of
+  // islands across the sky.
+  function skyClimb() {
+    const w = 24, h = 50, g = frame(w, h);
+    put(g, 6, h - 2, w - 2, h - 1, '.');                  // the floor's gone: below is the sky
+    const isle = (x0, x1, y) => put(g, x0, y, x1, y, '#');
+    isle(7, 9, h - 5);
+    g[h - 7][12] = ':';
+    isle(15, 17, h - 11);
+    put(g, 19, h - 14, 21, h - 14, 'C');
+    isle(15, 17, h - 17); g[h - 18][16] = 'L';
+    g[h - 21][10] = 'x';
+    isle(5, 7, h - 27);
+    put(g, 2, h - 30, 4, h - 30, 'T'); put(g, 6, h - 33, 8, h - 33, 'H');
+    g[h - 35][11] = ':';
+    isle(14, 16, h - 39);
+    isle(10, 12, h - 42);
+    topFloor(g, 10, 12, w - 3);
+    return g;
+  }
+  function skyRun() {
+    const w = 56, h = 16, g = runFrame(w, h);
+    put(g, 1, h - 3, w - 2, h - 1, '.');
+    const isle = (x0, x1) => put(g, x0, h - 3, x1, h - 3, '#');
+    isle(1, 5); g[h - 7][10] = 'W';
+    g[h - 3][10] = ':';
+    isle(14, 17); g[h - 4][15] = 'L';
+    g[h - 5][24] = 'x';
+    isle(30, 33);
+    for (const x of [36, 38, 40]) g[h - 4][x] = 'd';
+    isle(43, 46);
+    g[h - 4][49] = ':';
+    isle(53, w - 2);
+    return g;
+  }
+
   // The castle's climb: floors four rows apart, each with one hole up at the end opposite
   // the last, so every floor is crossed end to end; a step under each hole; spikes, crumbling
   // stretches and enemies along the way; lanterns a third and two thirds of the way up.
@@ -584,16 +621,16 @@
   }
   // Put the parts side by side and wire up the arena: its start becomes the last entry,
   // its door and boss gate go, and anything it measured in columns or rows moves with it.
-  function tower(def, seed, castle) {
+  function tower(def, seed, castle, sky) {
     const R = LF.rng(seed);
     // (The only fruit in an arena is apples: every bit of fruit there becomes one.)
     const arenaRows = def.map.map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
     arenaRows.forEach(row => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = 'a'; }));
     // (Each tower its own climb and run: see CLIMBS and RUNS.)
-    const t = castle ? 0 : towerNo++, cv = Math.floor(t / CLIMBS.length);
-    const climb = castle ? castleClimb(R) : CLIMBS[t % CLIMBS.length](R, cv);
-    const run = castle ? castleWalls(R) : RUNS[(t + Math.floor(t / RUNS.length)) % RUNS.length](R, Math.floor(t / RUNS.length) % 3);
-    const parts = [castle || cv % 2 === 0 ? climb : mirror(climb), run, arenaRows];
+    const t = castle || sky ? 0 : towerNo++, cv = Math.floor(t / CLIMBS.length);
+    const climb = sky ? skyClimb() : castle ? castleClimb(R) : CLIMBS[t % CLIMBS.length](R, cv);
+    const run = sky ? skyRun() : castle ? castleWalls(R) : RUNS[(t + Math.floor(t / RUNS.length)) % RUNS.length](R, Math.floor(t / RUNS.length) % 3);
+    const parts = [castle || sky || cv % 2 === 0 ? climb : mirror(climb), run, arenaRows];
     const h = Math.max(...parts.map(p => p.length));
     const w = parts.reduce((s, p) => s + p[0].length, 0) + GAP * (parts.length - 1);
     const g = grid(w, h, '#'), at = [];
@@ -626,7 +663,11 @@
     const n = i + 1, chapter = lv.chapter;
     if (n % 10 === 0 && FIGHTS[n / 10 - 1]) out.push({ ...tower(arena(n / 10 - 1, Math.floor((n / 10 - 1) / 5)), 300 + n), chapter, boss: true });
     else if (n % 10 === 5 && GIANT_FIGHTS[(n - 5) / 10]) out.push({ ...tower(giantArena((n - 5) / 10), 300 + n), chapter, boss: true });
-    if (chapter === 'The Powder Works' && regular[i + 1] && regular[i + 1].chapter !== chapter) out.push(...(LF.SKY_LEVELS || []));
+    if (chapter === 'The Powder Works' && regular[i + 1] && regular[i + 1].chapter !== chapter) {
+      out.push(...(LF.SKY_LEVELS || []));
+      // ...ending at the Sky Spire, where the Soot Queen nests above the clouds.
+      out.push({ ...tower({ ...arena(1, 2), name: 'The Sky Spire', dark: .4 }, 777, false, true), chapter: 'The Storm Heights', boss: true, sky: true, since: 6 });
+    }
     // And the Melon Patch (levels-13.js) closes the Garden Market.
     if (chapter === 'The Ember Gardens' && regular[i + 1] && regular[i + 1].chapter !== chapter) out.push(...(LF.MELON_LEVELS || []));
   });

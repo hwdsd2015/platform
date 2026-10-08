@@ -207,9 +207,9 @@
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
       } else if (c === ':') {
-        // Turn block: a 3x3 square of stone centred here that turns a quarter turn about its
-        // middle, again and again (see stepSpinners).
-        W.spinners.push({ cx: x * TS + 16, cy: y * TS + 16, half: TS * 1.5, a: 0, da: 0, t: (x * 3 + y) % 5 * .3, dir: (x + y) % 2 ? 1 : -1, turns: 0 });
+        // Turn block: a 3x3 square of stone centred here that turns smoothly about its middle,
+        // round and round (see stepSpinners).
+        W.spinners.push({ cx: x * TS + 16, cy: y * TS + 16, half: TS * 1.5, a: (x * 3 + y) % 7 * .2, da: 0, dir: (x + y) % 2 ? 1 : -1 });
         tiles[y][x] = ' ';
       } else if (c === 'x') {
         // Wheel: WHEEL_CARS platforms turning around this spot (they stay level as they go).
@@ -601,21 +601,11 @@
   const WHEEL_R = TS * 3, WHEEL_CARS = 4, WHEEL_SPIN = .75;
   LF.WHEEL_R = WHEEL_R;
   function wheelAt(pl) { pl.x = pl.cx + Math.cos(pl.a) * WHEEL_R - pl.w / 2; pl.y = pl.cy + Math.sin(pl.a) * WHEEL_R - pl.h / 2; }
-  // Turn blocks hold still for SPIN_HOLD seconds (shaking for the last SPIN_WARN of them),
-  // then turn a quarter turn over SPIN_TURN seconds.
-  const SPIN_HOLD = 1.8, SPIN_WARN = .45, SPIN_TURN = .6;
-  LF.SPIN = { HOLD: SPIN_HOLD, WARN: SPIN_WARN, TURN: SPIN_TURN };
+  // Turn blocks turn smoothly at SPIN radians a second (a full turn every 11 seconds or so):
+  // walk to stay on top as the face under you tilts.
+  const SPIN = .55;
   function stepSpinners(W, dt) {
-    for (const s of W.spinners) {
-      const before = s.a;
-      s.t += dt;
-      const cycle = SPIN_HOLD + SPIN_TURN;
-      while (s.t >= cycle) { s.t -= cycle; s.turns++; }
-      const u = Math.max(0, (s.t - SPIN_HOLD) / SPIN_TURN), ease = u * u * (3 - 2 * u);
-      s.a = s.dir * (s.turns + ease) * Math.PI / 2;
-      s.da = s.a - before;
-      s.shake = s.t > SPIN_HOLD - SPIN_WARN && s.t < SPIN_HOLD;
-    }
+    for (const s of W.spinners) { s.da = s.dir * SPIN * dt; s.a += s.da; }
   }
   // Push a box out of a turn block (a square turned by s.a), along the shortest way out.
   // Returns that push, or null if they don't touch.
@@ -2225,7 +2215,7 @@
     const dropping = p.drop > 0;
 
     // Walls: touching one in the air allows a wall jump; pushing into it while falling slides slowly.
-    p.wall = p.onGround ? 0 : wallBeside(W, p, -1) ? -1 : wallBeside(W, p, 1) ? 1 : 0;
+    p.wall = p.onGround ? 0 : wallBeside(W, p, -1) ? -1 : wallBeside(W, p, 1) ? 1 : p.spinWallT > 0 ? p.spinWallSide : 0;
     const airJumps = T.airJumps + (p.dbl > 0 ? 1 : 0);
     if (p.wall) { p.wallDir = p.wall; p.wallCoyote = .1; p.airJumps = airJumps; }
     else p.wallCoyote -= dt;
@@ -2379,14 +2369,19 @@
       }
     }
     // Turn blocks: pushed out of the square the shortest way. Pushed up out of its top (a
-    // face no steeper than about 50°), you're standing on it.
+    // face no steeper than about 50°), you're standing on it; against a steeper face in the
+    // air, it's a wall: slide down it and jump off it like any other.
+    p.spinWallT = Math.max(0, (p.spinWallT || 0) - dt);
     for (const sp of W.spinners) {
       const m = spinnerPush(sp, p);
       if (!m) continue;
       p.x += m.x; p.y += m.y;
       if (m.y < 0 && -m.y > Math.abs(m.x) * .8) { if (p.vy > 0) p.vy = 0; p.onGround = true; p.spinOn = sp; }
       else if (m.y > 0 && m.y > Math.abs(m.x)) { if (p.vy < 0) { p.vy = 0; p.jumping = false; } }
-      else if (Math.sign(m.x) !== Math.sign(p.vx)) p.vx = 0;
+      else {
+        if (Math.sign(m.x) !== Math.sign(p.vx)) p.vx = 0;
+        if (Math.abs(m.x) >= Math.abs(m.y)) { p.spinWallT = .12; p.spinWallSide = -Math.sign(m.x); }
+      }
     }
     if (bounced) {
       p.vy = -SPRING * Math.sqrt(T.gravity); p.onGround = false; p.coyote = 0; p.jumping = false; p.sx = .7; p.sy = 1.35;
