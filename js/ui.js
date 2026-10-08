@@ -740,7 +740,7 @@
         <span class="inv-icon">${FRUIT_ICON[t]}</span><div><b>${f.name} ×${inventory[t] || 0}</b><small>${esc(f.note)}</small></div>
         <button class="mini go-mini" data-use="${t}" ${(inventory[t] || 0) > 0 && !hardcore ? '' : 'disabled'}>Use</button></li>`).join('')}</ul>
       <p class="lede">${hardcore ? 'Hardcore is on: no fruit.' : inLevel ? `Your powers now: ${powersText(now)}` : `Ready for your next level: ${powersText(now)}`}</p>
-      <p class="inv-note">Gather fruit in the fruit houses on the map. Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
+      <p class="inv-note">Gather fruit in the fruit houses on the map. Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too, until you die${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
     </div>`;
     $('inv-close').addEventListener('click', closeInventory);
     for (const b of $('inv').querySelectorAll('[data-use]')) b.addEventListener('click', () => useItem(b.dataset.use));
@@ -777,7 +777,7 @@
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
         <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>
         <li>Practice mode (on the map): every level open, nothing counts · <kbd>Z</kbd> set a checkpoint · <kbd>X</kbd> remove the latest · <kbd>C</kbd> explosive round</li>
-        <li><kbd>R</kbd> give up: you die (back to the map; lit lanterns are kept) and lose your fruit powers and ammo · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
+        <li>Dying loses all your ammo (and your fruit powers) · <kbd>R</kbd> give up: you die (back to the map; lit lanterns are kept) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
       </ul>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
       <div class="menu"><button class="go" data-act="menu">Back to the map</button></div>`);
@@ -1247,7 +1247,8 @@
         if (ev.type === 'clear') clearTimer = .7;
         if (ev.type === 'warp') LF.followCamera(W, cam, 0, true);
         if (ev.type === 'lost') { lostTimer = .9; saveMidway(); }
-        if (ev.type === 'die' && playCtx.kind === 'story' && carry) { carry = null; store.set('powers', null); }
+        // Dying in the story loses your fruit powers and all the ammo you were carrying.
+        if (ev.type === 'die' && playCtx.kind === 'story') { carry = null; store.set('powers', null); store.set('ammo', 0); }
       }
       W.events.length = 0;
       if (clearTimer > 0 && screen === 'play') { clearTimer -= dt; if (clearTimer <= 0) cleared(); }

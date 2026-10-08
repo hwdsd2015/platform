@@ -507,8 +507,11 @@
     // In the story, dying always sends you back to the map (the lanterns you lit are kept
     // for your next go at this level: see def.resume).
     if (W.def.toMapOnDeath) { W.lost = true; W.emit('lost'); return; }
-    const { ammo, keys } = W.player;
-    Object.assign(W.player, makePlayer(W.checkpoint), { ammo, keys });
+    // Dying costs you all your ammo; the level's crates fill up again, so a shot door can
+    // never be left out of reach.
+    const { keys } = W.player;
+    Object.assign(W.player, makePlayer(W.checkpoint), { ammo: 0, keys });
+    for (const a of W.ammo) a.taken = false;
     // Practice: back at the latest checkpoint you set, if any.
     const mark = W.marks[W.marks.length - 1];
     if (mark) { W.player.x = mark.x; W.player.y = mark.y; }
