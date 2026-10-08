@@ -64,7 +64,7 @@
     I: { name: 'Iron golem', w: 30, h: 34, stomp: true, hp: 3, drop: 5, note: 'slow, armored: takes 3 shots or 3 stomps' },
     '*': { name: 'Lava bubble', w: 16, h: 16, stomp: false, drop: 3, note: 'place in lava: hides, then shoots up out of it every few seconds' },
     N: { name: 'Leaping gar', w: 24, h: 12, stomp: true, drop: 2, note: 'place in water: leaps out at you' },
-    '@': { name: 'TNT cart', w: 28, h: 22, stomp: false, hp: 5, note: 'rolls along; 5 hits of any kind and it blows up, killing everything within 10 blocks' },
+    '@': { name: 'TNT cart', w: 28, h: 22, stomp: true, hp: 5, note: 'rolls along; 5 hits of any kind (stomps too) and it blows up, killing everything within 10 blocks (but not you)' },
     // Bosses: wake when you come near, take an exact number of hits (shots or stomps on the
     // head; see BOSS_HITS), and keep the door shut until they fall.
     5: { name: 'The Bellwether', boss: true, w: 60, h: 46, stomp: true, drop: 10, hits: 20, note: 'boss: charges across the arena and is dazed when it hits a wall' },
@@ -1006,6 +1006,8 @@
       if (e.fury > 0) stepBoss(W, e, dt * .3, playing);
       return stepBoss(W, e, dt, playing);
     }
+    // (TNT carts take stomps one at a time, like golems.)
+    if (e.type === '@') { e.hurt = Math.max(0, e.hurt - dt); e.stompCool = Math.max(0, e.stompCool - dt); }
     if (WALKERS.has(e.type)) {
       if (!supported(W, e)) {
         e.vy = Math.min(MAXFALL, (e.vy || 0) + G * dt);
@@ -2530,9 +2532,9 @@
         } else if (e.stompCool <= 0) { hurt(W); if (p.dead) return; }
         continue;
       }
-      // Armored heads (bosses, and golems until their last hit) can be stomped again and
-      // again, with a short pause between: 3 damage to a boss, 1 to a golem.
-      if ((spec.stomp || e.dazed > 0) && (spec.boss || e.hp > 1)) {
+      // Armored heads (bosses, golems until their last hit, and TNT carts, whose last stomp
+      // sets them off) can be stomped again and again, with a short pause between.
+      if ((spec.stomp || e.dazed > 0) && (spec.boss || e.hp > 1 || e.type === '@')) {
         if (p.vy > 0 && p.y + p.h - e.y < 18) {
           p.vy = (input.jump ? -680 : -520) * Math.sqrt(T.gravity); p.jumping = input.jump;
           if (e.stompCool <= 0) {
