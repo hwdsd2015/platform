@@ -47,7 +47,12 @@
   const initAudio = () => {
     if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; } }
     if (ac && ac.state === 'suspended') ac.resume();
+    // The music starts with the first key or tap (browsers won't play sound before that).
+    if (ac && LF.music) { LF.music.setMuted(muted); LF.music.setOn(store.get('music', true)); LF.music.attach(ac); }
   };
+  // Which track goes with a level: its world's, or the boss's, the castle's, the grove's.
+  const trackFor = (def, ctx) => ctx.kind === 'house' ? 'grove' : ctx.kind === 'cannon' ? 'map' : def.finalFight ? 'final' : def.boss || def.bossEnds ? 'boss'
+    : `world${(ctx.index != null && LF.LEVELS[ctx.index] ? LF.LEVELS[ctx.index].world : 0) % 9}`;
   function tone(f1, f2, dur, type = 'square', vol = .05, delay = 0) {
     if (!ac || muted) return;
     const t0 = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
@@ -298,6 +303,7 @@
 
   function showMap() {
     screen = 'map';
+    if (LF.music) { LF.music.play('map'); LF.music.duck(false); }
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     attract = LF.createWorld(LF.LEVELS[0]);
     LF.followCamera(attract, cam, 0, true);
@@ -784,7 +790,7 @@
         <li>Lanterns are checkpoints (one a level, two in a tower, three in the castle): dying sends you back to the map, but go into the same level again and you start at the lantern you lit; play another level first and it's put out</li>
         <li>Towers: climb, then the battlements, then the boss; beating the boss ends the level</li>
         <li>Practice mode (on the map): every level open, nothing counts · <kbd>Z</kbd> set a checkpoint · <kbd>X</kbd> remove the latest · <kbd>C</kbd> explosive round</li>
-        <li>Dying loses all your ammo (and your fruit powers) · <kbd>R</kbd> give up: you die (back to the map; lit lanterns are kept) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'}</li>
+        <li>Dying loses all your ammo (and your fruit powers) · <kbd>R</kbd> give up: you die (back to the map; lit lanterns are kept) · <kbd>Esc</kbd> pause · <kbd>M</kbd> sound ${muted ? 'off' : 'on'} · <kbd>N</kbd> music ${store.get('music', true) ? 'on' : 'off'}</li>
       </ul>
       ${hardcore ? '<p class="lede hc-note">Hardcore is on: no lanterns, no ammo, no fruit, no invincibility after respawning. The door is already open, but there are no checkpoints: every fall sends you back to the start, in the dark. Water turns to lava.</p>' : ''}
       <div class="menu"><button class="go" data-act="menu">Back to the map</button></div>`);
@@ -821,6 +827,7 @@
 
   function play(def, ctx) {
     playDef = def; playCtx = ctx;
+    if (LF.music) { LF.music.play(trackFor(def, ctx)); LF.music.duck(false); }
     if (ctx.kind !== 'shared') setHash(keyFor(ctx));
     // Fruit powers and ammo you're carrying come with you into story levels (not in Hardcore).
     const carrying = ctx.kind === 'story' && !hardcore;
@@ -849,6 +856,7 @@
   function pause() {
     if (screen !== 'play') return;
     screen = 'paused';
+    if (LF.music) LF.music.duck(true);
     setVisible({ hud: true, overlay: true });
     const lit = W.lanterns.filter(l => l.lit).length;
     card(`
@@ -1113,7 +1121,7 @@
     menu: () => { if (screen === 'paused') saveMidway(); showMap(); },
     awards: showAwards,
     toggleHardcore: () => { hardcore = !hardcore; store.set('hardcore', hardcore); renderMap(false); flash(hardcore ? 'Hardcore on' : 'Hardcore off'); },
-    resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); },
+    resume: () => { screen = 'play'; setVisible({ hud: true, touch: true }); if (LF.music) LF.music.duck(false); },
     restart: () => play(playDef, playCtx),
     giveUp: () => { ACTIONS.resume(); giveUp(); },
     backToEditor: () => { screen = 'editor'; setVisible({}); editor.resume(); },
@@ -1144,6 +1152,13 @@
   addEventListener('keydown', e => {
     syncBig(e.shiftKey);
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
+    initAudio();   // (any key wakes the sound up, music and all)
+    // N turns the music on or off (anywhere but the editor).
+    if (e.code === 'KeyN' && !e.repeat && screen !== 'editor' && !e.metaKey && !e.ctrlKey) {
+      initAudio();
+      const v = !store.get('music', true); store.set('music', v); if (LF.music) LF.music.setOn(v);
+      flash(v ? 'Music on' : 'Music off');
+    }
     // Leave browser and OS shortcuts (⌘W, ⌘T, ⌘R…) alone.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (screen === 'editor') { if (e.code === 'Escape') showMap(); return; }
@@ -1168,7 +1183,7 @@
       if (e.code === 'KeyR' && !e.repeat && !W.player.dead && !W.cleared) giveUp();
       if (e.code === 'Escape' && playCtx.kind === 'test') ACTIONS.backToEditor();
       else if (e.code === 'Escape' || e.code === 'KeyP') pause();
-      if (e.code === 'KeyM') { muted = !muted; store.set('muted', muted); flash(muted ? 'Sound off' : 'Sound on'); }
+      if (e.code === 'KeyM') { muted = !muted; store.set('muted', muted); if (LF.music) LF.music.setMuted(muted); flash(muted ? 'Sound off' : 'Sound on'); }
       initAudio();
       return;
     }
@@ -1183,6 +1198,7 @@
     }
     if (k === 'jump' || e.code === 'Space') e.preventDefault();
   });
+  addEventListener('pointerdown', () => initAudio());
   addEventListener('keyup', e => { syncBig(e.shiftKey); const k = KEYMAP[e.code]; if (k) input[k] = false; });
   addEventListener('blur', () => { for (const k in input) input[k] = false; syncBig(false); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'play') pause(); });
