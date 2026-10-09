@@ -22,8 +22,11 @@
   const TRACKS = {
     map: { mode: 'major', root: 60, bpm: 92, feel: 'calm', seed: 11 },
     grove: { mode: 'major', root: 65, bpm: 150, feel: 'drive', seed: 77 },
-    boss: { mode: 'harmonic', root: 57, bpm: 144, feel: 'boss', seed: 31 },
-    final: { mode: 'harmonic', root: 52, bpm: 120, feel: 'boss', seed: 99 },
+    // Towers: the climb and battlements; the castle's climb. (Each boss's own fight music
+    // is made from its name: see fightTrack. The final boss has its own.)
+    tower: { mode: 'harmonic', root: 57, bpm: 132, feel: 'boss', seed: 31 },
+    castle: { mode: 'minor', root: 50, bpm: 112, feel: 'boss', seed: 41 },
+    final: { mode: 'harmonic', root: 50, bpm: 160, feel: 'fight', seed: 99 },
     world0: { mode: 'major', root: 62, bpm: 104, feel: 'drive', seed: 1 },      // Old Town
     world1: { mode: 'mixo', root: 60, bpm: 98, feel: 'drive', seed: 2 },        // the Waterfront
     world2: { mode: 'dorian', root: 57, bpm: 112, feel: 'drive', seed: 3 },     // the Clockwork Quarter
@@ -36,10 +39,16 @@
   };
   const RHYTHMS = [[0, 3, 6, 8, 10, 12, 14], [0, 2, 4, 6, 8, 11, 12, 14], [0, 4, 6, 8, 12, 14], [0, 2, 3, 6, 8, 10, 12], [0, 3, 4, 8, 11, 12]];
 
+  // A boss fight's music: 'fight:<name>' — fast, heavy and minor, with its own key, tempo,
+  // mode and tune from the boss's name.
+  function fightTrack(name) {
+    let h = 7; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return { mode: ['harmonic', 'minor', 'dorian', 'harmonic'][h % 4], root: 52 + (h >> 3) % 7, bpm: 146 + (h >> 6) % 5 * 4, feel: 'fight', seed: h % 100000 };
+  }
   const cache = {};
   function compose(name) {
     if (cache[name]) return cache[name];
-    const t = TRACKS[name] || TRACKS.map, R = LF.rng(t.seed * 7919 + 13), scale = SCALES[t.mode];
+    const t = name.startsWith('fight:') ? fightTrack(name.slice(6)) : TRACKS[name] || TRACKS.map, R = LF.rng(t.seed * 7919 + 13), scale = SCALES[t.mode];
     const prog = PROGS[t.mode][Math.floor(R() * PROGS[t.mode].length)];
     const pitch = d => t.root + scale[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
     const chordTones = c => [c, c + 2, c + 4];
@@ -62,7 +71,8 @@
     const bars = [...A, ...B].map((lead, k) => {
       const c = prog[k % 4];
       const bass = Array(16).fill(null);
-      if (t.feel === 'boss') for (let s = 0; s < 16; s += 2) bass[s] = pitch(c) - 24 + (s % 8 === 6 ? 7 : 0);
+      if (t.feel === 'fight') for (let s = 0; s < 16; s++) bass[s] = s % 4 === 3 ? null : pitch(c) - 24 + (s % 8 === 6 ? 12 : s % 8 === 7 ? 7 : 0);
+      else if (t.feel === 'boss') for (let s = 0; s < 16; s += 2) bass[s] = pitch(c) - 24 + (s % 8 === 6 ? 7 : 0);
       else for (const s of [0, 4, 8, 12]) bass[s] = pitch(c) - 24 + (s === 8 && t.feel !== 'calm' ? 7 : 0);
       return { lead, bass, chord: chordTones(c).map(d => pitch(d) - 12) };
     });
@@ -94,9 +104,19 @@
   function playStep(tr, i, t) {
     const b = tr.bars[Math.floor(i / 16)], s = i % 16, spb = 60 / tr.bpm / 4;
     if (b.lead[s]) voice(hz(b.lead[s]), t, spb * (tr.feel === 'calm' ? 3.5 : 2.2), tr.feel === 'calm' ? 'triangle' : 'square', tr.feel === 'calm' ? .05 : .022);
-    if (b.bass[s]) voice(hz(b.bass[s]), t, spb * (tr.feel === 'boss' ? 1.8 : 3.6), 'triangle', .07);
+    if (b.bass[s]) voice(hz(b.bass[s]), t, spb * (tr.feel === 'fight' ? .9 : tr.feel === 'boss' ? 1.8 : 3.6), tr.feel === 'fight' ? 'sawtooth' : 'triangle', tr.feel === 'fight' ? .04 : .07);
     if (s === 0 && tr.feel === 'calm') for (const n of b.chord) voice(hz(n), t, spb * 16, 'sine', .018, .4);
     if (tr.feel === 'calm') { if (s === 4 || s === 12) noise(t, .012, .04, 'highpass', 7000); return; }
+    if (tr.feel === 'fight') {
+      // A fight: hats on every step, kicks driving, snares on the backbeat with a fill at the
+      // end of every fourth bar, and a crash at the top of each phrase.
+      const bar = Math.floor(i / 16);
+      noise(t, s % 2 ? .012 : .024, .03, 'highpass', 8000);
+      if ([0, 3, 6, 8, 11, 14].includes(s)) kick(t, .24);
+      if (s === 4 || s === 12 || (bar % 4 === 3 && s >= 13)) noise(t, .08, .11, 'bandpass', 1900);
+      if (s === 0 && bar % 4 === 0) noise(t, .05, .6, 'highpass', 5000);
+      return;
+    }
     if (s % 2 === 0) noise(t, tr.feel === 'boss' ? .022 : .014, .035, 'highpass', 7000);
     if (s === 0 || s === 8 || (tr.feel === 'boss' && (s === 3 || s === 10))) kick(t, .22);
     if (s === 4 || s === 12) noise(t, .07, .12, 'bandpass', 1800);
@@ -127,7 +147,8 @@
     timer = setInterval(tick, 25);
     start(want);
   };
-  // Play a track (by name: map, grove, boss, final, world0…world8); the same one keeps going.
+  // Play a track (by name: map, grove, tower, castle, final, world0…world8, or fight:<boss>);
+  // the same one keeps going.
   M.play = name => { if (name === want && track) return; want = name; if (ac) start(name); };
   const setLevel = () => { if (ac) { out.gain.cancelScheduledValues(ac.currentTime); out.gain.setTargetAtTime(level(), ac.currentTime, .08); } };
   M.setOn = v => { on = v; setLevel(); };

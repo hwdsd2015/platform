@@ -50,8 +50,11 @@
     // The music starts with the first key or tap (browsers won't play sound before that).
     if (ac && LF.music) { LF.music.setMuted(muted); LF.music.setOn(store.get('music', true)); LF.music.attach(ac); }
   };
-  // Which track goes with a level: its world's, or the boss's, the castle's, the grove's.
-  const trackFor = (def, ctx) => ctx.kind === 'house' ? 'grove' : ctx.kind === 'cannon' ? 'map' : def.finalFight ? 'final' : def.boss || def.bossEnds ? 'boss'
+  // Which track goes with a level: its world's, the grove's, or in a tower the tower's (the
+  // castle's) until you step into the boss's arena, then that boss's own fight music (the
+  // Last Dark's for the castle).
+  const trackFor = (def, ctx, inArena) => ctx.kind === 'house' ? 'grove' : ctx.kind === 'cannon' ? 'map'
+    : def.arenaX ? (inArena ? (def.finalFight ? 'final' : `fight:${def.name}`) : def.finalFight ? 'castle' : 'tower')
     : `world${(ctx.index != null && LF.LEVELS[ctx.index] ? LF.LEVELS[ctx.index].world : 0) % 9}`;
   function tone(f1, f2, dur, type = 'square', vol = .05, delay = 0) {
     if (!ac || muted) return;
@@ -827,7 +830,7 @@
 
   function play(def, ctx) {
     playDef = def; playCtx = ctx;
-    if (LF.music) { LF.music.play(trackFor(def, ctx)); LF.music.duck(false); }
+    if (LF.music) { LF.music.play(trackFor(def, ctx, false)); LF.music.duck(false); }
     if (ctx.kind !== 'shared') setHash(keyFor(ctx));
     // Fruit powers and ammo you're carrying come with you into story levels (not in Hardcore).
     const carrying = ctx.kind === 'story' && !hardcore;
@@ -1277,6 +1280,8 @@
       W.events.length = 0;
       if (clearTimer > 0 && screen === 'play') { clearTimer -= dt; if (clearTimer <= 0) cleared(); }
       // Died with no lantern lit: back to the map; the level starts over next time.
+      // In a tower, the music changes as you step into the boss's arena (and back, in practice).
+      if (screen === 'play' && W.def.arenaX && LF.music) LF.music.play(trackFor(playDef, playCtx, W.player.x >= W.def.arenaX * LF.TS));
       if (lostTimer > 0 && screen === 'play') { lostTimer -= dt; if (lostTimer <= 0) { showMap(); flash(W.lanternLit ? 'Back to the map: go in again to start at your lantern' : 'Back to the map: the level starts over'); } }
       LF.followCamera(W, cam, dt);
       R.render(W, cam, {}, dt);
