@@ -109,7 +109,7 @@
     { name: 'The Powder Throne', mode: 'throne', dark: .72, sign: 'THE POWDER KING · dodge his bombs · his carts blow up everything near',
       map: () => throne(none) },
     // ---- Round 2 ----
-    { name: 'Ram’s Run', mode: 'stampede', dark: .62, hordeStop: 42, sign: 'RUN → the horde drives you to the Bellwether',
+    { name: 'Ram’s Run', mode: 'stampede', dark: .62, hordeStop: 42, sign: 'RUN → to the Bellwether',
       map: () => B(92, 16, ({ r, s, walls }) => {
         walls(); r(0, 0, 91, 0); r(1, 13, 90, 14);
         s(1, 12, '&'); s(4, 12, 'P'); s(7, 12, 'q');
@@ -120,7 +120,7 @@
         r(52, 10, 57, 10, '='); r(61, 7, 66, 7, '='); s(63, 6, '$'); r(72, 10, 77, 10, '='); s(75, 9, 'b');
         s(68, 12, '5'); r(89, 1, 89, 12, 'g'); s(90, 12, 'D');
       }) },
-    { name: 'The Ember Roost', mode: 'rising', bossHits: 14, dark: .72, hordeStop: 19, sign: 'CLIMB ↑ the dark rises · the Soot Queen waits at the top',
+    { name: 'The Ember Roost', mode: 'rising', bossHits: 14, dark: .72, hordeStop: 19, sign: 'CLIMB ↑ · the Soot Queen waits at the top',
       map: () => B(28, 48, ({ r, s, walls }) => {
         walls(); r(0, 0, 27, 0); r(1, 45, 26, 46);
         s(0, 47, '%'); s(3, 44, 'P'); s(5, 44, 'q');
@@ -274,14 +274,14 @@
       }) },
     { giant: 'e', name: 'Spiked Pendulum Bossfight', dark: .66, sign: 'THE THORN PENDULUM · its chain cuts · strike when it stops',
       map: () => hall(46, 16, ({ r, s }) => { r(3, 9, 8, 9, '='); s(5, 8, 'b'); r(36, 9, 41, 9, '='); s(38, 8, 'a'); s(23, 1, '0'); }) },
-    { giant: '&', name: 'Horde Bossfight', dark: .7, hordeStop: 112, hordeSpeed: .5, sign: 'THE SHADOW WALL · strike its heart when it lunges out',
+    { giant: '&', name: 'Horde Bossfight', dark: .7, hordeStop: 112, hordeSpeed: .5, sign: 'THE SHADOW WALL · its heart hunts you alone · stomp it after it lunges',
       map: () => B(130, 16, ({ r, s, walls }) => {
         walls(); r(0, 0, 129, 0); r(1, 13, 128, 14);
         s(1, 12, '&'); s(3, 12, '0'); s(8, 12, 'P'); s(10, 12, 'Q'); s(12, 12, '$');
         for (let x = 20; x < 110; x += 15) { r(x, 10, x + 4, 10, '='); s(x + 2, 9, 'aobm'[(x / 15) % 4 | 0]); s(x + 9, 12, 'q'); }
         r(126, 1, 126, 12, 'g'); s(127, 12, 'D');
       }) },
-    { giant: '%', name: 'Rising Horde Bossfight', dark: .74, hordeStop: 12, hordeSpeed: .55, sign: 'CLIMB ↑ and strike the heart when it surges',
+    { giant: '%', name: 'Rising Horde Bossfight', dark: .74, hordeStop: 12, hordeSpeed: .55, sign: 'CLIMB ↑ · the dark’s heart hunts you · stomp it after it lunges',
       map: () => B(28, 70, ({ r, s, walls }) => {
         walls(); r(0, 0, 27, 0); r(1, 67, 26, 68);
         s(0, 69, '%'); s(14, 66, '0'); s(4, 66, 'P'); s(6, 66, 'Q'); s(8, 66, '$');
@@ -689,7 +689,8 @@
   function tower(def, seed, castle, sky, design) {
     const R = LF.rng(seed);
     // (The only fruit in an arena is apples: every bit of fruit there becomes one.)
-    const arenaRows = reachAll(def.map).map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
+    // (No hordes in boss fights: any horde marker in the arena goes.)
+    const arenaRows = reachAll(def.map.map(row => row.replace(/[&%]/g, '.'))).map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
     arenaRows.forEach(row => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = 'a'; }));
     // (Each tower its own climb and run: see CLIMBS and RUNS.)
     const t = design ?? (castle || sky ? 0 : towerNo++), cv = Math.floor(t / CLIMBS.length);
@@ -716,7 +717,7 @@
         ...(def.signs || []).map(s => ({ ...s, x: s.x + arena.x, y: s.y + arena.y })),
       ],
     };
-    if (def.hordeStop != null) out.hordeStop = def.hordeStop + (def.map.join('').includes('%') ? arena.y : arena.x);
+    delete out.hordeStop;
     return out;
   }
 

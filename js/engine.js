@@ -2152,8 +2152,26 @@
       case '&+': case '%+': {
         // The horde's heart rides its front, deep in the dark, and every few seconds lunges
         // out at you: the only time it can be hit. Kill it and the whole horde goes.
+        // (In a boss fight there's no horde: the heart hunts you on its own, hovering after
+        // you and lunging; after each lunge it hangs dazed for a moment.)
         const h = W.horde;
-        if (!h) break;
+        if (!h) {
+          if (e.state === 'lunge') {
+            e.x += e.vx * dt; e.y += e.vy * dt; clampIn();
+            if ((e.wait -= dt) <= 0) { e.vx = e.vy = 0; daze(rage ? .9 : 1.2, 'spent'); W.floaters.push({ x: ex, y: e.y - 14, t: 'spent!', life: 1.1, c: '#CFC6E8' }); }
+            break;
+          }
+          if (e.state === 'spent') { if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 1.6 : 2.2; } break; }
+          const tx = px - e.w / 2 + (px < ex ? 1 : -1) * TS * 4, ty = py - TS * 2.5 - e.h / 2;
+          e.x += Math.sign(tx - e.x) * Math.min(Math.abs(tx - e.x), 100 * dt);
+          e.y += Math.sign(ty - e.y) * Math.min(Math.abs(ty - e.y), 80 * dt);
+          clampIn();
+          if ((e.wait -= dt) <= 0 && live) {
+            const d = Math.hypot(px - ex, py - ey) || 1, sp = rage ? 430 : 360;
+            e.state = 'lunge'; e.vx = (px - ex) / d * sp; e.vy = (py - ey) / d * sp; e.wait = Math.min(.9, d / sp + .15); W.emit('growl');
+          }
+          break;
+        }
         if (e.state === 'lunge') {
           e.reach = Math.min(TS * (rage ? 6 : 5), e.reach + dt * TS * 12);
           if ((e.wait -= dt) <= 0) { e.state = 'idle'; e.wait = rage ? 2.2 : 3.2; }
