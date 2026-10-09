@@ -1251,6 +1251,9 @@
   // ---------- bosses ----------
   function startFury(W, e) {
     e.fury = FURY; e.furyHit = .5; e.furyN = 0; e.dazed = 0;
+    // One stomp left: the last fury, with the boss's signature move.
+    e.finale = e.hp === 1 && FINALE[e.type] ? FINALE[e.type] : null;
+    if (e.finale) W.floaters.push({ x: e.x + e.w / 2, y: e.y - 40, t: `FINAL FURY: ${e.finale[0]}!`, life: 2.4, c: '#FFB547' });
     if (e.wait > .3) e.wait = .3;
     W.floaters.push({ x: e.x + e.w / 2, y: e.y - 22, t: 'FURY!', life: 1.4, c: '#FF4D3D' });
     W.shake = Math.max(W.shake, .3); W.emit('roar');
@@ -1344,6 +1347,41 @@
       } else { e.x += dx / d * sp; e.y += dy / d * sp; }
     }
   }
+  // The last fury (the one before the stomp that finishes a boss) adds the boss's own
+  // signature move, every other beat. FINALE: name and what it does, by boss.
+  const floorY = (W, x) => floorUnder(W, x, W.player.y) ?? W.player.y + W.player.h;
+  const shot = (W, x, y, vx, vy, extra) => W.projectiles.push({ x: x - 6, y: y - 6, w: 12, h: 12, vx, vy, life: 5, ...extra });
+  const warnAt = (W, x, then) => { const fy = floorY(W, x); W.projectiles.push({ kind: 'warn', x: x - 7, y: fy - 18, w: 14, h: 18, vx: 0, vy: 0, life: .8, max: .8, then: then(fy) }); };
+  const acrossArena = (W, n, f) => { const lo = arenaLeft(W) + TS, hi = arenaRight(W) - TS; for (let k = 0; k < n; k++) f(lo + (k + .5) / n * (hi - lo), k); };
+  const minionsNear = (W, e, type, n) => { for (let k = 0; k < n && minions(W) < 6; k++) spawnMinion(W, type, e.x + e.w / 2 + (k - (n - 1) / 2) * TS * 2, e.y + e.h - 4); };
+  const FINALE = {
+    '5': ['Stampede', (W, e) => { for (const d of [-1, 1]) if (minions(W) < 6) { const m = spawnMinion(W, 'R', d < 0 ? arenaLeft(W) + TS * 2 : arenaRight(W) - TS * 2, e.y + e.h - 4); m.face = -d; } }],
+    '6': ['Ember Storm', (W) => { let k = 0; acrossArena(W, 10, x => shot(W, x, ceilingOver(W, x, W.player.y) + 8, 0, 60, { g: 300 + (k++ % 2) * 200 })); }],
+    '7': ['Arrow Volley', (W) => { const px = W.player.x + W.player.w / 2; for (let k = -3; k <= 3; k++) { const x = px + k * TS * 1.5; W.projectiles.push({ kind: 'arrow', x: x - 5, y: ceilingOver(W, x, W.player.y) + 6, w: 10, h: 6, vx: 0, vy: 120 + Math.abs(k) * 30, g: 500, life: 5 }); } }],
+    '8': ['Earthquake', (W, e) => { shock(W, e, [[-1, 320], [1, 320], [-1, 200], [1, 200]]); rockRain(W, 6, 7); W.shake = Math.max(W.shake, .8); }],
+    '9': ['Cart Barrage', (W, e) => { for (const d of [-1, 1]) if (minions(W) < 6) { const m = spawnMinion(W, '@', e.x + e.w / 2 + d * e.w, e.y + e.h - 4); m.vx = d * 60; } }],
+    'B+': ['Brood', (W, e) => minionsNear(W, e, 'B', 4)],
+    'J+': ['Frog Rain', (W) => { const px = W.player.x + W.player.w / 2; for (const d of [-3, 0, 3]) if (minions(W) < 6) spawnMinion(W, 'J', px + d * TS, ceilingOver(W, px + d * TS, W.player.y) + 4); }],
+    'W+': ['Swarm', (W, e) => minionsNear(W, e, 'W', 3)],
+    'X+': ['Web Net', (W, e) => { const ex = e.x + e.w / 2; for (let k = -3; k <= 3; k++) W.projectiles.push({ kind: 'web', x: ex - 7, y: e.y + e.h, w: 14, h: 14, vx: k * 70, vy: 160, life: 4 }); }],
+    'S+': ['Eruption', (W, e) => { const ex = e.x + e.w / 2; for (let k = -4; k <= 4; k++) shot(W, ex, e.y, k * 55, -520 - Math.abs(k) * 20, { g: 700 }); }],
+    'K+': ['Thorn Burst', (W, e) => { const ex = e.x + e.w / 2; for (const d of [-1, 1]) for (const h of [10, 40]) shot(W, ex, e.y + e.h - h, d * 300, 0, { w: 16, h: 8 }); }],
+    'U+': ['Glow Pulse', (W, e) => ring8(W, e.x + e.w / 2, e.y + e.h / 2, 16, 110)],
+    'Z+': ['Spark Split', (W, e) => minionsNear(W, e, 'Z', 3)],
+    'G+': ['Phantoms', (W, e) => minionsNear(W, e, 'G', 3)],
+    'Y+': ['Geysers', (W) => { const px = W.player.x + W.player.w / 2; for (const d of [-4, -1.5, 1.5, 4]) warnAt(W, px + d * TS, fy => ({ x: px + d * TS - 10, y: fy - 20, w: 20, h: 20, vx: 0, vy: -560, g: 600, life: 1.6 })); }],
+    'N+': ['Needle Rain', (W) => { const px = W.player.x + W.player.w / 2; for (let k = 0; k < 6; k++) { const x = px - TS * 6 + k * TS * 2; W.projectiles.push({ kind: 'arrow', x, y: ceilingOver(W, x, W.player.y) + 6, w: 10, h: 6, vx: 90, vy: 150, g: 300, life: 5 }); } }],
+    '*+': ['Lava Tide', (W) => acrossArena(W, 7, (x, k) => { if (k % 2 === 0) warnAt(W, x, fy => ({ kind: 'flame', x: x - 7, y: fy - 18, w: 14, h: 18, vx: 0, vy: 0, life: 2.6 })); })],
+    'E+': ['Bolas', (W) => { const y = W.player.y + W.player.h - 10; for (const d of [-1, 1]) shot(W, d < 0 ? arenaRight(W) - 10 : arenaLeft(W) + 10, y, -d * 260, 0, { w: 18, h: 18 }); }],
+    'e+': ['Thorn Shards', (W) => acrossArena(W, 8, x => shot(W, x, ceilingOver(W, x, W.player.y) + 6, 0, 80, { g: 650, w: 10, h: 10 }))],
+    'f+': ['Fire Spiral', (W, e) => { const ex = e.x + e.w / 2, ey = e.y + e.h / 2; for (let k = 0; k < 12; k++) { const a = k / 12 * TAU + (e.furyN || 0) * .4; shot(W, ex, ey, Math.cos(a) * (120 + k * 10), Math.sin(a) * (120 + k * 10)); } }],
+    'k+': ['Ceiling Slam', (W) => { const gap = Math.floor(Math.random() * 9); acrossArena(W, 9, (x, k) => { if (Math.abs(k - gap) > 1) W.projectiles.push({ kind: 'rock', x: x - 7, y: ceilingOver(W, x, W.player.y) + 2, w: 14, h: 14, vx: 0, vy: 0, g: 700, life: 4 }); }); }],
+    '&+': ['Dark Tide', (W) => { const y = W.player.y + W.player.h - 12; shot(W, arenaLeft(W) + 10, y, 230, 0, { kind: 'void', w: 14, h: 14 }); shot(W, arenaRight(W) - 10, y - TS * 2, -230, 0, { kind: 'void', w: 14, h: 14 }); }],
+    '%+': ['Dark Tide', (W) => { const y = W.player.y + W.player.h - 12; shot(W, arenaLeft(W) + 10, y, 230, 0, { kind: 'void', w: 14, h: 14 }); shot(W, arenaRight(W) - 10, y - TS * 2, -230, 0, { kind: 'void', w: 14, h: 14 }); }],
+    'Ω+': ['Eclipse', (W, e) => { W.dark = Math.min(.95, W.dark + .08); ring8(W, e.x + e.w / 2, e.y + e.h / 2, 20, 150); minionsNear(W, e, 'G', 2); }],
+    'Ø+': ['Singularity', (W, e) => { const ex = e.x + e.w / 2, ey = e.y + e.h / 2; for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; const r = TS * 7; shot(W, ex + Math.cos(a) * r, ey + Math.sin(a) * r, -Math.cos(a) * 140 + Math.sin(a) * 60, -Math.sin(a) * 140 - Math.cos(a) * 60, { kind: 'void', w: 14, h: 14, life: 3 }); } }],
+    'Ɱ+': ['Seed Storm', (W, e) => { const ex = e.x + e.w / 2; for (let k = -3; k <= 3; k++) W.projectiles.push({ kind: 'seed', x: ex - 4, y: e.y + 6, w: 8, h: 8, vx: k * 80, vy: -480 + Math.abs(k) * 30, g: 900, life: 3 }); }],
+  };
   function stepFury(W, e, dt) {
     e.fury -= dt; e.dazed = 0;
     const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
@@ -1358,6 +1396,7 @@
     e.furyHit -= dt;
     if (e.furyHit > 0) return;
     e.furyHit = FURY_EVERY; e.furyN++;
+    if (e.finale && e.furyN % 2 === 0) { e.finale[1](W, e); ring(W, ex, ey, Math.max(e.w, e.h) * 1.4, '255,181,71', .5); W.shake = Math.max(W.shake, .3); W.emit('roar'); return; }
     const kind = furyKind(e), step = e.furyN % 4;
     if (step === 1) {
       if (kind === 'leap' && e.ground) furyLeap(W, e);

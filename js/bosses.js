@@ -710,7 +710,7 @@
     const arena = at[at.length - 1], climbAt = at[0], runAt = at[1];
     const out = {
       // No guns in a tower: the boss falls to 3 stomps, and flies into a fury after each.
-      ...def, map: g.map(row => row.join('')), noDoor: true, bossEnds: true, arenaX: arena.x, noAmmo: true, bossFury: true, bossHits: 3,
+      ...def, map: g.map(row => row.join('')), noDoor: true, bossEnds: true, arenaX: arena.x, noAmmo: true, bossFury: true, bossHits: castle ? 5 : 3,
       signs: [
         { x: climbAt.x + 2, y: climbAt.y + parts[0].length - 4.6, t: castle ? 'THE CASTLE · climb, floor after floor · no guns here' : 'CLIMB THE TOWER ↑ · no guns here: stomp' },
         { x: runAt.x + 2, y: runAt.y + parts[1].length - 6.6, t: 'along the battlements →' },
@@ -753,7 +753,7 @@
   });
   out.push({
     ...tower({ name: 'Final Bossfight', dark: .82, map: easeAccess(finalMap), giant: 'Ω',
-      signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 3 stomps · stomp it when it dives to the floor' }] }, 999, true),
+      signs: [{ x: 2, y: 14.4, t: 'THE LAST DARK · 5 stomps · stomp it when it dives to the floor' }] }, 999, true),
     chapter: 'The Last Night', boss: true, finalFight: true,
   });
   L.length = 0; L.push(...out);
