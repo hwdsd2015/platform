@@ -862,9 +862,10 @@
         ${playCtx.kind === 'story' ? '<button class="alt" data-act="itemsFromPause">Items · Tab</button>' : ''}
         ${playCtx.kind === 'test' ? '<button class="alt" data-act="backToEditor">Back to editor</button>' : ''}
         ${playCtx.kind === 'random' ? '<button class="alt" data-act="editRandom">Open in editor</button>' : ''}
-        ${playCtx.kind !== 'test' ? '<button class="alt" data-act="copyToEditor">Copy to editor</button>' : ''}
-        <button class="alt" data-act="menu">Back to the map</button>
-      </div>`);
+        ${playCtx.kind !== 'test' && playCtx.kind !== 'story' ? '<button class="alt" data-act="copyToEditor">Copy to editor</button>' : ''}
+        ${playCtx.kind === 'story' ? '' : '<button class="alt" data-act="menu">Back to the map</button>'}
+      </div>
+      ${playCtx.kind === 'story' ? '<p class="lede"><small>No walking out of a story level: finish it, or give up (that counts as a death).</small></p>' : ''}`);
   }
 
   function cleared() {
