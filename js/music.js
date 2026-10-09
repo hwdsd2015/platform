@@ -30,11 +30,11 @@
     world0: { mode: 'major', root: 62, bpm: 104, feel: 'drive', seed: 1 },      // Old Town
     world1: { mode: 'mixo', root: 60, bpm: 98, feel: 'drive', seed: 2 },        // the Waterfront
     world2: { mode: 'dorian', root: 57, bpm: 112, feel: 'drive', seed: 3 },     // the Clockwork Quarter
-    world3: { mode: 'lydian', root: 65, bpm: 96, feel: 'calm', seed: 4 },       // the Sky Roads
+    world3: { mode: 'lydian', root: 67, bpm: 116, feel: 'sky', seed: 4 },       // the Sky Roads
     world4: { mode: 'mixo', root: 62, bpm: 100, feel: 'drive', seed: 5 },       // the Canal District
     world5: { mode: 'major', root: 64, bpm: 108, feel: 'drive', seed: 6 },      // the Garden Market
     world6: { mode: 'minor', root: 57, bpm: 110, feel: 'drive', seed: 7 },      // the Smokelands
-    world7: { mode: 'dorian', root: 59, bpm: 106, feel: 'calm', seed: 8 },      // the Glass Mines
+    world7: { mode: 'dorian', root: 59, bpm: 118, feel: 'drive', seed: 8 },     // the Glass Mines
     world8: { mode: 'minor', root: 55, bpm: 96, feel: 'drive', seed: 9 },       // Night's End
   };
   const RHYTHMS = [[0, 3, 6, 8, 10, 12, 14], [0, 2, 4, 6, 8, 11, 12, 14], [0, 4, 6, 8, 12, 14], [0, 2, 3, 6, 8, 10, 12], [0, 3, 4, 8, 11, 12]];
@@ -73,6 +73,7 @@
       const bass = Array(16).fill(null);
       if (t.feel === 'fight') for (let s = 0; s < 16; s++) bass[s] = s % 4 === 3 ? null : pitch(c) - 24 + (s % 8 === 6 ? 12 : s % 8 === 7 ? 7 : 0);
       else if (t.feel === 'boss') for (let s = 0; s < 16; s += 2) bass[s] = pitch(c) - 24 + (s % 8 === 6 ? 7 : 0);
+      else if (t.feel === 'sky') bass[0] = pitch(c) - 24;
       else for (const s of [0, 4, 8, 12]) bass[s] = pitch(c) - 24 + (s === 8 && t.feel !== 'calm' ? 7 : 0);
       return { lead, bass, chord: chordTones(c).map(d => pitch(d) - 12) };
     });
@@ -94,15 +95,27 @@
     g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .16);
     o.connect(g).connect(out); o.start(t); o.stop(t + .2);
   }
-  function noise(t, v, dur, type, freq) {
+  function noise(t, v, dur, type, freq, swell) {
     if (!noiseBuf) { noiseBuf = ac.createBuffer(1, ac.sampleRate * .3, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
     const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-    s.buffer = noiseBuf; f.type = type; f.frequency.value = freq;
-    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.buffer = noiseBuf; s.loop = true; f.type = type; f.frequency.value = freq;
+    // (A swell rises and falls, like a gust of wind; otherwise it's a hit that dies away.)
+    if (swell) { g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(v, t + dur / 2); g.gain.linearRampToValueAtTime(.0001, t + dur); }
+    else { g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur); }
     s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + dur + .02);
   }
   function playStep(tr, i, t) {
     const b = tr.bars[Math.floor(i / 16)], s = i % 16, spb = 60 / tr.bpm / 4;
+    if (tr.feel === 'sky') {
+      // The Sky Roads: a high bell of a tune with an echo, harp-like arpeggios rippling up,
+      // a deep slow bass, gusts of wind, and just a shaker for a beat.
+      if (b.lead[s]) { voice(hz(b.lead[s] + 12), t, spb * 6, 'sine', .05, .005); voice(hz(b.lead[s] + 12), t + spb * 3, spb * 5, 'sine', .018, .005); }
+      if (s % 2 === 0) voice(hz(b.chord[(s / 2) % 3] + 12 + (s >= 8 ? 12 : 0)), t, spb * 3, 'triangle', .016, .004);
+      if (b.bass[s]) voice(hz(b.bass[s]), t, spb * 15, 'sine', .07, .05);
+      if (s === 0 && Math.floor(i / 16) % 2 === 0) noise(t, .02, spb * 28, 'bandpass', 500, true);
+      if (s % 4 === 2) noise(t, .008, .05, 'highpass', 9000);
+      return;
+    }
     if (b.lead[s]) voice(hz(b.lead[s]), t, spb * (tr.feel === 'calm' ? 3.5 : 2.2), tr.feel === 'calm' ? 'triangle' : 'square', tr.feel === 'calm' ? .05 : .022);
     if (b.bass[s]) voice(hz(b.bass[s]), t, spb * (tr.feel === 'fight' ? .9 : tr.feel === 'boss' ? 1.8 : 3.6), tr.feel === 'fight' ? 'sawtooth' : 'triangle', tr.feel === 'fight' ? .04 : .07);
     if (s === 0 && tr.feel === 'calm') for (const n of b.chord) voice(hz(n), t, spb * 16, 'sine', .018, .4);
