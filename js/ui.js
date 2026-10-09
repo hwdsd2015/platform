@@ -203,10 +203,14 @@
     const lv = LF.LEVELS[i];
     return !lv.boss && lv.secretTo == null && i % 7 === 4 && LF.WORLDS[lv.world].last !== i;
   });
-  // A fruit house's grove grows back GROVE_REGROW after you've been in (houses[i] is when).
-  const GROVE_REGROW = 60 * 60 * 1000;
-  const houseUsed = i => typeof houses[i] === 'number' && Date.now() - houses[i] < GROVE_REGROW;
-  const regrowIn = i => { const m = Math.ceil((GROVE_REGROW - (Date.now() - houses[i])) / 60000); return m >= 60 ? '1 hour' : `${m} min`; };
+  // A fruit house's grove grows back after GROVE_REGROW seconds of play since you were in:
+  // time spent in levels (not paused, not on the map, not with the game hidden), so leaving
+  // the game alone doesn't grow anything. playClock counts it; houses[i] = { t: playClock }.
+  // (Visits saved the old way, as a date, count as grown back.)
+  const GROVE_REGROW = 60 * 60;
+  let playClock = store.get('playClock', 0), clockSaved = playClock, lastInput = 0;
+  const houseUsed = i => !!houses[i] && typeof houses[i] === 'object' && playClock - houses[i].t < GROVE_REGROW;
+  const regrowIn = i => { const m = Math.ceil((GROVE_REGROW - (playClock - houses[i].t)) / 60); return `${m >= 60 ? '1 hour' : `${m} min`} of play`; };
   const houseOpen = i => !!progress[i] && !houseUsed(i);
   // The lamplighter can also stand at a cannon: { world: k } at the end of world k, or
   // { secret: i } beside level i. Enter there plays the Cannon Yard (see cannonLevel).
@@ -756,7 +760,7 @@
         <span class="inv-icon">${FRUIT_ICON[t]}</span><div><b>${f.name} ×${inventory[t] || 0}</b><small>${esc(f.note)}</small></div>
         <button class="mini go-mini" data-use="${t}" ${(inventory[t] || 0) > 0 && !hardcore ? '' : 'disabled'}>Use</button></li>`).join('')}</ul>
       <p class="lede">${hardcore ? 'Hardcore is on: no fruit.' : inLevel ? `Your powers now: ${powersText(now)}` : `Ready for your next level: ${powersText(now)}`}</p>
-      <p class="inv-note">Gather fruit in the fruit houses on the map (each one’s grove grows back an hour after you’ve been in). Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too, until you die${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
+      <p class="inv-note">Gather fruit in the fruit houses on the map (each one’s grove grows back after an hour of play since you were in: time spent playing levels). Powers last until you die and carry on from level to level. Ammo left over when you clear a level carries on too, until you die${hardcore ? '' : ` (you have ${store.get('ammo', 0)})`}.</p>
     </div>`;
     $('inv-close').addEventListener('click', closeInventory);
     for (const b of $('inv').querySelectorAll('[data-use]')) b.addEventListener('click', () => useItem(b.dataset.use));
@@ -889,7 +893,7 @@
     if (playCtx.kind === 'house') {
       screen = 'clear';
       setVisible({ hud: true, overlay: true });
-      houses[playCtx.i] = Date.now(); store.set('houses', houses);
+      houses[playCtx.i] = { t: playClock }; store.set('houses', houses);
       const got = Object.entries(W.got).filter(([, n]) => n > 0);
       for (const [t, n] of got) inventory[t] = Math.min(INV_MAX, (inventory[t] || 0) + n);
       store.set('inventory', inventory);
@@ -1156,6 +1160,7 @@
     syncBig(e.shiftKey);
     if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
     initAudio();   // (any key wakes the sound up, music and all)
+    lastInput = performance.now();
     // N turns the music on or off (anywhere but the editor).
     if (e.code === 'KeyN' && !e.repeat && screen !== 'editor' && !e.metaKey && !e.ctrlKey) {
       initAudio();
@@ -1201,7 +1206,7 @@
     }
     if (k === 'jump' || e.code === 'Space') e.preventDefault();
   });
-  addEventListener('pointerdown', () => initAudio());
+  addEventListener('pointerdown', () => { initAudio(); lastInput = performance.now(); });
   addEventListener('keyup', e => { syncBig(e.shiftKey); const k = KEYMAP[e.code]; if (k) input[k] = false; });
   addEventListener('blur', () => { for (const k in input) input[k] = false; syncBig(false); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'play') pause(); });
@@ -1280,6 +1285,12 @@
       W.events.length = 0;
       if (clearTimer > 0 && screen === 'play') { clearTimer -= dt; if (clearTimer <= 0) cleared(); }
       // Died with no lantern lit: back to the map; the level starts over next time.
+      // Play time (for the fruit groves): only while you're in a level, playing (with a key
+      // pressed or the screen touched in the last half minute: sitting idle doesn't count).
+      if (screen === 'play' && !document.hidden && now - lastInput < 30000) {
+        playClock += dt;
+        if (playClock - clockSaved > 5) { store.set('playClock', playClock); clockSaved = playClock; }
+      }
       // In a tower, the music changes as you step into the boss's arena (and back, in practice).
       if (screen === 'play' && W.def.arenaX && LF.music) LF.music.play(trackFor(playDef, playCtx, W.player.x >= W.def.arenaX * LF.TS));
       if (lostTimer > 0 && screen === 'play') { lostTimer -= dt; if (lostTimer <= 0) { showMap(); flash(W.lanternLit ? 'Back to the map: go in again to start at your lantern' : 'Back to the map: the level starts over'); } }
