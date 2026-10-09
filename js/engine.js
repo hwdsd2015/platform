@@ -209,14 +209,15 @@
       else if (c === 'M' || c === 'V') {
         W.plats.push({ axis: c === 'M' ? 'x' : 'y', x: x * TS, y: y * TS, ox: x * TS, oy: y * TS, w: TS * 2, h: 12, v: 70, dir: 1, dx: 0, dy: 0, prevY: y * TS });
         tiles[y][x] = ' ';
-      } else if (c === ':') {
+      } else if (c === ':' || c === ';') {
         // Turn block: a 3x3 square of stone centred here that turns smoothly about its middle,
-        // round and round (see stepSpinners).
-        W.spinners.push({ cx: x * TS + 16, cy: y * TS + 16, half: TS * 1.5, a: (x * 3 + y) % 7 * .2, da: 0, dir: (x + y) % 2 ? 1 : -1 });
+        // round and round (see stepSpinners): : clockwise, ; anticlockwise.
+        W.spinners.push({ cx: x * TS + 16, cy: y * TS + 16, half: TS * 1.5, a: (x * 3 + y) % 7 * .2, da: 0, dir: c === ':' ? 1 : -1 });
         tiles[y][x] = ' ';
-      } else if (c === 'x') {
-        // Wheel: WHEEL_CARS platforms turning around this spot (they stay level as they go).
-        const spin = (x + y) % 2 ? WHEEL_SPIN : -WHEEL_SPIN;
+      } else if (c === 'x' || c === ',') {
+        // Wheel: WHEEL_CARS platforms turning around this spot (they stay level as they go):
+        // x clockwise, , anticlockwise.
+        const spin = c === 'x' ? WHEEL_SPIN : -WHEEL_SPIN;
         for (let k = 0; k < WHEEL_CARS; k++) {
           const pl = { kind: 'wheel', cx: x * TS + 16, cy: y * TS + 16, a: k / WHEEL_CARS * TAU, spin, w: TS * 2, h: 12, dx: 0, dy: 0 };
           wheelAt(pl); pl.prevY = pl.y; W.plats.push(pl);

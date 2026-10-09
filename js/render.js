@@ -303,6 +303,14 @@
       }
     }
 
+    // A little curved arrow round a hub, showing which way it turns (dir 1: clockwise).
+    function spinArrow(x, y, rad, dir, a0) {
+      const a1 = a0 + dir * 1.9;
+      ctx.strokeStyle = '#FFE2A8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, rad, a0, a1, dir < 0); ctx.stroke();
+      const hx = x + Math.cos(a1) * rad, hy = y + Math.sin(a1) * rad, tx = -Math.sin(a1) * dir, ty = Math.cos(a1) * dir;
+      ctx.fillStyle = '#FFE2A8'; ctx.beginPath();
+      ctx.moveTo(hx + tx * 6, hy + ty * 6); ctx.lineTo(hx - ty * 4, hy + tx * 4); ctx.lineTo(hx + ty * 4, hy - tx * 4); ctx.fill();
+    }
     function drawPlats(W) {
       // Turn blocks: a square of stone turning on its pivot.
       for (const s of W.spinners) {
@@ -317,6 +325,7 @@
         ctx.strokeStyle = '#2A2348'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 6); ctx.stroke();
         ctx.restore();
+        spinArrow(s.cx, s.cy, 18, s.dir, -Math.PI / 2 - s.dir * .95);
       }
       // Wheels: the hub and spokes behind their platforms.
       for (const p of W.plats) {
@@ -330,6 +339,12 @@
         if (p.kind !== 'wheel') continue;
         ctx.fillStyle = '#5E5173'; ctx.beginPath(); ctx.arc(p.cx, p.cy, 9, 0, TAU); ctx.fill();
         ctx.fillStyle = '#FFB547'; ctx.beginPath(); ctx.arc(p.cx, p.cy, 3.5, 0, TAU); ctx.fill();
+      }
+      // (one arrow per wheel: drawn round the hub of its first platform's wheel)
+      const hubs = new Set();
+      for (const p of W.plats) {
+        if (p.kind !== 'wheel' || hubs.has(p.cx + ',' + p.cy)) continue;
+        hubs.add(p.cx + ',' + p.cy); spinArrow(p.cx, p.cy, 16, Math.sign(p.spin), -Math.PI / 2 - Math.sign(p.spin) * .95);
       }
       for (const p of W.plats) {
         if (p.kind === 'wheel') {
