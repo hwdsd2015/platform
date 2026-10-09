@@ -645,6 +645,49 @@
     g[h - 8][40] = 'f'; g[h - 6][28] = 'W'; g[h - 4][43] = 'K';
     return g;
   }
+  // Towers are meant to be hard going: on top of each climb's and run's own design, spikes
+  // in the middle of the wider ledges (only where the part can still be finished: checked),
+  // flyers in the air between the ledges and guards on the wider ones; the run gets an
+  // archer and a strip of spikes too. (The castle and the Sky Spire have their own designs.)
+  function harden(g, R, run) {
+    const h = g.length, w = g[0].length;
+    const asLevel = () => ({ map: g.map(r => r.join('').replace(/n/g, 'P').replace(/j/g, 'D')) });
+    const ok = () => { const a = LF.analyze(asLevel()); return a.ok && a.litOk === a.lanterns; };
+    const free = (x, y) => g[y]?.[x] === '.';
+    const near = (x, y, cs) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (cs.includes(g[y + dy]?.[x + dx])) return true; return false; };
+    // The ledges: runs of floor with open air above.
+    const ledges = [];
+    for (let y = 3; y < h - 1; y++) {
+      let x0 = -1;
+      for (let x = 1; x <= w - 1; x++) {
+        const top = '#=C'.includes(g[y][x]) && free(x, y - 1);
+        if (top && x0 < 0) x0 = x;
+        if ((!top || x === w - 1) && x0 >= 0) { const x1 = top ? x : x - 1; if (x1 - x0 >= 3) ledges.push({ y, x0, x1 }); x0 = -1; }
+      }
+    }
+    for (const l of ledges) {
+      const mid = Math.floor((l.x0 + l.x1) / 2);
+      if (near(mid, l.y - 1, 'PLjnD')) continue;
+      // A spike in the middle of the ledge (kept only if the part can still be finished).
+      // (Only on solid stone, never on a plank you come up through, with room either side.)
+      if (l.x1 - l.x0 >= 5 && R() < .5 && g[l.y][mid] === '#' && g[l.y][mid - 1] === '#' && g[l.y][mid + 1] === '#' && free(mid, l.y - 1) && free(mid, l.y - 2)) {
+        g[l.y - 1][mid] = '^';
+        if (!ok()) g[l.y - 1][mid] = '.';
+      }
+      // A guard on a wide ledge, or a flyer in the air above it.
+      const gx = l.x0 + 1;
+      if (l.x1 - l.x0 >= 5 && R() < .35 && free(gx, l.y - 1) && g[l.y - 1][gx] === '.') g[l.y - 1][gx] = R() < .25 ? 'K' : 'B';
+      else if (R() < .55 && free(mid, l.y - 3) && free(mid, l.y - 4)) g[l.y - 3][mid] = 'FZW'[Math.floor(R() * 3)];
+    }
+    if (run) {
+      const fy = h - 4;
+      for (const x of [9, w - 12]) if (free(x, fy) && free(x + 1, fy) && !near(x, fy, 'Ljn')) { g[fy][x] = g[fy][x + 1] = '^'; if (!ok()) g[fy][x] = g[fy][x + 1] = '.'; }
+      const ax = Math.floor(w * .7);
+      if (free(ax, fy)) g[fy][ax] = 'A';
+    }
+    return g;
+  }
+
   // Every platform in a boss's arena must be reachable with ordinary jumps (no taking a hit
   // to get there): for each one that isn't, put a plank step half way between it and the
   // nearest spot you can reach, and look again, until they all are.
@@ -696,6 +739,7 @@
     const t = design ?? (castle || sky ? 0 : towerNo++), cv = Math.floor(t / CLIMBS.length);
     const climb = sky ? skyClimb() : castle ? castleClimb(R) : CLIMBS[t % CLIMBS.length](R, cv);
     const run = sky ? skyRun() : castle ? castleWalls(R) : RUNS[(t + Math.floor(t / RUNS.length)) % RUNS.length](R, Math.floor(t / RUNS.length) % 3);
+    if (!castle && !sky) { harden(climb, R, false); harden(run, R, true); }
     const parts = [castle || sky || cv % 2 === 0 ? climb : mirror(climb), run, arenaRows];
     const h = Math.max(...parts.map(p => p.length));
     const w = parts.reduce((s, p) => s + p[0].length, 0) + GAP * (parts.length - 1);
