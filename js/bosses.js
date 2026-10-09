@@ -645,13 +645,51 @@
     g[h - 8][40] = 'f'; g[h - 6][28] = 'W'; g[h - 4][43] = 'K';
     return g;
   }
+  // Every platform in a boss's arena must be reachable with ordinary jumps (no taking a hit
+  // to get there): for each one that isn't, put a plank step half way between it and the
+  // nearest spot you can reach, and look again, until they all are.
+  function reachAll(map) {
+    const g = LF.normalize(map).map(r => r.split('')), h = g.length, w = g[0].length;
+    const solidish = c => '#=CTHi<>O123'.includes(c);
+    const standable = (x, y) => g[y][x] === '.' && g[y - 1][x] === '.' && solidish(g[y + 1][x]);
+    for (let round = 0; round < 30; round++) {
+      const a = LF.analyze({ map: g.map(r => r.join('')), noDoor: true });
+      const reached = [], missing = [];
+      for (let y = 2; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        if (!standable(x, y)) continue;
+        (a.seen[y * w + x] ? reached : missing).push({ x, y });
+      }
+      if (!missing.length || !reached.length) break;
+      // The unreached spot closest to anywhere reachable, and that reachable spot.
+      let best = null;
+      for (const m of missing) for (const r of reached) {
+        const d = Math.hypot(m.x - r.x, (m.y - r.y) * 1.5);
+        if (!best || d < best.d) best = { m, r, d };
+      }
+      const { m, r } = best, sy = Math.round((m.y + r.y) / 2), mx = Math.round((m.x + r.x) / 2);
+      // A three-wide plank under the half-way spot (nudged sideways if something's in the way).
+      let placed = false;
+      for (const dx of [0, 1, -1, 2, -2, 3, -3]) {
+        const x0 = mx + dx - 1, row = sy + 1;
+        if (x0 < 1 || x0 + 2 > w - 2 || row >= h - 1) continue;
+        let ok = true;
+        for (let x = x0; x <= x0 + 2 && ok; x++) for (const y of [row, sy, sy - 1]) if (g[y]?.[x] !== '.') ok = false;
+        if (!ok) continue;
+        for (let x = x0; x <= x0 + 2; x++) g[row][x] = '=';
+        placed = true; break;
+      }
+      if (!placed) break;
+    }
+    return g.map(r => r.join(''));
+  }
+
   // Put the parts side by side and wire up the arena: its start becomes the last entry,
   // its door and boss gate go, and anything it measured in columns or rows moves with it.
   // (design: which climb and run, for towers added later, so the rest keep theirs.)
   function tower(def, seed, castle, sky, design) {
     const R = LF.rng(seed);
     // (The only fruit in an arena is apples: every bit of fruit there becomes one.)
-    const arenaRows = def.map.map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
+    const arenaRows = reachAll(def.map).map(row => row.replace(/P/g, 'n').replace(/[Dg]/g, '.').split(''));
     arenaRows.forEach(row => row.forEach((c, x) => { if (LF.FRUITS[c]) row[x] = 'a'; }));
     // (Each tower its own climb and run: see CLIMBS and RUNS.)
     const t = design ?? (castle || sky ? 0 : towerNo++), cv = Math.floor(t / CLIMBS.length);
