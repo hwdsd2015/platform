@@ -776,7 +776,7 @@
     if (chapter === 'The Powder Works' && regular[i + 1] && regular[i + 1].chapter !== chapter) {
       out.push(...(LF.SKY_LEVELS || []));
       // ...ending at the Sky Spire, where the Soot Queen nests above the clouds.
-      out.push({ ...tower(voidDef(), 777, false, true), chapter: 'The High Winds', boss: true, sky: true, since: 6 });
+      out.push({ ...tower(voidDef(), 777, false, true), chapter: 'The Neo Ledges', boss: true, sky: true, since: 6 });
     }
     // And the Melon Patch (levels-13.js) closes the Garden Market.
     if (chapter === 'The Ember Gardens' && regular[i + 1] && regular[i + 1].chapter !== chapter) {

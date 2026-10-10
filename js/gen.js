@@ -76,8 +76,14 @@
         const used = new Set();
         for (;;) {
         while (q.length) {
-          const [x, y] = q.pop();
-          const spring = T(x, y + 1) === 'O';
+          const [x0, y] = q.pop();
+          const spring = T(x0, y + 1) === 'O';
+          // Take off from where you stand; and at the end of a ledge, also from just past
+          // it (run off and jump at once: that's how you get round a slab right over your
+          // head, out and back in), a little shorter.
+          const takeoffs = [[x0, 0]];
+          for (const d of [-1, 1]) if (!spring && x0 + d >= 0 && x0 + d < w && !solid(T(x0 + d, y)) && !hazard(T(x0 + d, y)) && !solid(T(x0 + d, y - 1)) && !stand(x0 + d, y)) takeoffs.push([x0 + d, 1]);
+          for (const [x, short] of takeoffs) {
           const upMax = spring ? 8 : 3;
           let head = 0;
           while (head < upMax && !solid(T(x, y - head - 1))) head++;
@@ -85,7 +91,7 @@
             const up = y - y2;
             if (up > head) continue;
             const normal = up >= 3 ? 2 : up >= 1 ? 4 : 5 + Math.min(2, Math.floor(-up / 2));
-            const reach = spring && up > 3 ? 3 : normal;
+            const reach = (spring && up > 3 ? 3 : normal) - short;
             for (let dx = -reach; dx <= reach; dx++) {
               const x2 = x + dx;
               if (!stand(x2, y2) || seen[key(x2, y2)]) continue;
@@ -97,6 +103,7 @@
               if (!ok) continue;
               seen[key(x2, y2)] = 1; q.push([x2, y2]);
             }
+          }
           }
         }
         // Through any passage door we've reached, and on from where it lets out.

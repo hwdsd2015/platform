@@ -11,6 +11,14 @@
   // A floating island: a slab w wide, tapering underneath.
   const islands = (r, s) => (x, y, w) => { r(x, y, x + w - 1, y); if (w > 2) r(x + 1, y + 1, x + w - 2, y + 1); };
   // (since: the save version that brought the level in; see the save migration in ui.js.)
+  // A stack of n neos: a ledge from xIn to x1 (row y), with slabs over its end (x0 to x1,
+  // flush with its edge) every three rows up, and a wall just inside x0, right up to the
+  // sky, so the only way up is out past the edge and back in.
+  const neoStack = (r, xIn, x0, x1, y, n, floor = '#') => {
+    r(xIn, y, x1, y, floor);
+    for (let k = 1; k <= n; k++) r(x0, y - 3 * k, x1, y - 3 * k);
+    r(x0 - 1, 0, x0 - 1, y - 3);   // (all the way up: no getting over it)
+  };
   const sky = (chapter, name, w, signs, draw, since = 4) => ({
     chapter, name, sky: true, since, dark: .3, signs,
     map: B(w, H, ({ r, s }) => draw({ r, s, isle: islands(r, s) })),
@@ -226,5 +234,37 @@
       r(96, 7, 101, 7, 'C');
       isle(104, 9, 14); s(106, 8, 'o'); s(116, 8, 'D');
     }, 8),
+    // ---- The Neo Ledges (added later still): neos. A neo is a slab right over your ledge,
+    // flush with its edge: you can't jump straight up, so you run off the edge, jump at
+    // once, and steer straight back in onto the slab. (Miss, and you just drop back.) A wall
+    // seals each stack of slabs on the other side, so there's no going round, and what comes
+    // next is only in reach from the top slab.
+    sky('The Neo Ledges', 'First Neo', 62, [{ x: 1, y: 9.4, t: 'NEO · run off the edge, jump at once, steer straight back in onto the slab' }], ({ r, s, isle }) => {
+      neoStack(r, 1, 6, 11, 13, 1); s(2, 12, 'P');
+      isle(14, 8, 4); s(15, 7, 'L');
+      neoStack(r, 20, 24, 29, 11, 1);
+      isle(32, 6, 4);
+      neoStack(r, 37, 41, 46, 10, 1);
+      isle(49, 5, 10); s(51, 4, 'b'); s(56, 4, 'D');
+    }, 9),
+    sky('The Neo Ledges', 'Neo Stairs', 44, [{ x: 1, y: 13.4, t: 'neo, neo, neo' }], ({ r, s, isle }) => {
+      neoStack(r, 1, 6, 11, 17, 3); s(2, 16, 'P');
+      isle(14, 6, 4); s(15, 5, 'L');
+      neoStack(r, 20, 24, 29, 15, 3);
+      isle(32, 5, 10); s(39, 4, 'D');
+    }, 9),
+    sky('The Neo Ledges', 'Neo Gauntlet', 98, [{ x: 1, y: 10.4, t: 'the last neos before the Sky Spire · the second ledge crumbles: neo fast' }], ({ r, s, isle }) => {
+      neoStack(r, 1, 6, 10, 14, 1); s(2, 13, 'P');
+      isle(13, 9, 3);
+      neoStack(r, 17, 21, 25, 13, 1, 'C');
+      isle(28, 8, 3); s(29, 7, 'L');
+      s(35, 9, ':');
+      neoStack(r, 41, 45, 50, 14, 2);
+      s(57, 6, 'x');
+      isle(63, 9, 3);
+      isle(68, 9, 6); s(70, 8, '^');
+      neoStack(r, 77, 81, 86, 12, 1);
+      isle(90, 8, 6); s(94, 7, 'D');
+    }, 9),
   ];
 })();
