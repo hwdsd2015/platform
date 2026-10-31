@@ -6,6 +6,7 @@
   const LF = window.LF;
   LF.UPDATES = [
     { date: '2026-10-14', title: 'Pear power-ups, practice mode and this log', items: [
+      'Daily challenges have no lanterns: the door is open from the start, and a death sends you right back to the beginning (with the clock still running).',
       'Daily challenges no longer have one life: die and you carry on from your last lantern, but the clock keeps running, so deaths cost you time.',
       'On a daily challenge with a clock to beat, the timer now counts down from exactly the seconds allowed (the hurry-up comes at 15 seconds left).',
       'Daily challenges are very, very hard now: always the hardest and biggest level the generator makes, dark and crowded with Shellbacks, one life (a death ends the try), and two goals at once on top of reaching the door (a tight clock, no kills, all three star coins, no shots: a different pair each day).',

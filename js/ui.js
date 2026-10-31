@@ -897,7 +897,9 @@
   function dailyDef(d = dayNum()) {
     if (dailyCache[d]) return dailyCache[d];
     const opts = { shape: ['right', 'up', 'mixed'][d % 3], size: 'l', difficulty: 5, seed: (d * 7919 + 17) % 1e6 };
-    let def = { ...LF.generate(opts), name: `Daily Challenge ${dayKey(d)}`, dark: .85, fixedClock: true };
+    const gen = LF.generate(opts);
+    // (No lanterns: the door's open from the start, and a death sends you back to the very start.)
+    let def = { ...gen, map: gen.map.map(row => row.replace(/L/g, '.')), name: `Daily Challenge ${dayKey(d)}`, dark: .85, fixedClock: true };
     if (LF.addCrowd) def = LF.addCrowd(def);
     return (dailyCache[d] = LF.addCoins ? LF.addCoins(def) : def);
   }
